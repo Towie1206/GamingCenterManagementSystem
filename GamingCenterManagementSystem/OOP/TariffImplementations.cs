@@ -22,11 +22,14 @@ namespace GamingCenterManagementSystem.OOP
 
         public override decimal CalculateCost(DateTime startTime, DateTime endTime, decimal basePricePerHour)
         {
-            if (endTime.Hour > 6 && endTime.Hour < 22)
+            DateTime morningLimit = new DateTime(endTime.Year, endTime.Month, endTime.Day, 6, 0, 0);
+            if (endTime > morningLimit && endTime.Hour < 22)
             {
-                DateTime morningLimit = new DateTime(endTime.Year, endTime.Month, endTime.Day, 6, 0, 0);
                 double extraHours = (endTime - morningLimit).TotalHours;
-                return NightComboFixedPrice + Math.Round((decimal)extraHours * basePricePerHour, 0);
+                if (extraHours > 0)
+                {
+                    return NightComboFixedPrice + Math.Round((decimal)extraHours * basePricePerHour, 0);
+                }
             }
             return NightComboFixedPrice;
         }

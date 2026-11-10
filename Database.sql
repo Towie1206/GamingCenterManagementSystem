@@ -157,4 +157,37 @@ BEGIN
     ('gamer02', '123456', N'Trần Thị B', 'Member', 120000, 'Silver'),
     ('gamer03', '123456', N'Lê Hoàng C', 'Member', 300000, 'Gold');
 END
+
+IF NOT EXISTS (SELECT * FROM TariffPlan)
+BEGIN
+    INSERT INTO TariffPlan (PlanName, TariffType, FixedPrice, DiscountRate, StartHour, EndHour) VALUES 
+    (N'Cước Theo Giờ Thường', 'Hourly', NULL, 0, NULL, NULL),
+    (N'Gói Combo Đêm Trọn Gói', 'NightCombo', 45000, 0, 22, 6),
+    (N'Gói Cước Ưu Đãi Giải Đấu LAN', 'Tournament', NULL, 0.5, NULL, NULL),
+    (N'Gói Ưu Đãi Hội Viên Vàng', 'MemberTier', NULL, 0.15, NULL, NULL);
+END
+
+IF NOT EXISTS (SELECT * FROM Tournament)
+BEGIN
+    INSERT INTO Tournament (Title, GameTitle, FormatType, PrizePool, Status, StartDate) VALUES 
+    (N'EAUT Valorant Championship 2026', 'Valorant', 'SingleElimination', 10000000, 'Ongoing', GETDATE()),
+    (N'Đông Á League of Legends LAN Cup', 'League of Legends', 'DoubleElimination', 15000000, 'Upcoming', DATEADD(day, 3, GETDATE()));
+END
+
+IF NOT EXISTS (SELECT * FROM TournamentMatch)
+BEGIN
+    INSERT INTO TournamentMatch (TournamentId, RoundNumber, Team1Name, Team2Name, WinnerTeamName, Score, AssignedStationIds, Status) VALUES 
+    (1, 1, 'Dragon Slayer', 'Cyber Hunters', 'Dragon Slayer', '2 - 1', 'PC-06,PC-07,PC-08,PC-09,PC-10', 'Finished'),
+    (1, 2, 'Dragon Slayer', 'Phoenix Gaming', NULL, '0 - 0', 'PC-06,PC-07,PC-08,PC-09,PC-10', 'Playing');
+END
+
+IF NOT EXISTS (SELECT * FROM GamingSession)
+BEGIN
+    INSERT INTO GamingSession (StationId, UserId, StartTime, EndTime, TariffType, PlayCost, ServiceCost, TotalCost, Status) VALUES 
+    (1, 2, DATEADD(hour, -4, GETDATE()), DATEADD(hour, -1, GETDATE()), 'Hourly', 24000, 15000, 39000, 'Completed'),
+    (4, 3, DATEADD(hour, -3, GETDATE()), DATEADD(hour, -1, GETDATE()), 'Hourly', 24000, 20000, 44000, 'Completed'),
+    (6, 4, DATEADD(hour, -8, GETDATE()), DATEADD(hour, -1, GETDATE()), 'NightCombo', 45000, 25000, 70000, 'Completed'),
+    (2, 2, DATEADD(minute, -45, GETDATE()), NULL, 'Hourly', 8000, 10000, 18000, 'Active');
+END
 GO
+
