@@ -426,3 +426,8 @@ FodyWeavers.xsd
 
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
+
+# AI internal collaboration rules
+[Gg][Ee][Mm][Ii][Nn][Ii].[Mm][Dd]
+gemini.md
+GEMINI.md
