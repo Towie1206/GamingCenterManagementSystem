@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
@@ -172,21 +175,74 @@ namespace GamingCenterManagementSystem
 
         private void BtnXuatBaoCao_Click(object? sender, EventArgs e)
         {
-            decimal total = _sessionList.Sum(s => s.TotalCost);
-            MessageBox.Show(
-                $"BÁO CÁO DOANH THU CYBER GAME\n" +
-                $"----------------------------------------\n" +
-                $"Từ ngày: {dtpTuNgay.Value:dd/MM/yyyy} - Đến ngày: {dtpDenNgay.Value:dd/MM/yyyy}\n" +
-                $"Tổng số phiên máy: {_sessionList.Count}\n" +
-                $"Tổng tiền giờ: {_sessionList.Sum(s => s.PlayCost):N0} VNĐ\n" +
-                $"Tổng tiền dịch vụ F&B: {_sessionList.Sum(s => s.ServiceCost):N0} VNĐ\n" +
-                $"TỔNG DOANH THU: {total:N0} VNĐ\n" +
-                $"----------------------------------------\n" +
-                $"Báo cáo đã sẵn sàng in / lưu tệp!",
-                "Xuất Báo Cáo Doanh Thu",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
+            if (_sessionList == null || _sessionList.Count == 0)
+            {
+                MessageBox.Show("Không có dữ liệu phiên máy để xuất báo cáo!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                FileName = $"BaoCaoDoanhThu_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+                Title = "Xuất Báo Cáo Doanh Thu (JSON)"
+            };
+
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    decimal total = _sessionList.Sum(s => s.TotalCost);
+                    var reportData = new
+                    {
+                        TieuDe = "BÁO CÁO DOANH THU CYBER GAME",
+                        NgayXuat = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
+                        TuNgay = dtpTuNgay.Value.ToString("dd/MM/yyyy"),
+                        DenNgay = dtpDenNgay.Value.ToString("dd/MM/yyyy"),
+                        TongSoPhien = _sessionList.Count,
+                        TongTienGio = _sessionList.Sum(s => s.PlayCost),
+                        TongTienDichVu = _sessionList.Sum(s => s.ServiceCost),
+                        TongDoanhThu = total,
+                        DanhSachPhien = _sessionList.Select(s => new
+                        {
+                            MaPhien = s.SessionId,
+                            MayTram = $"PC-{s.StationId:D2}",
+                            HoiVien = s.UserId.HasValue ? $"User #{s.UserId}" : "Khách vãng lai",
+                            GoiCuoc = s.TariffType,
+                            ThoiGianBatDau = s.StartTime.ToString("dd/MM/yyyy HH:mm"),
+                            ThoiGianKetThuc = s.EndTime?.ToString("dd/MM/yyyy HH:mm") ?? "Đang chơi",
+                            TienGio = s.PlayCost,
+                            TienDichVu = s.ServiceCost,
+                            TongTien = s.TotalCost,
+                            TrangThai = s.Status
+                        }).ToList()
+                    };
+
+                    var options = new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                    };
+
+                    string jsonString = JsonSerializer.Serialize(reportData, options);
+                    File.WriteAllText(sfd.FileName, jsonString);
+
+                    OnBillingNotification?.Invoke($"Đã xuất báo cáo doanh thu ra file JSON: {Path.GetFileName(sfd.FileName)}");
+
+                    MessageBox.Show(
+                        $"Xuất báo cáo JSON thành công!\n\n" +
+                        $"Tổng doanh thu: {total:N0} VNĐ ({_sessionList.Count} phiên)\n" +
+                        $"Đường dẫn tệp: {sfd.FileName}",
+                        "Xuất Báo Cáo Thành Công",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Lỗi khi ghi tệp JSON: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
 
         private void BtnTinhThuTien_Click(object? sender, EventArgs e)
