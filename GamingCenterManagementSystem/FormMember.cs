@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
@@ -13,26 +15,58 @@ namespace GamingCenterManagementSystem
         private List<AppUser> _userList = new();
         private AppUser? _selectedUser = null;
 
-        // Delegate / Action for top-up notification
+        // Delegate / Action notifications for parent Dashboard sync
         public Action<string, decimal>? OnBalanceTopUpSuccess;
+        public Action<string>? OnMemberChanged;
 
         public FormMember()
         {
             InitializeComponent();
+            InitDefaults();
             SetupEvents();
             LoadData();
         }
 
+        private void InitDefaults()
+        {
+            cboLocHangThe.SelectedIndex = 0;
+            cboHinhThucNap.SelectedIndex = 0;
+            cboRole.SelectedItem = "Member";
+            cboMemberTier.SelectedItem = "Standard";
+        }
+
         private void SetupEvents()
         {
-            Load += (s, e) => LoadData();
-            btnThemHoiVien.Click += BtnThemHoiVien_Click;
-            btnSuaHoiVien.Click += BtnSuaHoiVien_Click;
-            btnXoaHoiVien.Click += BtnXoaHoiVien_Click;
-            btnLamMoi.Click += (s, e) => { txtTimKiem.Clear(); LoadData(); };
+            Load += async (s, e) => await LoadDataAsync();
+            btnThemHoiVien.Click += async (s, e) => await BtnThemHoiVien_ClickAsync();
+            btnSuaHoiVien.Click += async (s, e) => await BtnSuaHoiVien_ClickAsync();
+            btnXoaHoiVien.Click += async (s, e) => await BtnXoaHoiVien_ClickAsync();
+            btnLamMoi.Click += async (s, e) =>
+            {
+                txtTimKiem.Clear();
+                cboLocHangThe.SelectedIndex = 0;
+                await LoadDataAsync();
+                ResetEditorToCreateMode();
+            };
+
+            // Logic 2 (Nam): Instant LINQ search on cached _userList + tier filter
+            txtTimKiem.TextChanged += (s, e) => SearchUsers();
+            cboLocHangThe.SelectedIndexChanged += (s, e) => SearchUsers();
             btnTimKiem.Click += (s, e) => SearchUsers();
-            btnDatLaiTimKiem.Click += (s, e) => { txtTimKiem.Clear(); LoadData(); };
-            txtTimKiem.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) SearchUsers(); };
+            btnDatLaiTimKiem.Click += async (s, e) =>
+            {
+                txtTimKiem.Clear();
+                cboLocHangThe.SelectedIndex = 0;
+                await LoadDataAsync();
+            };
+            txtTimKiem.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    SearchUsers();
+                }
+            };
 
             dgvHoiVien.SelectionChanged += DgvHoiVien_SelectionChanged;
 
@@ -42,9 +76,9 @@ namespace GamingCenterManagementSystem
             btnCong100k.Click += (s, e) => SetQuickAmount(100000);
             btnCong200k.Click += (s, e) => SetQuickAmount(200000);
 
-            btnNapTien.Click += BtnNapTien_Click;
+            btnNapTien.Click += async (s, e) => await BtnNapTien_ClickAsync();
+            btnDoiMatKhau.Click += async (s, e) => await BtnDoiMatKhau_ClickAsync();
 
-            // Delegate event
             OnBalanceTopUpSuccess += (username, amount) =>
             {
                 // Can be wired to logging or parent dashboard
@@ -69,8 +103,7 @@ namespace GamingCenterManagementSystem
             try
             {
                 _userList = _dbUser.GetAll();
-                BindGrid(_userList);
-                UpdateStatistics();
+                ApplyCurrentSearchAndStatistics();
             }
             catch (Exception ex)
             {
@@ -78,9 +111,28 @@ namespace GamingCenterManagementSystem
             }
         }
 
+        private async Task LoadDataAsync()
+        {
+            try
+            {
+                _userList = await _dbUser.GetAllAsync();
+                ApplyCurrentSearchAndStatistics();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tải danh sách hội viên: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ApplyCurrentSearchAndStatistics()
+        {
+            SearchUsers();
+            UpdateStatistics();
+        }
+
         private void BindGrid(List<AppUser> users)
         {
-            // LINQ Projection for DataGridView display (Applying LINQ to Objects)
+            // LINQ Projection for DataGridView display
             var displayData = users.Select(u => new
             {
                 MaHoiVien = u.UserId,
@@ -105,10 +157,11 @@ namespace GamingCenterManagementSystem
 
         private void UpdateStatistics()
         {
-            // Applying LINQ Count and Sum queries
             int total = _userList.Count;
             decimal totalBalance = _userList.Sum(u => u.Balance);
-            int vipCount = _userList.Count(u => u.MemberTier == "Silver" || u.MemberTier == "Gold");
+            int vipCount = _userList.Count(u =>
+                u.MemberTier.Equals("Silver", StringComparison.OrdinalIgnoreCase) ||
+                u.MemberTier.Equals("Gold", StringComparison.OrdinalIgnoreCase));
 
             lblTongHoiVien.Text = $"👥 Tổng hội viên: {total}";
             lblTongSoDuVi.Text = $"💰 Tổng quỹ ví: {totalBalance:N0} VNĐ";
@@ -118,76 +171,151 @@ namespace GamingCenterManagementSystem
         private void SearchUsers()
         {
             string keyword = txtTimKiem.Text.Trim();
-            if (string.IsNullOrEmpty(keyword))
-            {
-                BindGrid(_userList);
-                return;
-            }
-
-            // LINQ Where search
-            var filtered = _userList.Where(u =>
-                u.Username.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-                u.FullName.Contains(keyword, StringComparison.OrdinalIgnoreCase) ||
-                u.Role.Contains(keyword, StringComparison.OrdinalIgnoreCase)
-            ).ToList();
-
+            string? tierFilter = cboLocHangThe.SelectedItem?.ToString();
+            var filtered = DBUser.SearchUsers(_userList, keyword, tierFilter: tierFilter);
             BindGrid(filtered);
+        }
+
+        private void ResetEditorToCreateMode()
+        {
+            dgvHoiVien.ClearSelection();
+            _selectedUser = null;
+            txtUserId.Clear();
+            txtUsername.Clear();
+            txtPassword.Clear();
+            txtPassword.PlaceholderText = "Tối thiểu 6 ký tự";
+            txtFullName.Clear();
+            cboRole.SelectedItem = "Member";
+            cboMemberTier.SelectedItem = "Standard";
+            txtBalance.ReadOnly = false;
+            txtBalance.Text = DBUser.MinimumMemberInitialBalance.ToString("F0", CultureInfo.InvariantCulture);
+            lblDangChon.Text = "Tài khoản nhận: Chưa chọn tài khoản";
+            txtUsername.Focus();
         }
 
         private void DgvHoiVien_SelectionChanged(object? sender, EventArgs e)
         {
-            if (dgvHoiVien.CurrentRow != null && dgvHoiVien.CurrentRow.DataBoundItem != null)
+            if (dgvHoiVien.CurrentRow == null ||
+                dgvHoiVien.CurrentRow.DataBoundItem == null ||
+                !dgvHoiVien.Columns.Contains("MaHoiVien") ||
+                dgvHoiVien.CurrentRow.Cells["MaHoiVien"].Value == null)
             {
-                int userId = Convert.ToInt32(dgvHoiVien.CurrentRow.Cells["MaHoiVien"].Value);
-                _selectedUser = _userList.FirstOrDefault(u => u.UserId == userId);
-                if (_selectedUser != null)
-                {
-                    txtUserId.Text = _selectedUser.UserId.ToString();
-                    txtUsername.Text = _selectedUser.Username;
-                    txtPassword.Text = _selectedUser.PasswordHash;
-                    txtFullName.Text = _selectedUser.FullName;
-                    cboMemberTier.SelectedItem = _selectedUser.MemberTier;
-                    cboRole.SelectedItem = _selectedUser.Role;
-                    txtBalance.Text = $"{_selectedUser.Balance:N0} VNĐ";
-
-                    lblDangChon.Text = $"Tài khoản nhận: {_selectedUser.Username} ({_selectedUser.FullName})";
-                }
-            }
-        }
-
-        private void BtnThemHoiVien_Click(object? sender, EventArgs e)
-        {
-            if (string.IsNullOrWhiteSpace(txtUsername.Text) || string.IsNullOrWhiteSpace(txtFullName.Text))
-            {
-                MessageBox.Show("Vui lòng nhập tên đăng nhập và họ tên hội viên!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _selectedUser = null;
                 return;
             }
 
-            // Check duplicate username with LINQ Any
-            if (_userList.Any(u => u.Username.Equals(txtUsername.Text.Trim(), StringComparison.OrdinalIgnoreCase)))
+            int userId = Convert.ToInt32(dgvHoiVien.CurrentRow.Cells["MaHoiVien"].Value);
+            _selectedUser = _userList.FirstOrDefault(u => u.UserId == userId);
+            if (_selectedUser != null)
             {
-                MessageBox.Show("Tên đăng nhập đã tồn tại trong hệ thống!", "Trùng dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtUserId.Text = _selectedUser.UserId.ToString();
+                txtUsername.Text = _selectedUser.Username;
+                txtPassword.Clear();
+                txtPassword.PlaceholderText = "Để trống (dùng khung Đổi Mật Khẩu)";
+                txtFullName.Text = _selectedUser.FullName;
+                cboMemberTier.SelectedItem = _selectedUser.MemberTier;
+                cboRole.SelectedItem = _selectedUser.Role;
+                txtBalance.ReadOnly = true;
+                txtBalance.Text = $"{_selectedUser.Balance:N0} VNĐ";
+
+                txtDoiMatKhauUser.Text = _selectedUser.Username;
+                lblDangChon.Text = $"Tài khoản nhận: {_selectedUser.Username} ({_selectedUser.FullName})";
+            }
+        }
+
+        private static bool TryParseBalanceText(string? rawText, out decimal balance)
+        {
+            balance = 0m;
+            if (string.IsNullOrWhiteSpace(rawText))
+                return false;
+
+            string cleaned = rawText
+                .Replace("VNĐ", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("VND", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("đ", "", StringComparison.OrdinalIgnoreCase)
+                .Trim();
+
+            if (System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^\d{1,3}(\.\d{3})+$"))
+                cleaned = cleaned.Replace(".", "");
+            else if (System.Text.RegularExpressions.Regex.IsMatch(cleaned, @"^\d{1,3}(,\d{3})+$"))
+                cleaned = cleaned.Replace(",", "");
+
+            if (decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out balance))
+                return true;
+
+            if (decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.CurrentCulture, out balance))
+                return true;
+
+            return decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.GetCultureInfo("vi-VN"), out balance);
+        }
+
+        private async Task BtnThemHoiVien_ClickAsync()
+        {
+            string role = cboRole.SelectedItem?.ToString() ?? "Member";
+            string requestedTier = cboMemberTier.SelectedItem?.ToString() ?? "Standard";
+
+            if (!TryParseBalanceText(txtBalance.Text, out decimal initialBalance))
+            {
+                MessageBox.Show(
+                    "Số dư ban đầu không hợp lệ! Vui lòng nhập số hợp lệ (hội viên tối thiểu 10.000 VNĐ).",
+                    "Kiểm tra dữ liệu",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                txtBalance.ReadOnly = false;
+                txtBalance.Focus();
                 return;
             }
 
             var newUser = new AppUser
             {
                 Username = txtUsername.Text.Trim(),
-                PasswordHash = string.IsNullOrWhiteSpace(txtPassword.Text) ? "123456" : txtPassword.Text.Trim(),
                 FullName = txtFullName.Text.Trim(),
-                Role = cboRole.SelectedItem?.ToString() ?? "Member",
-                MemberTier = cboMemberTier.SelectedItem?.ToString() ?? "Standard",
-                Balance = 0
+                Role = role,
+                MemberTier = requestedTier,
+                Balance = Math.Max(0m, initialBalance)
             };
 
-            if (_dbUser.Add(newUser))
+            if (initialBalance < 0)
             {
-                MessageBox.Show($"Tạo tài khoản hội viên {newUser.Username} thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadData();
+                MessageBox.Show("Số dư ban đầu không được âm.", "Kiểm tra dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtBalance.ReadOnly = false;
+                txtBalance.Focus();
+                return;
+            }
+
+            try
+            {
+                var (success, errorMessage) = await _dbUser.CreateMemberAsync(newUser, txtPassword.Text);
+                if (!success)
+                {
+                    MessageBox.Show(errorMessage, "Không thể tạo tài khoản", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    if (errorMessage.Contains("Số dư", StringComparison.OrdinalIgnoreCase))
+                    {
+                        txtBalance.ReadOnly = false;
+                        txtBalance.Text = DBUser.MinimumMemberInitialBalance.ToString("F0", CultureInfo.InvariantCulture);
+                        txtBalance.Focus();
+                        txtBalance.SelectAll();
+                    }
+                    return;
+                }
+
+                MessageBox.Show(
+                    $"Tạo tài khoản '{newUser.Username}' thành công!\nHạng thẻ: {newUser.MemberTier} | Số dư: {newUser.Balance:N0} VNĐ",
+                    "Thành công",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                OnMemberChanged?.Invoke($"Đã thêm tài khoản: {newUser.Username}");
+                await LoadDataAsync();
+                ResetEditorToCreateMode();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tạo tài khoản: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void BtnSuaHoiVien_Click(object? sender, EventArgs e)
+        private async Task BtnSuaHoiVien_ClickAsync()
         {
             if (string.IsNullOrEmpty(txtUserId.Text))
             {
@@ -205,14 +333,27 @@ namespace GamingCenterManagementSystem
                 MemberTier = cboMemberTier.SelectedItem?.ToString() ?? "Standard"
             };
 
-            if (_dbUser.Update(user))
+            try
             {
-                MessageBox.Show($"Cập nhật hội viên {user.Username} thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadData();
+                bool updated = await Task.Run(() => _dbUser.Update(user));
+                if (updated)
+                {
+                    MessageBox.Show($"Cập nhật hội viên {user.Username} thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnMemberChanged?.Invoke($"Đã cập nhật tài khoản: {user.Username}");
+                    await LoadDataAsync();
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi cập nhật hội viên: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void BtnXoaHoiVien_Click(object? sender, EventArgs e)
+        private async Task BtnXoaHoiVien_ClickAsync()
         {
             if (string.IsNullOrEmpty(txtUserId.Text))
             {
@@ -222,17 +363,30 @@ namespace GamingCenterManagementSystem
 
             int id = Convert.ToInt32(txtUserId.Text);
             var confirm = MessageBox.Show($"Bạn có chắc chắn muốn xóa hội viên {txtUsername.Text}?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (confirm == DialogResult.Yes)
+            if (confirm != DialogResult.Yes)
+                return;
+
+            try
             {
-                if (_dbUser.Delete(id))
+                bool deleted = await Task.Run(() => _dbUser.Delete(id));
+                if (deleted)
                 {
                     MessageBox.Show("Xóa tài khoản hội viên thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    LoadData();
+                    OnMemberChanged?.Invoke($"Đã xóa tài khoản ID: {id}");
+                    await LoadDataAsync();
                 }
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Không thể xóa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi xóa hội viên: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void BtnNapTien_Click(object? sender, EventArgs e)
+        private async Task BtnNapTien_ClickAsync()
         {
             if (_selectedUser == null)
             {
@@ -241,7 +395,7 @@ namespace GamingCenterManagementSystem
             }
 
             string cleanText = txtSoTienNap.Text.Replace(".", "").Replace(",", "").Trim();
-            if (!decimal.TryParse(cleanText, out decimal amount) || amount <= 0 || amount > 50000000)
+            if (!decimal.TryParse(cleanText, out decimal amount) || amount <= 0 || amount > DBUser.MaximumTopUpAmount)
             {
                 MessageBox.Show("Số tiền nạp không hợp lệ! Vui lòng nhập số tiền từ 1 VNĐ đến 50,000,000 VNĐ.", "Lỗi nhập tiền", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -256,14 +410,49 @@ namespace GamingCenterManagementSystem
                 MessageBoxIcon.Question
             );
 
-            if (confirm == DialogResult.Yes)
+            if (confirm != DialogResult.Yes)
+                return;
+
+            string targetUsername = _selectedUser.Username;
+            int targetUserId = _selectedUser.UserId;
+
+            if (await Task.Run(() => _dbUser.TopUpBalance(targetUserId, amount)))
             {
-                if (_dbUser.TopUpBalance(_selectedUser.UserId, amount))
+                MessageBox.Show($"Nạp thành công {amount:N0} VNĐ cho tài khoản {targetUsername}!", "Giao dịch thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                OnBalanceTopUpSuccess?.Invoke(targetUsername, amount);
+                OnMemberChanged?.Invoke($"Đã nạp {amount:N0} VNĐ cho {targetUsername}");
+                await LoadDataAsync();
+            }
+        }
+
+        private async Task BtnDoiMatKhau_ClickAsync()
+        {
+            string username = txtDoiMatKhauUser.Text.Trim();
+            string oldPassword = txtMatKhauCu.Text;
+            string newPassword = txtMatKhauMoi.Text;
+
+            try
+            {
+                var (success, errorMessage) = await _dbUser.ChangePasswordAsync(username, oldPassword, newPassword);
+                if (success)
                 {
-                    MessageBox.Show($"Nạp thành công {amount:N0} VNĐ cho tài khoản {_selectedUser.Username}!", "Giao dịch thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    OnBalanceTopUpSuccess?.Invoke(_selectedUser.Username, amount);
-                    LoadData();
+                    MessageBox.Show(
+                        $"Đổi mật khẩu cho tài khoản '{username}' thành công (đã mã hóa PBKDF2)!",
+                        "Thành công",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    txtMatKhauCu.Clear();
+                    txtMatKhauMoi.Clear();
+                    await LoadDataAsync();
                 }
+                else
+                {
+                    MessageBox.Show(errorMessage, "Đổi mật khẩu thất bại", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi đổi mật khẩu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

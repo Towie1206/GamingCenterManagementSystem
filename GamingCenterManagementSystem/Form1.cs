@@ -43,6 +43,7 @@ namespace GamingCenterManagementSystem
             {
                 FormMember form = new FormMember();
                 form.OnBalanceTopUpSuccess += (user, amt) => LoadDashboardData();
+                form.OnMemberChanged += msg => LoadDashboardData();
                 form.Show();
             };
 
