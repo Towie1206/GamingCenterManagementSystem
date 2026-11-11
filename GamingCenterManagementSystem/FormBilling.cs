@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Drawing;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text;
 using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
@@ -15,6 +17,8 @@ namespace GamingCenterManagementSystem
     {
         private readonly DBBilling _dbBilling = new();
         private List<GamingSession> _sessionList = new();
+        private List<GamingSession> _filteredRevenueSessions = new();
+        private readonly Label _lblTopRevenueStation = new();
         private List<TariffPlan> _planList = new();
 
         // Delegate / Action for billing events (Chapter 4 Delegate requirement)
@@ -33,7 +37,18 @@ namespace GamingCenterManagementSystem
             dtTuNgayInit();
             cboThuatToanDaHinh.SelectedIndex = 0;
             cboLocGoiCuoc.SelectedIndex = 0;
-            cboLocTrangThai.SelectedIndex = 0;
+            // Báo cáo doanh thu chỉ ghi nhận phiên đã thanh toán/hoàn thành.
+            cboLocTrangThai.SelectedItem = "Completed";
+            cboLocTrangThai.Enabled = false;
+
+            // Display the best earning station without changing the leader's Designer.
+            pnlStats.Height = 72;
+            _lblTopRevenueStation.Name = "lblTopRevenueStation";
+            _lblTopRevenueStation.AutoSize = true;
+            _lblTopRevenueStation.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            _lblTopRevenueStation.ForeColor = Color.FromArgb(135, 210, 255);
+            _lblTopRevenueStation.Location = new Point(20, 44);
+            pnlStats.Controls.Add(_lblTopRevenueStation);
             cboTariffType.SelectedIndex = 0;
         }
 
@@ -66,8 +81,7 @@ namespace GamingCenterManagementSystem
                 _sessionList = _dbBilling.GetAllSessions();
 
                 BindPlanGrid(_planList);
-                BindSessionGrid(_sessionList);
-                UpdateStatistics(_sessionList);
+                ApplyRevenueFilter(reloadFromDatabase: false);
             }
             catch (Exception ex)
             {
@@ -140,70 +154,106 @@ namespace GamingCenterManagementSystem
             lblTienGio.Text = $"⏱️ Tiền giờ chơi: {totalPlay:N0} VNĐ";
             lblTienDichVu.Text = $"🍔 Dịch vụ F&B: {totalService:N0} VNĐ";
             lblTongSoPhien.Text = $"🎮 Tổng phiên: {sessionCount}";
+
+            // Logic 2: station income ranking for the current filtered date range.
+            List<StationRevenueSummary> byStation = DBBilling.GroupRevenueByStation(sessions);
+            _lblTopRevenueStation.Text = byStation.Count == 0
+                ? "🏆 Máy doanh thu cao nhất: Chưa có phiên hoàn thành"
+                : $"🏆 Máy doanh thu cao nhất: PC-{byStation[0].StationId:D2} - {byStation[0].Revenue:N0} VNĐ ({byStation[0].SessionCount} phiên)";
+        }
+
+        // Khôi - Logic 1: refresh from SQL/fallback and LINQ-filter Completed sessions.
+        // Both the grid and all revenue labels use the same filtered list.
+        private bool ApplyRevenueFilter(bool reloadFromDatabase)
+        {
+            DateTime fromDate = dtpTuNgay.Value.Date;
+            DateTime toDate = dtpDenNgay.Value.Date;
+
+            if (fromDate > toDate)
+            {
+                MessageBox.Show("Từ ngày không được sau Đến ngày.",
+                    "Khoảng ngày không hợp lệ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return false;
+            }
+
+            try
+            {
+                if (reloadFromDatabase)
+                    _sessionList = _dbBilling.GetAllSessions();
+
+                string? tariff = cboLocGoiCuoc.SelectedItem?.ToString();
+                List<GamingSession> filtered = DBBilling.FilterCompletedRevenueSessions(
+                    _sessionList, fromDate, toDate, tariff);
+
+                _filteredRevenueSessions = filtered;
+                BindSessionGrid(filtered);
+                UpdateStatistics(filtered); // includes Sum(s => s.TotalCost) and station GroupBy
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi lọc doanh thu: {ex.Message}",
+                    "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
         }
 
         private void BtnLocBaoCao_Click(object? sender, EventArgs e)
         {
-            // Refresh latest data from database
-            _sessionList = _dbBilling.GetAllSessions();
-
-            DateTime fromDate = dtpTuNgay.Value.Date;
-            DateTime toDate = dtpDenNgay.Value.Date.AddDays(1).AddTicks(-1);
-            string goiCuoc = cboLocGoiCuoc.SelectedItem?.ToString() ?? "Tất cả";
-            string trangThai = cboLocTrangThai.SelectedItem?.ToString() ?? "Tất cả";
-
-            // LINQ query filtering (including sessions ending within the period or starting within)
-            var filtered = _sessionList.Where(s =>
-                (s.StartTime >= fromDate && s.StartTime <= toDate) ||
-                (s.EndTime.HasValue && s.EndTime.Value >= fromDate && s.EndTime.Value <= toDate)
-            );
-
-            if (goiCuoc != "Tất cả")
-            {
-                filtered = filtered.Where(s => s.TariffType.Equals(goiCuoc, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (trangThai != "Tất cả")
-            {
-                filtered = filtered.Where(s => s.Status.Equals(trangThai, StringComparison.OrdinalIgnoreCase));
-            }
-
-            var result = filtered.ToList();
-            BindSessionGrid(result);
-            UpdateStatistics(result);
+            ApplyRevenueFilter(reloadFromDatabase: true);
         }
 
+        // Xuất báo cáo doanh thu ca trực: Hỗ trợ linh hoạt cả định dạng JSON lẫn Text (TXT)
         private void BtnXuatBaoCao_Click(object? sender, EventArgs e)
         {
-            if (_sessionList == null || _sessionList.Count == 0)
+            if (!ApplyRevenueFilter(reloadFromDatabase: true))
+                return;
+
+            if (_filteredRevenueSessions == null || _filteredRevenueSessions.Count == 0)
             {
-                MessageBox.Show("Không có dữ liệu phiên máy để xuất báo cáo!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Không có dữ liệu phiên máy hoàn thành để xuất báo cáo!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             using var sfd = new SaveFileDialog
             {
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                Filter = "JSON Files (*.json)|*.json|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
                 FileName = $"BaoCaoDoanhThu_{DateTime.Now:yyyyMMdd_HHmmss}.json",
-                Title = "Xuất Báo Cáo Doanh Thu (JSON)"
+                DefaultExt = "json",
+                AddExtension = true,
+                OverwritePrompt = true,
+                Title = "Xuất Báo Cáo Doanh Thu (JSON / TXT)"
             };
 
-            if (sfd.ShowDialog() == DialogResult.OK)
+            if (sfd.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            try
             {
-                try
+                decimal total = _filteredRevenueSessions.Sum(s => s.TotalCost);
+                string ext = Path.GetExtension(sfd.FileName).ToLowerInvariant();
+
+                if (ext == ".txt")
                 {
-                    decimal total = _sessionList.Sum(s => s.TotalCost);
+                    string reportText = DBBilling.BuildRevenueShiftReport(
+                        _filteredRevenueSessions, dtpTuNgay.Value.Date, dtpDenNgay.Value.Date);
+                    File.WriteAllText(sfd.FileName, reportText, new UTF8Encoding(true));
+                }
+                else
+                {
+                    List<StationRevenueSummary> byStation = DBBilling.GroupRevenueByStation(_filteredRevenueSessions);
                     var reportData = new
                     {
-                        TieuDe = "BÁO CÁO DOANH THU CYBER GAME",
+                        TieuDe = "BÁO CÁO DOANH THU CA TRỰC - CYBER GAME",
                         NgayXuat = DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"),
                         TuNgay = dtpTuNgay.Value.ToString("dd/MM/yyyy"),
                         DenNgay = dtpDenNgay.Value.ToString("dd/MM/yyyy"),
-                        TongSoPhien = _sessionList.Count,
-                        TongTienGio = _sessionList.Sum(s => s.PlayCost),
-                        TongTienDichVu = _sessionList.Sum(s => s.ServiceCost),
+                        TongSoPhien = _filteredRevenueSessions.Count,
+                        TongTienGio = _filteredRevenueSessions.Sum(s => s.PlayCost),
+                        TongTienDichVu = _filteredRevenueSessions.Sum(s => s.ServiceCost),
                         TongDoanhThu = total,
-                        DanhSachPhien = _sessionList.Select(s => new
+                        MayDoanhThuCaoNhat = byStation.Count > 0 ? $"PC-{byStation[0].StationId:D2} ({byStation[0].Revenue:N0} VNĐ)" : "N/A",
+                        DanhSachPhien = _filteredRevenueSessions.Select(s => new
                         {
                             MaPhien = s.SessionId,
                             MayTram = $"PC-{s.StationId:D2}",
@@ -225,23 +275,17 @@ namespace GamingCenterManagementSystem
                     };
 
                     string jsonString = JsonSerializer.Serialize(reportData, options);
-                    File.WriteAllText(sfd.FileName, jsonString);
-
-                    OnBillingNotification?.Invoke($"Đã xuất báo cáo doanh thu ra file JSON: {Path.GetFileName(sfd.FileName)}");
-
-                    MessageBox.Show(
-                        $"Xuất báo cáo JSON thành công!\n\n" +
-                        $"Tổng doanh thu: {total:N0} VNĐ ({_sessionList.Count} phiên)\n" +
-                        $"Đường dẫn tệp: {sfd.FileName}",
-                        "Xuất Báo Cáo Thành Công",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information
-                    );
+                    File.WriteAllText(sfd.FileName, jsonString, new UTF8Encoding(true));
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Lỗi khi ghi tệp JSON: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+
+                OnBillingNotification?.Invoke($"Đã xuất báo cáo doanh thu: {Path.GetFileName(sfd.FileName)}");
+                MessageBox.Show(
+                    $"Xuất báo cáo thành công!\nTổng doanh thu: {total:N0} VNĐ ({_filteredRevenueSessions.Count} phiên)\nĐường dẫn: {sfd.FileName}",
+                    "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Không thể xuất báo cáo: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
