@@ -25,6 +25,7 @@ namespace GamingCenterManagementSystem.Models
 
         public string MemberTier { get; set; } = "Standard"; // Standard, Silver, Gold
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public bool IsActive { get; set; } = true;
 
         // Encapsulation helpers
         public bool HasSufficientBalance(decimal amount) => amount >= 0 && Balance >= amount;

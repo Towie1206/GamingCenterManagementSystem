@@ -9,8 +9,27 @@ using Xunit;
 
 namespace GamingCenterManagementSystem.Tests
 {
+    [Collection("GamingCenterSequential")]
     public class SystemTests
     {
+        private static AppUser CreateTemporaryUser(DBUser db, decimal initialBalance = 50000m, string tier = "Standard")
+        {
+            string uniqueUsername = $"ut_{Guid.NewGuid():N}"[..16];
+            var user = new AppUser
+            {
+                Username = uniqueUsername,
+                FullName = "Temp Test User",
+                Role = "Member",
+                Balance = initialBalance,
+                MemberTier = tier
+            };
+
+            bool ok = db.CreateMember(user, "testPass123", out string error);
+            Assert.True(ok, error);
+            Assert.True(user.UserId > 0);
+            return user;
+        }
+
         [Fact]
         public void TariffCalculator_HourlyTariff_CalculatesCorrectCost()
         {
@@ -70,16 +89,22 @@ namespace GamingCenterManagementSystem.Tests
         public void DBUser_TopUpBalance_IncreasesBalanceCorrectly()
         {
             var db = new DBUser();
-            var user = db.GetById(2); // gamer01
-            Assert.NotNull(user);
+            var tempUser = CreateTemporaryUser(db, initialBalance: 50000m);
 
-            decimal initialBalance = user.Balance;
-            bool success = db.TopUpBalance(user.UserId, 50000);
+            try
+            {
+                decimal initialBalance = tempUser.Balance;
+                bool success = db.TopUpBalance(tempUser.UserId, 50000m);
 
-            Assert.True(success);
-            var updated = db.GetById(user.UserId);
-            Assert.NotNull(updated);
-            Assert.Equal(initialBalance + 50000, updated.Balance);
+                Assert.True(success);
+                var updated = db.GetById(tempUser.UserId);
+                Assert.NotNull(updated);
+                Assert.Equal(initialBalance + 50000m, updated.Balance);
+            }
+            finally
+            {
+                db.Delete(tempUser.UserId);
+            }
         }
 
         [Fact]
@@ -155,13 +180,28 @@ namespace GamingCenterManagementSystem.Tests
         public void DBTournament_LockAndUnlockStations_Succeeds()
         {
             var db = new DBTournament();
+            var dbStation = new DBStation();
             int[] testStations = new int[] { 6, 7 };
+            string? status6 = dbStation.GetById(6)?.Status;
+            string? status7 = dbStation.GetById(7)?.Status;
 
-            bool lockResult = db.LockTournamentStations(testStations);
-            Assert.True(lockResult);
+            try
+            {
+                bool lockResult = db.LockTournamentStations(testStations);
+                Assert.True(lockResult);
+                Assert.Equal("TournamentLocked", dbStation.GetById(6)?.Status);
+                Assert.Equal("TournamentLocked", dbStation.GetById(7)?.Status);
 
-            bool unlockResult = db.UnlockTournamentStations(testStations);
-            Assert.True(unlockResult);
+                bool unlockResult = db.UnlockTournamentStations(testStations);
+                Assert.True(unlockResult);
+                Assert.Equal("Available", dbStation.GetById(6)?.Status);
+                Assert.Equal("Available", dbStation.GetById(7)?.Status);
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(status6)) dbStation.UpdateStatus(6, status6);
+                if (!string.IsNullOrEmpty(status7)) dbStation.UpdateStatus(7, status7);
+            }
         }
 
         [Fact]
@@ -198,13 +238,25 @@ namespace GamingCenterManagementSystem.Tests
                 Status = "Completed"
             };
 
-            bool added = db.AddSession(session);
-            Assert.True(added);
+            try
+            {
+                bool added = db.AddSession(session);
+                Assert.True(added);
+                Assert.True(session.SessionId > 0);
 
-            var sessions = db.GetAllSessions();
-            var addedSession = sessions.FirstOrDefault(s => s.StationId == 3 && s.PlayCost == 16000 && s.Status == "Completed");
-            Assert.NotNull(addedSession);
-            Assert.NotNull(addedSession.EndTime);
+                var sessions = db.GetAllSessions();
+                var addedSession = sessions.FirstOrDefault(s => s.SessionId == session.SessionId);
+                Assert.NotNull(addedSession);
+                Assert.NotNull(addedSession.EndTime);
+                Assert.Equal(31000m, addedSession.TotalCost);
+            }
+            finally
+            {
+                if (session.SessionId > 0)
+                {
+                    db.DeleteSession(session.SessionId);
+                }
+            }
         }
 
         [Fact]
@@ -222,58 +274,81 @@ namespace GamingCenterManagementSystem.Tests
                 Status = "Active"
             };
 
-            bool started = db.StartSession(session);
-            Assert.True(started);
+            try
+            {
+                bool started = db.StartSession(session);
+                Assert.True(started);
+                Assert.True(session.SessionId > 0);
 
-            var active = db.GetActiveSession(testStationId);
-            Assert.NotNull(active);
-            Assert.Equal("Active", active.Status);
-            Assert.Equal(3, active.UserId);
+                var active = db.GetActiveSession(testStationId);
+                Assert.NotNull(active);
+                Assert.Equal(session.SessionId, active.SessionId);
+                Assert.Equal("Active", active.Status);
+                Assert.Equal(3, active.UserId);
 
-            // Complete session
-            DateTime end = DateTime.Now;
-            bool completed = db.CompleteSession(active.SessionId, end, 12000, 10000, 22000);
-            Assert.True(completed);
+                // Complete session
+                DateTime end = DateTime.Now;
+                bool completed = db.CompleteSession(active.SessionId, end, 12000, 10000, 22000);
+                Assert.True(completed);
 
-            var checkActive = db.GetActiveSession(testStationId);
-            Assert.Null(checkActive);
+                var checkActive = db.GetActiveSession(testStationId);
+                Assert.Null(checkActive);
+            }
+            finally
+            {
+                if (session.SessionId > 0)
+                {
+                    db.DeleteSession(session.SessionId);
+                }
+            }
         }
 
         [Fact]
         public void DBUser_DeductBalance_ReducesBalanceAccurately()
         {
             var db = new DBUser();
-            var user = db.GetById(2); // gamer01
-            Assert.NotNull(user);
+            var tempUser = CreateTemporaryUser(db, initialBalance: 50000m);
 
-            // Top up first so we know there's enough balance
-            db.TopUpBalance(user.UserId, 50000);
-            var reloaded = db.GetById(user.UserId);
-            Assert.NotNull(reloaded);
-            decimal initialBalance = reloaded.Balance;
+            try
+            {
+                db.TopUpBalance(tempUser.UserId, 50000m);
+                var reloaded = db.GetById(tempUser.UserId);
+                Assert.NotNull(reloaded);
+                decimal initialBalance = reloaded.Balance;
 
-            bool deducted = db.DeductBalance(user.UserId, 20000);
-            Assert.True(deducted);
+                bool deducted = db.DeductBalance(tempUser.UserId, 20000m);
+                Assert.True(deducted);
 
-            var afterDeduct = db.GetById(user.UserId);
-            Assert.NotNull(afterDeduct);
-            Assert.Equal(initialBalance - 20000, afterDeduct.Balance);
+                var afterDeduct = db.GetById(tempUser.UserId);
+                Assert.NotNull(afterDeduct);
+                Assert.Equal(initialBalance - 20000m, afterDeduct.Balance);
+            }
+            finally
+            {
+                db.Delete(tempUser.UserId);
+            }
         }
 
         [Fact]
         public void DBUser_TopUpBalance_UpgradesMemberTierToGold()
         {
             var db = new DBUser();
-            var user = db.GetById(2);
-            Assert.NotNull(user);
+            var tempUser = CreateTemporaryUser(db, initialBalance: 10000m, tier: "Standard");
 
-            // Top up enough to exceed 500k
-            bool toppedUp = db.TopUpBalance(user.UserId, 600000);
-            Assert.True(toppedUp);
+            try
+            {
+                // Top up enough to exceed 500k
+                bool toppedUp = db.TopUpBalance(tempUser.UserId, 600000m);
+                Assert.True(toppedUp);
 
-            var upgradedUser = db.GetById(user.UserId);
-            Assert.NotNull(upgradedUser);
-            Assert.Equal("Gold", upgradedUser.MemberTier);
+                var upgradedUser = db.GetById(tempUser.UserId);
+                Assert.NotNull(upgradedUser);
+                Assert.Equal("Gold", upgradedUser.MemberTier);
+            }
+            finally
+            {
+                db.Delete(tempUser.UserId);
+            }
         }
 
         [Fact]
@@ -289,33 +364,53 @@ namespace GamingCenterManagementSystem.Tests
         [Fact]
         public void WindowsForms_AllFiveFormsInstantiateSuccessfullyOnSTAThread()
         {
-            // Windows Forms controls require STA Thread
-            Thread staThread = new Thread(() =>
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
             {
-                using var form1 = new Form1();
-                Assert.NotNull(form1);
-                Assert.Contains("Cyber Matrix", form1.Text);
+                try
+                {
+                    CurrentUserSession.Clear();
 
-                using var formStation = new FormStation();
-                Assert.NotNull(formStation);
-                Assert.Contains("Máy Trạm", formStation.Text);
+                    using var formLogin = new FormLogin();
+                    Assert.NotNull(formLogin);
+                    Assert.Contains("Cyber Matrix", formLogin.Text);
 
-                using var formMember = new FormMember();
-                Assert.NotNull(formMember);
-                Assert.Contains("Hội Viên", formMember.Text);
+                    using var form1 = new Form1();
+                    Assert.NotNull(form1);
+                    Assert.Contains("Cyber Matrix", form1.Text);
 
-                using var formTournament = new FormTournament();
-                Assert.NotNull(formTournament);
-                Assert.Contains("Giải Đấu", formTournament.Text);
+                    using var formStation = new FormStation();
+                    Assert.NotNull(formStation);
+                    Assert.Contains("Máy Trạm", formStation.Text);
 
-                using var formBilling = new FormBilling();
-                Assert.NotNull(formBilling);
-                Assert.Contains("Dịch Vụ", formBilling.Text);
+                    using var formMember = new FormMember();
+                    Assert.NotNull(formMember);
+                    Assert.Contains("Hội Viên", formMember.Text);
+
+                    using var formTournament = new FormTournament();
+                    Assert.NotNull(formTournament);
+                    Assert.Contains("Giải Đấu", formTournament.Text);
+
+                    using var formBilling = new FormBilling();
+                    Assert.NotNull(formBilling);
+                    Assert.Contains("Dịch Vụ", formBilling.Text);
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+                finally
+                {
+                    CurrentUserSession.Clear();
+                }
             });
 
             staThread.SetApartmentState(ApartmentState.STA);
             staThread.Start();
             staThread.Join();
+
+            Assert.Null(threadException);
         }
     }
 }

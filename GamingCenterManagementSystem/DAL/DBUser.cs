@@ -28,10 +28,11 @@ namespace GamingCenterManagementSystem.DAL
         // Mock fallback data in case database is offline
         private static readonly List<AppUser> _fallbackUsers = new()
         {
-            new AppUser { UserId = 1, Username = "admin", PasswordHash = HashPassword("123456"), FullName = "Quản Lý Cyber", Role = "Admin", Balance = 0, MemberTier = "Standard", CreatedAt = DateTime.Now.AddMonths(-3) },
-            new AppUser { UserId = 2, Username = "gamer01", PasswordHash = HashPassword("123456"), FullName = "Nguyễn Văn A", Role = "Member", Balance = 50000, MemberTier = "Standard", CreatedAt = DateTime.Now.AddDays(-20) },
-            new AppUser { UserId = 3, Username = "gamer02", PasswordHash = HashPassword("123456"), FullName = "Trần Thị B", Role = "Member", Balance = 120000, MemberTier = "Silver", CreatedAt = DateTime.Now.AddDays(-10) },
-            new AppUser { UserId = 4, Username = "gamer03", PasswordHash = HashPassword("123456"), FullName = "Lê Hoàng C", Role = "Member", Balance = 300000, MemberTier = "Gold", CreatedAt = DateTime.Now.AddDays(-5) }
+            new AppUser { UserId = 1, Username = "admin", PasswordHash = HashPassword("123456"), FullName = "Quản Lý Cyber", Role = "Admin", Balance = 0, MemberTier = "Standard", CreatedAt = DateTime.Now.AddMonths(-3), IsActive = true },
+            new AppUser { UserId = 2, Username = "gamer01", PasswordHash = HashPassword("123456"), FullName = "Nguyễn Văn A", Role = "Member", Balance = 50000, MemberTier = "Standard", CreatedAt = DateTime.Now.AddDays(-20), IsActive = true },
+            new AppUser { UserId = 3, Username = "gamer02", PasswordHash = HashPassword("123456"), FullName = "Trần Thị B", Role = "Member", Balance = 120000, MemberTier = "Silver", CreatedAt = DateTime.Now.AddDays(-10), IsActive = true },
+            new AppUser { UserId = 4, Username = "gamer03", PasswordHash = HashPassword("123456"), FullName = "Lê Hoàng C", Role = "Member", Balance = 300000, MemberTier = "Gold", CreatedAt = DateTime.Now.AddDays(-5), IsActive = true },
+            new AppUser { UserId = 5, Username = "staff01", PasswordHash = HashPassword("123456"), FullName = "Nhân Viên Quầy", Role = "Staff", Balance = 0, MemberTier = "Standard", CreatedAt = DateTime.Now.AddDays(-2), IsActive = true }
         };
 
         public DBUser() : this(Database.GetConnection)
@@ -160,9 +161,31 @@ namespace GamingCenterManagementSystem.DAL
                 Role = reader.IsDBNull(4) ? "Member" : reader.GetString(4),
                 Balance = reader.IsDBNull(5) ? 0m : reader.GetDecimal(5),
                 MemberTier = reader.IsDBNull(6) ? "Standard" : reader.GetString(6),
-                CreatedAt = reader.IsDBNull(7) ? DateTime.Now : reader.GetDateTime(7)
+                CreatedAt = reader.IsDBNull(7) ? DateTime.Now : reader.GetDateTime(7),
+                IsActive = reader.FieldCount > 8 && !reader.IsDBNull(8) ? reader.GetBoolean(8) : true
             };
         }
+
+        private static bool HasIsActiveColumn(SqlConnection conn, SqlTransaction? trans = null)
+        {
+            const string sql = "SELECT CASE WHEN COL_LENGTH('dbo.AppUser', 'IsActive') IS NOT NULL THEN 1 ELSE 0 END";
+            using var cmd = new SqlCommand(sql, conn, trans);
+            object? result = cmd.ExecuteScalar();
+            return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) == 1;
+        }
+
+        private static async Task<bool> HasIsActiveColumnAsync(SqlConnection conn, SqlTransaction? trans = null)
+        {
+            const string sql = "SELECT CASE WHEN COL_LENGTH('dbo.AppUser', 'IsActive') IS NOT NULL THEN 1 ELSE 0 END";
+            using var cmd = new SqlCommand(sql, conn, trans);
+            object? result = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+            return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) == 1;
+        }
+
+        private static string GetUserSelectColumns(bool includeIsActive) =>
+            includeIsActive
+                ? "UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive"
+                : "UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt";
 
         private static SqlParameter CreateDecimalParameter(string name, decimal value)
         {
@@ -217,9 +240,10 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"SELECT UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt
-                                     FROM AppUser
-                                     ORDER BY UserId";
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn));
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                ORDER BY UserId";
                 using var cmd = new SqlCommand(sql, conn);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
@@ -243,9 +267,10 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
                 opened = true;
-                const string sql = @"SELECT UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt
-                                     FROM AppUser
-                                     ORDER BY UserId";
+                string cols = GetUserSelectColumns(await HasIsActiveColumnAsync(conn).ConfigureAwait(false));
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                ORDER BY UserId";
                 using var cmd = new SqlCommand(sql, conn);
                 using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
                 while (await reader.ReadAsync().ConfigureAwait(false))
@@ -268,9 +293,10 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"SELECT UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt
-                                     FROM AppUser
-                                     WHERE UserId = @UserId";
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn));
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                WHERE UserId = @UserId";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
                 using var reader = cmd.ExecuteReader();
@@ -286,6 +312,165 @@ namespace GamingCenterManagementSystem.DAL
                 {
                     var found = _fallbackUsers.Find(u => u.UserId == id);
                     return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        public AppUser? GetByUsername(string username)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                return null;
+
+            string trimmedUsername = username.Trim();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn));
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                WHERE Username = @Username";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    return MapUser(reader);
+                }
+                return null;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase));
+                    return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        public async Task<AppUser?> GetByUsernameAsync(string username)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                return null;
+
+            string trimmedUsername = username.Trim();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                string cols = GetUserSelectColumns(await HasIsActiveColumnAsync(conn).ConfigureAwait(false));
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                WHERE Username = @Username";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                if (await reader.ReadAsync().ConfigureAwait(false))
+                {
+                    return MapUser(reader);
+                }
+                return null;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase));
+                    return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        // ==========================================
+        // AUTHENTICATION (LOGIN & SESSION)
+        // ==========================================
+
+        public bool TryAuthenticate(string? username, string? password, out AppUser? authenticatedUser, out string errorMessage)
+        {
+            authenticatedUser = null;
+            errorMessage = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            {
+                errorMessage = "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.";
+                return false;
+            }
+
+            AppUser? found = GetByUsername(username.Trim());
+            if (found == null || !VerifyPassword(password, found.PasswordHash))
+            {
+                errorMessage = "Tên đăng nhập hoặc mật khẩu không chính xác.";
+                return false;
+            }
+
+            if (!found.IsActive)
+            {
+                errorMessage = "Tài khoản này đã bị khóa. Vui lòng liên hệ Quản lý.";
+                return false;
+            }
+
+            found.PasswordHash = string.Empty;
+            authenticatedUser = found;
+            return true;
+        }
+
+        public async Task<(bool Success, AppUser? User, string ErrorMessage)> AuthenticateAsync(string? username, string? password)
+        {
+            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            {
+                return (false, null, "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.");
+            }
+
+            AppUser? found = await GetByUsernameAsync(username.Trim()).ConfigureAwait(false);
+            if (found == null || !VerifyPassword(password, found.PasswordHash))
+            {
+                return (false, null, "Tên đăng nhập hoặc mật khẩu không chính xác.");
+            }
+
+            if (!found.IsActive)
+            {
+                return (false, null, "Tài khoản này đã bị khóa. Vui lòng liên hệ Quản lý.");
+            }
+
+            found.PasswordHash = string.Empty;
+            return (true, found, string.Empty);
+        }
+
+        public AppUser? Authenticate(string? username, string? password) =>
+            TryAuthenticate(username, password, out AppUser? user, out _) ? user : null;
+
+        public bool SetUserActiveStatus(int userId, bool isActive)
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                if (!HasIsActiveColumn(conn))
+                    return false;
+
+                const string sql = "UPDATE AppUser SET IsActive = @IsActive WHERE UserId = @UserId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = isActive;
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                return cmd.ExecuteNonQuery() > 0;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => u.UserId == userId);
+                    if (found == null)
+                        return false;
+
+                    found.IsActive = isActive;
+                    return true;
                 }
             }
         }
@@ -1162,7 +1347,7 @@ namespace GamingCenterManagementSystem.DAL
         // WALLET TOP-UP & SAFE DEDUCTION
         // ==========================================
 
-        public bool TopUpBalance(int userId, decimal amount)
+        public bool TopUpBalance(int userId, decimal amount, string? paymentMethod = "Tiền mặt tại quầy")
         {
             if (amount <= 0 || amount > MaximumTopUpAmount || decimal.Round(amount, 2) != amount)
                 return false;
@@ -1173,18 +1358,54 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"UPDATE AppUser
-                                     SET Balance = Balance + @Amount,
-                                         MemberTier = CASE
-                                             WHEN (Balance + @Amount) >= 500000 THEN N'Gold'
-                                             WHEN (Balance + @Amount) >= 200000 AND MemberTier <> N'Gold' THEN N'Silver'
-                                             ELSE MemberTier
-                                         END
-                                     WHERE UserId = @UserId";
-                using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
-                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
-                return cmd.ExecuteNonQuery() > 0;
+                using var trans = conn.BeginTransaction();
+
+                decimal balanceBefore;
+                string currentTier;
+                const string selectSql = @"SELECT Balance, MemberTier
+                                           FROM dbo.AppUser WITH (UPDLOCK, HOLDLOCK)
+                                           WHERE UserId = @UserId";
+                using (var selectCmd = new SqlCommand(selectSql, conn, trans))
+                {
+                    selectCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    using var reader = selectCmd.ExecuteReader();
+                    if (!reader.Read())
+                        return false;
+
+                    balanceBefore = reader.IsDBNull(0) ? 0m : reader.GetDecimal(0);
+                    currentTier = reader.IsDBNull(1) ? "Standard" : reader.GetString(1);
+                }
+
+                decimal balanceAfter = balanceBefore + amount;
+                string nextTier = AppUser.ResolveUpgradedTier(currentTier, balanceAfter);
+
+                const string updateSql = @"UPDATE dbo.AppUser
+                                           SET Balance = @BalanceAfter, MemberTier = @MemberTier
+                                           WHERE UserId = @UserId";
+                using (var updateCmd = new SqlCommand(updateSql, conn, trans))
+                {
+                    updateCmd.Parameters.Add(CreateDecimalParameter("@BalanceAfter", balanceAfter));
+                    updateCmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = nextTier;
+                    updateCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    if (updateCmd.ExecuteNonQuery() <= 0)
+                        return false;
+                }
+
+                InsertWalletTransactionIfTableExists(
+                    conn,
+                    trans,
+                    userId,
+                    sessionId: null,
+                    transactionType: "TopUp",
+                    amount: amount,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
+                    paymentMethod: string.IsNullOrWhiteSpace(paymentMethod) ? "Tiền mặt tại quầy" : paymentMethod.Trim(),
+                    description: $"Nạp tiền vào ví (+{amount:N0} VNĐ)",
+                    createdByUserId: CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null);
+
+                trans.Commit();
+                return true;
             }
             catch when (!opened)
             {
@@ -1192,7 +1413,7 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
-        public async Task<bool> TopUpBalanceAsync(int userId, decimal amount)
+        public async Task<bool> TopUpBalanceAsync(int userId, decimal amount, string? paymentMethod = "Tiền mặt tại quầy")
         {
             if (amount <= 0 || amount > MaximumTopUpAmount || decimal.Round(amount, 2) != amount)
                 return false;
@@ -1203,18 +1424,54 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
                 opened = true;
-                const string sql = @"UPDATE AppUser
-                                     SET Balance = Balance + @Amount,
-                                         MemberTier = CASE
-                                             WHEN (Balance + @Amount) >= 500000 THEN N'Gold'
-                                             WHEN (Balance + @Amount) >= 200000 AND MemberTier <> N'Gold' THEN N'Silver'
-                                             ELSE MemberTier
-                                         END
-                                     WHERE UserId = @UserId";
-                using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
-                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
-                return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+                using var trans = conn.BeginTransaction();
+
+                decimal balanceBefore;
+                string currentTier;
+                const string selectSql = @"SELECT Balance, MemberTier
+                                           FROM dbo.AppUser WITH (UPDLOCK, HOLDLOCK)
+                                           WHERE UserId = @UserId";
+                using (var selectCmd = new SqlCommand(selectSql, conn, trans))
+                {
+                    selectCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    using var reader = await selectCmd.ExecuteReaderAsync().ConfigureAwait(false);
+                    if (!await reader.ReadAsync().ConfigureAwait(false))
+                        return false;
+
+                    balanceBefore = reader.IsDBNull(0) ? 0m : reader.GetDecimal(0);
+                    currentTier = reader.IsDBNull(1) ? "Standard" : reader.GetString(1);
+                }
+
+                decimal balanceAfter = balanceBefore + amount;
+                string nextTier = AppUser.ResolveUpgradedTier(currentTier, balanceAfter);
+
+                const string updateSql = @"UPDATE dbo.AppUser
+                                           SET Balance = @BalanceAfter, MemberTier = @MemberTier
+                                           WHERE UserId = @UserId";
+                using (var updateCmd = new SqlCommand(updateSql, conn, trans))
+                {
+                    updateCmd.Parameters.Add(CreateDecimalParameter("@BalanceAfter", balanceAfter));
+                    updateCmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = nextTier;
+                    updateCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    if (await updateCmd.ExecuteNonQueryAsync().ConfigureAwait(false) <= 0)
+                        return false;
+                }
+
+                await InsertWalletTransactionIfTableExistsAsync(
+                    conn,
+                    trans,
+                    userId,
+                    sessionId: null,
+                    transactionType: "TopUp",
+                    amount: amount,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
+                    paymentMethod: string.IsNullOrWhiteSpace(paymentMethod) ? "Tiền mặt tại quầy" : paymentMethod.Trim(),
+                    description: $"Nạp tiền vào ví (+{amount:N0} VNĐ)",
+                    createdByUserId: CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null).ConfigureAwait(false);
+
+                await trans.CommitAsync().ConfigureAwait(false);
+                return true;
             }
             catch when (!opened)
             {
@@ -1247,13 +1504,52 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"UPDATE AppUser
-                                     SET Balance = Balance - @Amount
-                                     WHERE UserId = @UserId AND Balance >= @Amount";
-                using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
-                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
-                return cmd.ExecuteNonQuery() > 0;
+                using var trans = conn.BeginTransaction();
+
+                decimal balanceBefore;
+                const string selectSql = @"SELECT Balance
+                                           FROM dbo.AppUser WITH (UPDLOCK, HOLDLOCK)
+                                           WHERE UserId = @UserId";
+                using (var selectCmd = new SqlCommand(selectSql, conn, trans))
+                {
+                    selectCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    using var reader = selectCmd.ExecuteReader();
+                    if (!reader.Read())
+                        return false;
+
+                    balanceBefore = reader.IsDBNull(0) ? 0m : reader.GetDecimal(0);
+                }
+
+                if (balanceBefore < amount)
+                    return false;
+
+                decimal balanceAfter = balanceBefore - amount;
+                const string updateSql = @"UPDATE dbo.AppUser
+                                           SET Balance = Balance - @Amount
+                                           WHERE UserId = @UserId AND Balance >= @Amount";
+                using (var updateCmd = new SqlCommand(updateSql, conn, trans))
+                {
+                    updateCmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
+                    updateCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    if (updateCmd.ExecuteNonQuery() <= 0)
+                        return false;
+                }
+
+                InsertWalletTransactionIfTableExists(
+                    conn,
+                    trans,
+                    userId,
+                    sessionId: null,
+                    transactionType: "Adjustment",
+                    amount: amount,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfter,
+                    paymentMethod: "Ví hội viên",
+                    description: $"Trừ số dư ví (-{amount:N0} VNĐ)",
+                    createdByUserId: CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null);
+
+                trans.Commit();
+                return true;
             }
             catch when (!opened)
             {
@@ -1267,6 +1563,82 @@ namespace GamingCenterManagementSystem.DAL
                     return true;
                 }
             }
+        }
+
+        private static void InsertWalletTransactionIfTableExists(
+            SqlConnection conn,
+            SqlTransaction trans,
+            int userId,
+            int? sessionId,
+            string transactionType,
+            decimal amount,
+            decimal balanceBefore,
+            decimal balanceAfter,
+            string? paymentMethod,
+            string? description,
+            int? createdByUserId)
+        {
+            const string sql = @"IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                                 BEGIN
+                                     DECLARE @SafeCreatedBy INT = CASE
+                                         WHEN @CreatedByUserId IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.AppUser WHERE UserId = @CreatedByUserId)
+                                         THEN @CreatedByUserId
+                                         ELSE NULL
+                                     END;
+                                     INSERT INTO dbo.WalletTransaction
+                                         (UserId, SessionId, TransactionType, Amount, BalanceBefore, BalanceAfter, PaymentMethod, Description, CreatedByUserId)
+                                     VALUES
+                                         (@UserId, @SessionId, @TransactionType, @Amount, @BalanceBefore, @BalanceAfter, @PaymentMethod, @Description, @SafeCreatedBy);
+                                 END";
+            using var cmd = new SqlCommand(sql, conn, trans);
+            cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+            cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = (object?)sessionId ?? DBNull.Value;
+            cmd.Parameters.Add("@TransactionType", SqlDbType.NVarChar, 30).Value = transactionType;
+            cmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
+            cmd.Parameters.Add(CreateDecimalParameter("@BalanceBefore", balanceBefore));
+            cmd.Parameters.Add(CreateDecimalParameter("@BalanceAfter", balanceAfter));
+            cmd.Parameters.Add("@PaymentMethod", SqlDbType.NVarChar, 50).Value = (object?)paymentMethod ?? DBNull.Value;
+            cmd.Parameters.Add("@Description", SqlDbType.NVarChar, 255).Value = (object?)description ?? DBNull.Value;
+            cmd.Parameters.Add("@CreatedByUserId", SqlDbType.Int).Value = (object?)createdByUserId ?? DBNull.Value;
+            cmd.ExecuteNonQuery();
+        }
+
+        private static async Task InsertWalletTransactionIfTableExistsAsync(
+            SqlConnection conn,
+            SqlTransaction trans,
+            int userId,
+            int? sessionId,
+            string transactionType,
+            decimal amount,
+            decimal balanceBefore,
+            decimal balanceAfter,
+            string? paymentMethod,
+            string? description,
+            int? createdByUserId)
+        {
+            const string sql = @"IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                                 BEGIN
+                                     DECLARE @SafeCreatedBy INT = CASE
+                                         WHEN @CreatedByUserId IS NOT NULL AND EXISTS (SELECT 1 FROM dbo.AppUser WHERE UserId = @CreatedByUserId)
+                                         THEN @CreatedByUserId
+                                         ELSE NULL
+                                     END;
+                                     INSERT INTO dbo.WalletTransaction
+                                         (UserId, SessionId, TransactionType, Amount, BalanceBefore, BalanceAfter, PaymentMethod, Description, CreatedByUserId)
+                                     VALUES
+                                         (@UserId, @SessionId, @TransactionType, @Amount, @BalanceBefore, @BalanceAfter, @PaymentMethod, @Description, @SafeCreatedBy);
+                                 END";
+            using var cmd = new SqlCommand(sql, conn, trans);
+            cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+            cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = (object?)sessionId ?? DBNull.Value;
+            cmd.Parameters.Add("@TransactionType", SqlDbType.NVarChar, 30).Value = transactionType;
+            cmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
+            cmd.Parameters.Add(CreateDecimalParameter("@BalanceBefore", balanceBefore));
+            cmd.Parameters.Add(CreateDecimalParameter("@BalanceAfter", balanceAfter));
+            cmd.Parameters.Add("@PaymentMethod", SqlDbType.NVarChar, 50).Value = (object?)paymentMethod ?? DBNull.Value;
+            cmd.Parameters.Add("@Description", SqlDbType.NVarChar, 255).Value = (object?)description ?? DBNull.Value;
+            cmd.Parameters.Add("@CreatedByUserId", SqlDbType.Int).Value = (object?)createdByUserId ?? DBNull.Value;
+            await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
 
         public void DeductBalanceOrThrow(int userId, decimal amount)
@@ -1304,7 +1676,8 @@ namespace GamingCenterManagementSystem.DAL
                 Role = source.Role,
                 Balance = source.Balance,
                 MemberTier = source.MemberTier,
-                CreatedAt = source.CreatedAt
+                CreatedAt = source.CreatedAt,
+                IsActive = source.IsActive
             };
         }
     }

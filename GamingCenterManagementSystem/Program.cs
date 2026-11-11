@@ -8,10 +8,28 @@ namespace GamingCenterManagementSystem
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1());
+
+            while (true)
+            {
+                using var loginForm = new FormLogin();
+                if (loginForm.ShowDialog() != DialogResult.OK || !CurrentUserSession.IsLoggedIn)
+                {
+                    CurrentUserSession.Clear();
+                    break;
+                }
+
+                using var mainForm = new Form1();
+                Application.Run(mainForm);
+
+                if (!mainForm.IsLogoutRequested)
+                {
+                    CurrentUserSession.Clear();
+                    break;
+                }
+
+                CurrentUserSession.Clear();
+            }
         }
     }
 }

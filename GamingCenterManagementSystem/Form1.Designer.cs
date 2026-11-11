@@ -18,6 +18,8 @@ namespace GamingCenterManagementSystem
         private void InitializeComponent()
         {
             pnlHeader = new Panel();
+            btnDangXuat = new Button();
+            lblCurrentUser = new Label();
             lblLeaderRole = new Label();
             lblMainTitle = new Label();
             pnlNav = new Panel();
@@ -27,6 +29,7 @@ namespace GamingCenterManagementSystem
             btnNavMember = new Button();
             btnNavStation = new Button();
             pnlLegend = new Panel();
+            lblRealtimeSummary = new Label();
             lblLegendTournament = new Label();
             lblLegendMaintenance = new Label();
             lblLegendInUse = new Label();
@@ -59,6 +62,8 @@ namespace GamingCenterManagementSystem
             // pnlHeader
             // 
             pnlHeader.BackColor = Color.FromArgb(18, 22, 38);
+            pnlHeader.Controls.Add(btnDangXuat);
+            pnlHeader.Controls.Add(lblCurrentUser);
             pnlHeader.Controls.Add(lblLeaderRole);
             pnlHeader.Controls.Add(lblMainTitle);
             pnlHeader.Dock = DockStyle.Top;
@@ -68,16 +73,44 @@ namespace GamingCenterManagementSystem
             pnlHeader.Size = new Size(1353, 93);
             pnlHeader.TabIndex = 0;
             // 
+            // btnDangXuat
+            // 
+            btnDangXuat.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnDangXuat.BackColor = Color.FromArgb(192, 57, 43);
+            btnDangXuat.FlatAppearance.BorderSize = 0;
+            btnDangXuat.FlatStyle = FlatStyle.Flat;
+            btnDangXuat.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnDangXuat.ForeColor = Color.White;
+            btnDangXuat.Location = new Point(1206, 24);
+            btnDangXuat.Name = "btnDangXuat";
+            btnDangXuat.Size = new Size(125, 44);
+            btnDangXuat.TabIndex = 3;
+            btnDangXuat.Text = "🚪 Đăng xuất";
+            btnDangXuat.UseVisualStyleBackColor = false;
+            // 
+            // lblCurrentUser
+            // 
+            lblCurrentUser.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            lblCurrentUser.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblCurrentUser.ForeColor = Color.FromArgb(220, 235, 255);
+            lblCurrentUser.Location = new Point(840, 14);
+            lblCurrentUser.Name = "lblCurrentUser";
+            lblCurrentUser.Size = new Size(354, 62);
+            lblCurrentUser.TabIndex = 2;
+            lblCurrentUser.Text = "👤 Chưa đăng nhập";
+            lblCurrentUser.TextAlign = ContentAlignment.MiddleRight;
+            // 
             // lblLeaderRole
             // 
             lblLeaderRole.AutoSize = true;
             lblLeaderRole.Font = new Font("Segoe UI", 9.5F, FontStyle.Italic);
             lblLeaderRole.ForeColor = Color.FromArgb(0, 210, 255);
             lblLeaderRole.Location = new Point(25, 56);
+            lblLeaderRole.MaximumSize = new Size(710, 0);
             lblLeaderRole.Name = "lblLeaderRole";
-            lblLeaderRole.Size = new Size(733, 21);
+            lblLeaderRole.Size = new Size(650, 21);
             lblLeaderRole.TabIndex = 1;
-            lblLeaderRole.Text = "Trưởng nhóm / Kiến trúc sư: Nguyễn Công Bằng (Towie1206) - Bảng điều khiển kiểm soát toàn hệ thống";
+            lblLeaderRole.Text = "Trưởng nhóm: Nguyễn Công Bằng (Towie1206) - Bảng điều khiển kiểm soát toàn hệ thống";
             // 
             // lblMainTitle
             // 
@@ -179,6 +212,7 @@ namespace GamingCenterManagementSystem
             // pnlLegend
             // 
             pnlLegend.BackColor = Color.FromArgb(240, 243, 248);
+            pnlLegend.Controls.Add(lblRealtimeSummary);
             pnlLegend.Controls.Add(lblLegendTournament);
             pnlLegend.Controls.Add(lblLegendMaintenance);
             pnlLegend.Controls.Add(lblLegendInUse);
@@ -190,6 +224,18 @@ namespace GamingCenterManagementSystem
             pnlLegend.Name = "pnlLegend";
             pnlLegend.Size = new Size(1353, 47);
             pnlLegend.TabIndex = 2;
+            // 
+            // lblRealtimeSummary
+            // 
+            lblRealtimeSummary.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            lblRealtimeSummary.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblRealtimeSummary.ForeColor = Color.FromArgb(24, 30, 54);
+            lblRealtimeSummary.Location = new Point(985, 13);
+            lblRealtimeSummary.Name = "lblRealtimeSummary";
+            lblRealtimeSummary.Size = new Size(346, 22);
+            lblRealtimeSummary.TabIndex = 5;
+            lblRealtimeSummary.Text = "🟢 Trống: 0 | 🟠 Đang chơi: 0 | 🕒 --:--:--";
+            lblRealtimeSummary.TextAlign = ContentAlignment.MiddleRight;
             // 
             // lblLegendTournament
             // 
@@ -343,7 +389,7 @@ namespace GamingCenterManagementSystem
             cboGoiCuoc.DropDownStyle = ComboBoxStyle.DropDownList;
             cboGoiCuoc.Font = new Font("Segoe UI", 9F);
             cboGoiCuoc.FormattingEnabled = true;
-            cboGoiCuoc.Items.AddRange(new object[] { "Hourly (Giờ thường)", "NightCombo (Combo đêm 45k)", "Tournament (Giải LAN - Giảm 50%)" });
+            cboGoiCuoc.Items.AddRange(new object[] { "Hourly (Giờ thường)", "NightCombo (Combo đêm 45k)", "Tournament (Giải LAN - Giảm 50%)", "MemberTier (Ưu đãi hội viên)" });
             cboGoiCuoc.Location = new Point(131, 291);
             cboGoiCuoc.Margin = new Padding(3, 4, 3, 4);
             cboGoiCuoc.Name = "cboGoiCuoc";
@@ -481,6 +527,8 @@ namespace GamingCenterManagementSystem
         private Panel pnlHeader;
         private Label lblMainTitle;
         private Label lblLeaderRole;
+        private Label lblCurrentUser;
+        private Button btnDangXuat;
         private Panel pnlNav;
         private Button btnNavStation;
         private Button btnNavMember;
@@ -493,6 +541,7 @@ namespace GamingCenterManagementSystem
         private Label lblLegendInUse;
         private Label lblLegendMaintenance;
         private Label lblLegendTournament;
+        private Label lblRealtimeSummary;
         private Panel pnlRight;
         private GroupBox grpDieuKhienPhien;
         private Label lblMayDangChon;

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
+using GamingCenterManagementSystem.Exceptions;
 using GamingCenterManagementSystem.Models;
 using GamingCenterManagementSystem.OOP;
 
@@ -11,57 +12,108 @@ namespace GamingCenterManagementSystem
 {
     public partial class Form1 : Form
     {
-        private readonly DBStation _dbStation = new();
-        private readonly DBUser _dbUser = new();
-        private readonly DBBilling _dbBilling = new();
+        private readonly DBStation _dbStation;
+        private readonly DBUser _dbUser;
+        private readonly DBBilling _dbBilling;
 
         private List<ComputerStation> _stations = new();
         private List<StationZone> _zones = new();
         private List<AppUser> _users = new();
         private ComputerStation? _selectedStation = null;
         private readonly Dictionary<int, GamingSession> _activeSessions = new();
+        private readonly Dictionary<int, Button> _stationButtons = new();
+        private readonly System.Windows.Forms.Timer _realtimeTimer = new();
 
-        public Form1()
+        public bool IsLogoutRequested { get; private set; }
+
+        public Form1() : this(new DBStation(), new DBUser(), new DBBilling())
         {
+        }
+
+        public Form1(DBStation dbStation, DBUser dbUser, DBBilling dbBilling)
+        {
+            ArgumentNullException.ThrowIfNull(dbStation);
+            ArgumentNullException.ThrowIfNull(dbUser);
+            ArgumentNullException.ThrowIfNull(dbBilling);
+
+            _dbStation = dbStation;
+            _dbUser = dbUser;
+            _dbBilling = dbBilling;
+
             InitializeComponent();
             SetupNavigation();
             SetupStationControls();
+            SetupRealtimeTimer();
             LoadDashboardData();
+            ApplyRolePermissions();
         }
 
         private void SetupNavigation()
         {
-            // Navigation to 4 forms assigned to 4 members
             btnNavStation.Click += (s, e) =>
             {
+                if (!EnsureStaffOrAdminAccess("Quản lý máy trạm & khu vực"))
+                    return;
+
                 FormStation form = new FormStation();
                 form.OnStationNotification += msg => LoadDashboardData();
-                form.Show();
+                form.Show(this);
             };
 
             btnNavMember.Click += (s, e) =>
             {
+                if (!EnsureStaffOrAdminAccess("Quản lý hội viên & nạp ví"))
+                    return;
+
                 FormMember form = new FormMember();
                 form.OnBalanceTopUpSuccess += (user, amt) => LoadDashboardData();
                 form.OnMemberChanged += msg => LoadDashboardData();
-                form.Show();
+                form.Show(this);
             };
 
             btnNavTournament.Click += (s, e) =>
             {
+                if (!EnsureStaffOrAdminAccess("Quản lý giải đấu LAN"))
+                    return;
+
                 FormTournament form = new FormTournament();
                 form.OnTournamentEvent += msg => LoadDashboardData();
-                form.Show();
+                form.Show(this);
             };
 
             btnNavBilling.Click += (s, e) =>
             {
+                if (CurrentUserSession.IsLoggedIn && !CurrentUserSession.IsAdmin)
+                {
+                    MessageBox.Show(
+                        "Chỉ tài khoản Quản trị viên (Admin) mới được phép truy cập báo cáo doanh thu & cấu hình gói cước!",
+                        "Giới hạn phân quyền",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
                 FormBilling form = new FormBilling();
                 form.OnBillingNotification += msg => LoadDashboardData();
-                form.Show();
+                form.Show(this);
             };
 
             btnLamMoiSoDo.Click += (s, e) => LoadDashboardData();
+
+            btnDangXuat.Click += (s, e) =>
+            {
+                var confirm = MessageBox.Show(
+                    $"Bạn có chắc chắn muốn đăng xuất tài khoản '{CurrentUserSession.Username}'?",
+                    "Xác nhận đăng xuất",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (confirm == DialogResult.Yes)
+                {
+                    IsLogoutRequested = true;
+                    Close();
+                }
+            };
         }
 
         private void SetupStationControls()
@@ -72,6 +124,96 @@ namespace GamingCenterManagementSystem
             cboGoiCuoc.SelectedIndex = 0;
         }
 
+        private void SetupRealtimeTimer()
+        {
+            _realtimeTimer.Interval = 1000;
+            _realtimeTimer.Tick += (s, e) => UpdateRealtimeDisplay();
+            _realtimeTimer.Start();
+
+            FormClosed += (s, e) =>
+            {
+                _realtimeTimer.Stop();
+                _realtimeTimer.Dispose();
+            };
+        }
+
+        private bool EnsureStaffOrAdminAccess(string moduleName)
+        {
+            if (!CurrentUserSession.IsLoggedIn || CurrentUserSession.CanManageOperations)
+                return true;
+
+            MessageBox.Show(
+                $"Tài khoản hội viên ({CurrentUserSession.Username}) không có quyền truy cập chức năng '{moduleName}'.",
+                "Không đủ quyền truy cập",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return false;
+        }
+
+        public void ApplyRolePermissions()
+        {
+            if (!CurrentUserSession.IsLoggedIn)
+            {
+                lblCurrentUser.Text = "👤 Chế độ xem trước\n(Chưa đăng nhập)";
+                btnDangXuat.Visible = false;
+                btnNavStation.Enabled = true;
+                btnNavMember.Enabled = true;
+                btnNavTournament.Enabled = true;
+                btnNavBilling.Enabled = true;
+                btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
+                cboKhachHang.Enabled = true;
+                cboGoiCuoc.Enabled = true;
+                return;
+            }
+
+            btnDangXuat.Visible = true;
+
+            if (CurrentUserSession.IsAdmin)
+            {
+                lblCurrentUser.Text = $"👤 {CurrentUserSession.FullName} ({CurrentUserSession.Username})\nVai trò: Admin | Toàn quyền hệ thống";
+                lblCurrentUser.ForeColor = Color.FromArgb(120, 255, 180);
+                btnNavStation.Enabled = true;
+                btnNavMember.Enabled = true;
+                btnNavTournament.Enabled = true;
+                btnNavBilling.Enabled = true;
+                btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
+                cboKhachHang.Enabled = true;
+                cboGoiCuoc.Enabled = true;
+            }
+            else if (CurrentUserSession.IsStaff)
+            {
+                lblCurrentUser.Text = $"👤 {CurrentUserSession.FullName} ({CurrentUserSession.Username})\nVai trò: Staff | Vận hành quầy máy";
+                lblCurrentUser.ForeColor = Color.FromArgb(0, 210, 255);
+                btnNavStation.Enabled = true;
+                btnNavMember.Enabled = true;
+                btnNavTournament.Enabled = true;
+                btnNavBilling.Enabled = false;
+                btnNavBilling.Text = "🔒 Doanh Thu (Chỉ Admin)";
+                cboKhachHang.Enabled = true;
+                cboGoiCuoc.Enabled = true;
+            }
+            else
+            {
+                lblCurrentUser.Text = $"👤 {CurrentUserSession.FullName} ({CurrentUserSession.Username})\nHội viên {CurrentUserSession.MemberTier} | Ví: {CurrentUserSession.Balance:N0} VNĐ";
+                lblCurrentUser.ForeColor = Color.FromArgb(255, 215, 100);
+                btnNavStation.Enabled = false;
+                btnNavMember.Enabled = false;
+                btnNavTournament.Enabled = false;
+                btnNavBilling.Enabled = false;
+                btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
+                btnMoMay.Enabled = false;
+                btnDongMay.Enabled = false;
+                btnBaoTri.Enabled = false;
+                cboKhachHang.Enabled = false;
+                cboGoiCuoc.Enabled = false;
+            }
+
+            if (_selectedStation != null)
+            {
+                SelectStation(_selectedStation);
+            }
+        }
+
         public void LoadDashboardData()
         {
             try
@@ -79,6 +221,15 @@ namespace GamingCenterManagementSystem
                 _zones = _dbStation.GetAllZones();
                 _stations = _dbStation.GetAll();
                 _users = _dbUser.GetAll();
+
+                if (CurrentUserSession.IsLoggedIn)
+                {
+                    var latestCurrentUser = _users.FirstOrDefault(u => u.UserId == CurrentUserSession.UserId);
+                    if (latestCurrentUser != null)
+                    {
+                        CurrentUserSession.RefreshUser(latestCurrentUser);
+                    }
+                }
 
                 // Sync active sessions from database
                 _activeSessions.Clear();
@@ -95,9 +246,19 @@ namespace GamingCenterManagementSystem
                 {
                     cboKhachHang.Items.Add($"{user.Username} - {user.FullName} ({user.Balance:N0}đ)");
                 }
-                cboKhachHang.SelectedIndex = 0;
+
+                if (CurrentUserSession.IsMember)
+                {
+                    int memberIdx = _users.FindIndex(u => u.UserId == CurrentUserSession.UserId);
+                    cboKhachHang.SelectedIndex = memberIdx >= 0 ? memberIdx + 1 : 0;
+                }
+                else
+                {
+                    cboKhachHang.SelectedIndex = 0;
+                }
 
                 RenderStationGrid();
+                ApplyRolePermissions();
             }
             catch (Exception ex)
             {
@@ -110,6 +271,7 @@ namespace GamingCenterManagementSystem
         {
             flpDanhSachMay.SuspendLayout();
             flpDanhSachMay.Controls.Clear();
+            _stationButtons.Clear();
 
             foreach (var station in _stations)
             {
@@ -118,25 +280,24 @@ namespace GamingCenterManagementSystem
 
                 Button btn = new Button
                 {
-                    Width = 135,
-                    Height = 110,
+                    Width = 145,
+                    Height = 118,
                     Margin = new Padding(10),
                     Tag = station,
                     FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                     ForeColor = Color.Black,
                     TextAlign = ContentAlignment.MiddleCenter
                 };
 
                 btn.FlatAppearance.BorderSize = 2;
 
-                // Color coding according to project specification
                 switch (station.Status)
                 {
                     case "InUse":
                         btn.BackColor = Color.FromArgb(255, 178, 102); // Đang chơi - Cam nhạt
                         btn.FlatAppearance.BorderColor = Color.FromArgb(230, 81, 0);
-                        btn.Text = $"🖥️ {station.StationName}\n({zoneName})\n\n[ĐANG CHƠI]";
+                        btn.Text = BuildInUseButtonText(station, zoneName);
                         break;
                     case "Maintenance":
                         btn.BackColor = Color.FromArgb(255, 153, 153); // Bảo trì - Đỏ nhạt
@@ -157,6 +318,7 @@ namespace GamingCenterManagementSystem
                 }
 
                 btn.Click += StationButton_Click;
+                _stationButtons[station.StationId] = btn;
                 flpDanhSachMay.Controls.Add(btn);
             }
 
@@ -166,11 +328,100 @@ namespace GamingCenterManagementSystem
             if (_selectedStation != null)
             {
                 var refreshed = _stations.FirstOrDefault(s => s.StationId == _selectedStation.StationId);
-                if (refreshed != null) SelectStation(refreshed);
+                if (refreshed != null)
+                    SelectStation(refreshed);
+                else if (_stations.Count > 0)
+                    SelectStation(_stations[0]);
             }
             else if (_stations.Count > 0)
             {
                 SelectStation(_stations[0]);
+            }
+
+            UpdateRealtimeDisplay();
+        }
+
+        private string BuildInUseButtonText(ComputerStation station, string zoneName)
+        {
+            if (_activeSessions.TryGetValue(station.StationId, out var active))
+            {
+                TimeSpan elapsed = DateTime.Now - active.StartTime;
+                if (elapsed < TimeSpan.Zero)
+                    elapsed = TimeSpan.Zero;
+
+                string elapsedText = $"{(int)elapsed.TotalHours:D2}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
+                return $"🖥️ {station.StationName}\n({zoneName})\n⏱️ {elapsedText}\n[ĐANG CHƠI]";
+            }
+
+            return $"🖥️ {station.StationName}\n({zoneName})\n\n[ĐANG CHƠI]";
+        }
+
+        private string BuildActiveSessionRealtimeText(ComputerStation station, GamingSession active, decimal basePrice)
+        {
+            DateTime now = DateTime.Now;
+            TimeSpan elapsed = now - active.StartTime;
+            if (elapsed < TimeSpan.Zero)
+                elapsed = TimeSpan.Zero;
+
+            string cust = "Khách vãng lai";
+            string memberTier = "Standard";
+            if (CurrentUserSession.IsMember && active.UserId != CurrentUserSession.UserId)
+            {
+                cust = "Đang có khách sử dụng";
+            }
+            else if (active.UserId.HasValue)
+            {
+                var u = _users.FirstOrDefault(x => x.UserId == active.UserId.Value);
+                if (u != null)
+                {
+                    cust = $"{u.Username} ({u.MemberTier} | Ví: {u.Balance:N0}đ)";
+                    memberTier = u.MemberTier;
+                }
+            }
+
+            TariffCalculatorBase calculator = DBBilling.CreateTariffCalculator(active.TariffType, memberTier);
+            decimal estimatedPlay = calculator.CalculateCost(active.StartTime, now, basePrice);
+            decimal estimatedTotal = estimatedPlay + active.ServiceCost;
+
+            return $"🖥️ Phiên đang chạy | Bắt đầu: {active.StartTime:HH:mm:ss}\n" +
+                   $"⏱️ Thời lượng: {(int)elapsed.TotalHours:D2}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2} | Gói: {active.TariffType}\n" +
+                   $"👤 Khách: {cust}\n" +
+                   $"💵 Tạm tính: Giờ {estimatedPlay:N0}đ + DV {active.ServiceCost:N0}đ = {estimatedTotal:N0}đ";
+        }
+
+        private void UpdateRealtimeDisplay()
+        {
+            if (IsDisposed)
+                return;
+
+            int availableCount = _stations.Count(s => string.Equals(s.Status, "Available", StringComparison.OrdinalIgnoreCase));
+            int inUseCount = _stations.Count(s => string.Equals(s.Status, "InUse", StringComparison.OrdinalIgnoreCase));
+            lblRealtimeSummary.Text = $"🟢 Trống: {availableCount} | 🟠 Đang chơi: {inUseCount} | 🕒 {DateTime.Now:HH:mm:ss}";
+
+            foreach (var station in _stations)
+            {
+                if (!string.Equals(station.Status, "InUse", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (_stationButtons.TryGetValue(station.StationId, out Button? btn))
+                {
+                    var zone = _zones.FirstOrDefault(z => z.ZoneId == station.ZoneId);
+                    string zoneName = zone?.ZoneName ?? $"Khu {station.ZoneId}";
+                    string updatedText = BuildInUseButtonText(station, zoneName);
+                    if (btn.Text != updatedText)
+                    {
+                        btn.Text = updatedText;
+                    }
+                }
+            }
+
+            if (_selectedStation != null &&
+                string.Equals(_selectedStation.Status, "InUse", StringComparison.OrdinalIgnoreCase) &&
+                _activeSessions.TryGetValue(_selectedStation.StationId, out var selectedActive))
+            {
+                var zone = _zones.FirstOrDefault(z => z.ZoneId == _selectedStation.ZoneId);
+                decimal price = zone?.BasePricePerHour ?? 8000m;
+                lblKetQuaTinhTien.Text = BuildActiveSessionRealtimeText(_selectedStation, selectedActive, price);
             }
         }
 
@@ -186,40 +437,27 @@ namespace GamingCenterManagementSystem
         {
             _selectedStation = station;
             var zone = _zones.FirstOrDefault(z => z.ZoneId == station.ZoneId);
-            decimal price = zone?.BasePricePerHour ?? 8000;
+            decimal price = zone?.BasePricePerHour ?? 8000m;
+            bool canOperateStations = !CurrentUserSession.IsLoggedIn || CurrentUserSession.CanManageOperations;
 
             lblMayDangChon.Text = $"🖥️ Máy Trạm: {station.StationName}";
             lblTrangThaiMay.Text = $"Trạng thái: {station.Status}";
             lblKhuVucMay.Text = $"Khu vực: {zone?.ZoneName ?? "Mặc định"}";
             lblGiaGio.Text = $"Đơn giá: {price:N0} VNĐ/h";
 
-            // Visual indicator & Session state display
             switch (station.Status)
             {
                 case "InUse":
                     lblTrangThaiMay.ForeColor = Color.OrangeRed;
                     btnMoMay.Enabled = false;
-                    btnDongMay.Enabled = true;
+                    btnDongMay.Enabled = canOperateStations;
                     btnBaoTri.Enabled = false;
 
                     if (_activeSessions.TryGetValue(station.StationId, out var active))
                     {
-                        var elapsed = DateTime.Now - active.StartTime;
-                        string cust = "Khách vãng lai";
-                        if (active.UserId.HasValue)
-                        {
-                            var u = _users.FirstOrDefault(x => x.UserId == active.UserId.Value);
-                            if (u != null) cust = $"{u.Username} - {u.FullName} (Số dư ví: {u.Balance:N0}đ)";
-                        }
+                        lblKetQuaTinhTien.Text = BuildActiveSessionRealtimeText(station, active, price);
 
-                        lblKetQuaTinhTien.Text = $"🖥️ Phiên chơi đang diễn ra:\n" +
-                                                 $"Bắt đầu lúc: {active.StartTime:HH:mm:ss} (Đã chơi: {(int)elapsed.TotalHours}h {elapsed.Minutes}m)\n" +
-                                                 $"Gói cước: {active.TariffType} | Đơn giá: {price:N0}đ/h\n" +
-                                                 $"Khách hàng: {cust}\n" +
-                                                 $"Trạng thái: Đang tính cước thời gian thực.";
-
-                        // Select active user in combo if applicable
-                        if (active.UserId.HasValue)
+                        if (active.UserId.HasValue && canOperateStations)
                         {
                             int uIdx = _users.FindIndex(u => u.UserId == active.UserId.Value);
                             if (uIdx >= 0) cboKhachHang.SelectedIndex = uIdx + 1;
@@ -235,7 +473,7 @@ namespace GamingCenterManagementSystem
                     lblTrangThaiMay.ForeColor = Color.Crimson;
                     btnMoMay.Enabled = false;
                     btnDongMay.Enabled = false;
-                    btnBaoTri.Enabled = true;
+                    btnBaoTri.Enabled = canOperateStations;
                     btnBaoTri.Text = "🟢 MỞ LẠI SẴN SÀNG";
                     lblKetQuaTinhTien.Text = $"Máy {station.StationName} đang trong chế độ BẢO TRÌ kỹ thuật.";
                     break;
@@ -251,214 +489,233 @@ namespace GamingCenterManagementSystem
                 case "Available":
                 default:
                     lblTrangThaiMay.ForeColor = Color.Green;
-                    btnMoMay.Enabled = true;
+                    btnMoMay.Enabled = canOperateStations;
                     btnDongMay.Enabled = false;
-                    btnBaoTri.Enabled = true;
+                    btnBaoTri.Enabled = canOperateStations;
                     btnBaoTri.Text = "🛠️ CHUYỂN BẢO TRÌ";
-                    lblKetQuaTinhTien.Text = $"Máy {station.StationName} đang SẴN SÀNG đón khách. Chọn khách hàng & gói cước rồi bấm MỞ MÁY.";
+                    lblKetQuaTinhTien.Text = canOperateStations
+                        ? $"Máy {station.StationName} đang SẴN SÀNG đón khách. Chọn khách hàng & gói cước rồi bấm MỞ MÁY."
+                        : $"Máy {station.StationName} đang SẴN SÀNG. Vui lòng liên hệ nhân viên quầy để mở máy.";
                     break;
             }
         }
 
+        private string ResolveSelectedTariffType() => cboGoiCuoc.SelectedIndex switch
+        {
+            1 => "NightCombo",
+            2 => "Tournament",
+            3 => "MemberTier",
+            _ => "Hourly"
+        };
+
         private void BtnMoMay_Click(object? sender, EventArgs e)
         {
             if (_selectedStation == null) return;
+            if (!EnsureStaffOrAdminAccess("Mở máy cho khách")) return;
 
-            if (_selectedStation.Status != "Available")
-            {
-                MessageBox.Show("Máy hiện không ở trạng thái sẵn sàng để mở!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // Check member balance if member is selected
             int? userId = null;
             string customerName = "Khách vãng lai";
             if (cboKhachHang.SelectedIndex > 0 && _users.Count >= cboKhachHang.SelectedIndex)
             {
                 var member = _users[cboKhachHang.SelectedIndex - 1];
-                if (member.Balance <= 0)
-                {
-                    MessageBox.Show(
-                        $"Hội viên {member.FullName} ({member.Username}) có số dư ví là 0 VNĐ!\n" +
-                        $"Vui lòng nạp thêm tiền vào ví tại màn hình Quản lý hội viên trước khi mở máy.",
-                        "Số dư ví không đủ",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                    );
-                    return;
-                }
                 userId = member.UserId;
                 customerName = $"{member.Username} - {member.FullName}";
             }
 
             string plan = cboGoiCuoc.SelectedItem?.ToString() ?? "Hourly";
-            string tariffType = cboGoiCuoc.SelectedIndex switch
+            string tariffType = ResolveSelectedTariffType();
+
+            if (string.Equals(tariffType, "MemberTier", StringComparison.OrdinalIgnoreCase) && !userId.HasValue)
             {
-                1 => "NightCombo",
-                2 => "Tournament",
-                _ => "Hourly"
-            };
+                MessageBox.Show(
+                    "Gói cước Ưu đãi hội viên (MemberTier) chỉ áp dụng khi chọn tài khoản hội viên!",
+                    "Chọn tài khoản hội viên",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
 
-            var session = new GamingSession
+            var zone = _zones.FirstOrDefault(z => z.ZoneId == _selectedStation.ZoneId);
+            decimal basePrice = zone?.BasePricePerHour ?? 8000m;
+            decimal minimumRequired = Math.Round(basePrice * 0.1m, 0);
+
+            try
             {
-                StationId = _selectedStation.StationId,
-                UserId = userId,
-                StartTime = DateTime.Now,
-                TariffType = tariffType,
-                PlayCost = 0,
-                ServiceCost = 0,
-                TotalCost = 0,
-                Status = "Active"
-            };
+                var session = _dbBilling.OpenStationSession(
+                    _selectedStation.StationId,
+                    userId,
+                    tariffType,
+                    minimumRequiredBalance: minimumRequired);
 
-            _dbBilling.StartSession(session);
-            _activeSessions[_selectedStation.StationId] = session;
-            _selectedStation.Status = "InUse";
-            _dbStation.UpdateStatus(_selectedStation.StationId, "InUse");
+                _activeSessions[_selectedStation.StationId] = session;
+                _selectedStation.Status = "InUse";
 
-            lblKetQuaTinhTien.Text = $"Phiên chơi bắt đầu lúc: {session.StartTime:HH:mm:ss}\n" +
-                                     $"Máy: {_selectedStation.StationName} | Gói: {plan}\n" +
-                                     $"Khách hàng: {customerName}\n" +
-                                     $"Trạng thái: Đang tính giờ theo thời gian thực.";
+                lblKetQuaTinhTien.Text = $"Phiên chơi bắt đầu lúc: {session.StartTime:HH:mm:ss}\n" +
+                                         $"Máy: {_selectedStation.StationName} | Gói: {plan}\n" +
+                                         $"Khách hàng: {customerName}\n" +
+                                         $"Trạng thái: Đang tính giờ theo thời gian thực.";
 
-            MessageBox.Show($"Đã mở máy {_selectedStation.StationName} thành công cho khách ({customerName})!", "Mở máy thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            RenderStationGrid();
+                MessageBox.Show($"Đã mở máy {_selectedStation.StationName} thành công cho khách ({customerName})!", "Mở máy thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                LoadDashboardData();
+            }
+            catch (StationInUseException ex)
+            {
+                MessageBox.Show(ex.Message, "Máy đang được sử dụng", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LoadDashboardData();
+            }
+            catch (InsufficientBalanceException ex)
+            {
+                MessageBox.Show(
+                    $"{ex.Message}\nVui lòng nạp thêm tiền vào ví tại màn hình Quản lý hội viên trước khi mở máy.",
+                    "Số dư ví không đủ",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Không thể mở máy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LoadDashboardData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi mở máy: {ex.Message}", "Lỗi CSDL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void BtnDongMay_Click(object? sender, EventArgs e)
         {
             if (_selectedStation == null) return;
+            if (!EnsureStaffOrAdminAccess("Đóng máy & thanh toán")) return;
 
+            int? fallbackUserId = null;
+            if (cboKhachHang.SelectedIndex > 0 && _users.Count >= cboKhachHang.SelectedIndex)
+            {
+                fallbackUserId = _users[cboKhachHang.SelectedIndex - 1].UserId;
+            }
+
+            string fallbackTariffType = ResolveSelectedTariffType();
             DateTime endTime = DateTime.Now;
-            DateTime startTime;
-            int? userId = null;
-            string tariffType = "Hourly";
-            int sessionId = 0;
-
-            if (_activeSessions.TryGetValue(_selectedStation.StationId, out var active))
-            {
-                startTime = active.StartTime;
-                userId = active.UserId;
-                tariffType = active.TariffType;
-                sessionId = active.SessionId;
-            }
-            else
-            {
-                var dbActive = _dbBilling.GetActiveSession(_selectedStation.StationId);
-                if (dbActive != null)
-                {
-                    startTime = dbActive.StartTime;
-                    userId = dbActive.UserId;
-                    tariffType = dbActive.TariffType;
-                    sessionId = dbActive.SessionId;
-                }
-                else
-                {
-                    startTime = endTime.AddHours(-1.5);
-                    tariffType = cboGoiCuoc.SelectedIndex switch { 1 => "NightCombo", 2 => "Tournament", _ => "Hourly" };
-                    if (cboKhachHang.SelectedIndex > 0 && _users.Count >= cboKhachHang.SelectedIndex)
-                    {
-                        userId = _users[cboKhachHang.SelectedIndex - 1].UserId;
-                    }
-                }
-            }
+            DateTime fallbackStartTime = endTime.AddHours(-1.5);
 
             var zone = _zones.FirstOrDefault(z => z.ZoneId == _selectedStation.ZoneId);
-            decimal basePrice = zone?.BasePricePerHour ?? 8000;
+            decimal basePrice = zone?.BasePricePerHour ?? 8000m;
+            int? processedByUserId = CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null;
 
-            // POLYMORPHIC BILLING CALCULATION (Engine Đa hình Chapter 3.3 & 6.2):
-            TariffCalculatorBase calculator = tariffType switch
+            try
             {
-                "NightCombo" => new NightComboTariff(),
-                "Tournament" => new TournamentTariff(),
-                _ => new HourlyTariff()
-            };
-
-            // Polymorphic method invocation:
-            decimal playCost = calculator.CalculateCost(startTime, endTime, basePrice);
-            decimal serviceCost = 15000; // Simulated F&B drink/snack
-            decimal totalCost = playCost + serviceCost;
-
-            if (sessionId > 0)
-            {
-                _dbBilling.CompleteSession(sessionId, endTime, playCost, serviceCost, totalCost);
-            }
-            else
-            {
-                _dbBilling.AddSession(new GamingSession
+                SessionCloseResult result;
+                try
                 {
-                    StationId = _selectedStation.StationId,
-                    UserId = userId,
-                    StartTime = startTime,
-                    EndTime = endTime,
-                    TariffType = tariffType,
-                    PlayCost = playCost,
-                    ServiceCost = serviceCost,
-                    TotalCost = totalCost,
-                    Status = "Completed"
-                });
-            }
-
-            _activeSessions.Remove(_selectedStation.StationId);
-            _selectedStation.Status = "Available";
-            _dbStation.UpdateStatus(_selectedStation.StationId, "Available");
-
-            // Deduct from member balance if registered user
-            string paymentDetail = "";
-            if (userId.HasValue)
-            {
-                var member = _dbUser.GetById(userId.Value) ?? _users.FirstOrDefault(u => u.UserId == userId.Value);
-                if (member != null)
+                    result = _dbBilling.CloseStationSession(
+                        _selectedStation.StationId,
+                        basePrice,
+                        endTime,
+                        allowCashSupplement: false,
+                        fallbackUserId: fallbackUserId,
+                        fallbackTariffType: fallbackTariffType,
+                        fallbackStartTime: fallbackStartTime,
+                        processedByUserId: processedByUserId);
+                }
+                catch (InsufficientBalanceException ex)
                 {
-                    if (member.Balance >= totalCost && _dbUser.DeductBalance(member.UserId, totalCost))
+                    decimal shortfall = ex.RequiredAmount - ex.CurrentBalance;
+                    var confirmCash = MessageBox.Show(
+                        $"{ex.Message}\nSố tiền cần thu thêm bằng tiền mặt tại quầy: {shortfall:N0} VNĐ.\n\n" +
+                        "Chọn YES để trừ toàn bộ số dư ví còn lại và thu phần thiếu bằng tiền mặt.\n" +
+                        "Chọn NO để giữ nguyên phiên chơi (khách nạp thêm tiền vào ví trước).",
+                        "Số dư ví không đủ",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning);
+
+                    if (confirmCash != DialogResult.Yes)
+                        return;
+
+                    result = _dbBilling.CloseStationSession(
+                        _selectedStation.StationId,
+                        basePrice,
+                        endTime,
+                        allowCashSupplement: true,
+                        fallbackUserId: fallbackUserId,
+                        fallbackTariffType: fallbackTariffType,
+                        fallbackStartTime: fallbackStartTime,
+                        processedByUserId: processedByUserId);
+                }
+
+                string paymentDetail;
+                if (result.UserId.HasValue)
+                {
+                    string acctLabel = string.IsNullOrEmpty(result.Username) ? $"#{result.UserId.Value}" : result.Username;
+                    if (result.CashDue > 0m)
                     {
-                        paymentDetail = $"\nVí hội viên ({member.Username}): Đã trừ {totalCost:N0} VNĐ. Số dư ví còn lại: {(member.Balance - totalCost):N0} VNĐ.";
+                        paymentDetail = $"\nVí ({acctLabel}): Trừ {result.WalletDeducted:N0}đ. Thu thêm tiền mặt: {result.CashDue:N0} VNĐ!";
                     }
                     else
                     {
-                        var latest = _dbUser.GetById(member.UserId) ?? member;
-                        decimal walletUsed = latest.Balance;
-                        if (walletUsed > 0 && !_dbUser.DeductBalance(latest.UserId, walletUsed))
-                        {
-                            walletUsed = 0m;
-                        }
-                        decimal cashDue = totalCost - walletUsed;
-                        paymentDetail = $"\nVí hội viên ({latest.Username}): Đã trừ toàn bộ {walletUsed:N0} VNĐ trong ví. Cần thu thêm tiền mặt: {cashDue:N0} VNĐ!";
+                        paymentDetail = $"\nVí ({acctLabel}): Đã trừ {result.WalletDeducted:N0}đ. Còn lại: {result.RemainingBalance ?? 0m:N0} VNĐ.";
                     }
                 }
+                else
+                {
+                    paymentDetail = "\nHình thức thanh toán: Tiền mặt tại quầy lễ tân.";
+                }
+
+                string receiptText = $"=== HÓA ĐƠN THANH TOÁN (ĐA HÌNH) ===\n" +
+                                     $"Máy: {result.StationName} | Gói: {result.TariffDisplayName}\n" +
+                                     $"Thời gian: {result.StartTime:HH:mm} - {result.EndTime:HH:mm}\n" +
+                                     $"Tiền giờ: {result.PlayCost:N0}đ | F&B: {result.ServiceCost:N0}đ | TỔNG: {result.TotalCost:N0} VNĐ" +
+                                     paymentDetail;
+
+                _activeSessions.Remove(_selectedStation.StationId);
+                _selectedStation.Status = "Available";
+
+                lblKetQuaTinhTien.Text = receiptText;
+
+                MessageBox.Show(
+                    $"Kết thúc phiên máy {result.StationName}!\n" +
+                    $"Tổng tiền thanh toán: {result.TotalCost:N0} VNĐ.{paymentDetail}",
+                    "Thanh toán hoàn tất",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                LoadDashboardData();
+                lblKetQuaTinhTien.Text = receiptText;
             }
-            else
+            catch (InvalidOperationException ex)
             {
-                paymentDetail = "\nHình thức thanh toán: Tiền mặt tại quầy lễ tân.";
+                MessageBox.Show(ex.Message, "Không thể đóng máy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LoadDashboardData();
             }
-
-            lblKetQuaTinhTien.Text = $"=== HÓA ĐƠN THANH TOÁN (ĐA HÌNH) ===\n" +
-                                     $"Máy: {_selectedStation.StationName} | Gói: {calculator.TariffName}\n" +
-                                     $"Bắt đầu: {startTime:HH:mm} - Kết thúc: {endTime:HH:mm}\n" +
-                                     $"Tiền giờ chơi: {playCost:N0} VNĐ\n" +
-                                     $"Dịch vụ F&B: {serviceCost:N0} VNĐ\n" +
-                                     $"TỔNG CỘNG: {totalCost:N0} VNĐ" + paymentDetail;
-
-            MessageBox.Show(
-                $"Kết thúc phiên máy {_selectedStation.StationName}!\n" +
-                $"Tổng tiền thanh toán: {totalCost:N0} VNĐ.\n{paymentDetail}",
-                "Thanh toán hoàn tất",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information
-            );
-
-            LoadDashboardData();
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi chốt phiên & thanh toán: {ex.Message}", "Lỗi CSDL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void BtnBaoTri_Click(object? sender, EventArgs e)
         {
             if (_selectedStation == null) return;
+            if (!EnsureStaffOrAdminAccess("Chuyển trạng thái bảo trì")) return;
 
-            string targetStatus = (_selectedStation.Status == "Maintenance") ? "Available" : "Maintenance";
-            _selectedStation.Status = targetStatus;
-            _dbStation.UpdateStatus(_selectedStation.StationId, targetStatus);
-
-            LoadDashboardData();
+            try
+            {
+                string nextStatus = _dbBilling.ToggleStationMaintenance(_selectedStation.StationId);
+                _selectedStation.Status = nextStatus;
+                LoadDashboardData();
+            }
+            catch (StationInUseException ex)
+            {
+                MessageBox.Show(ex.Message, "Máy đang có khách", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LoadDashboardData();
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Không thể thực hiện", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                LoadDashboardData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi cập nhật trạng thái bảo trì: {ex.Message}", "Lỗi CSDL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }

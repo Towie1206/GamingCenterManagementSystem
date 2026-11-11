@@ -50,8 +50,16 @@ BEGIN
         Role NVARCHAR(20) NOT NULL DEFAULT 'Member', -- 'Admin', 'Staff', 'Member'
         Balance DECIMAL(18,2) NOT NULL DEFAULT 0 CHECK (Balance >= 0),
         MemberTier NVARCHAR(20) NOT NULL DEFAULT 'Standard', -- 'Standard', 'Silver', 'Gold'
-        CreatedAt DATETIME NOT NULL DEFAULT GETDATE()
+        CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+        IsActive BIT NOT NULL DEFAULT 1
     );
+END
+GO
+
+IF COL_LENGTH('dbo.AppUser', 'IsActive') IS NULL
+BEGIN
+    ALTER TABLE dbo.AppUser
+    ADD IsActive BIT NOT NULL CONSTRAINT DF_AppUser_IsActive DEFAULT 1;
 END
 GO
 
@@ -123,6 +131,60 @@ BEGIN
 END
 GO
 
+-- 8. Bảng Danh mục dịch vụ F&B & Phụ kiện (ServiceItem)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ServiceItem')
+BEGIN
+    CREATE TABLE ServiceItem (
+        ServiceId INT IDENTITY(1,1) PRIMARY KEY,
+        ServiceName NVARCHAR(100) NOT NULL UNIQUE,
+        Category NVARCHAR(50) NOT NULL DEFAULT N'Đồ uống',
+        UnitPrice DECIMAL(18,2) NOT NULL CHECK (UnitPrice >= 0),
+        StockQuantity INT NOT NULL DEFAULT 0 CHECK (StockQuantity >= 0),
+        IsActive BIT NOT NULL DEFAULT 1
+    );
+END
+GO
+
+-- 9. Bảng Chi tiết dịch vụ theo phiên chơi (SessionService)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'SessionService')
+BEGIN
+    CREATE TABLE SessionService (
+        SessionServiceId INT IDENTITY(1,1) PRIMARY KEY,
+        SessionId INT NOT NULL,
+        ServiceId INT NOT NULL,
+        Quantity INT NOT NULL CHECK (Quantity > 0),
+        UnitPrice DECIMAL(18,2) NOT NULL CHECK (UnitPrice >= 0),
+        TotalPrice DECIMAL(18,2) NOT NULL CHECK (TotalPrice >= 0),
+        OrderedAt DATETIME NOT NULL DEFAULT GETDATE(),
+        Note NVARCHAR(255) NULL,
+        CONSTRAINT FK_SessionService_Session FOREIGN KEY (SessionId) REFERENCES GamingSession(SessionId),
+        CONSTRAINT FK_SessionService_Item FOREIGN KEY (ServiceId) REFERENCES ServiceItem(ServiceId)
+    );
+END
+GO
+
+-- 10. Bảng Lịch sử giao dịch ví hội viên (WalletTransaction)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'WalletTransaction')
+BEGIN
+    CREATE TABLE WalletTransaction (
+        TransactionId INT IDENTITY(1,1) PRIMARY KEY,
+        UserId INT NOT NULL,
+        SessionId INT NULL,
+        TransactionType NVARCHAR(30) NOT NULL, -- 'TopUp', 'SessionPayment', 'Refund', 'Adjustment'
+        Amount DECIMAL(18,2) NOT NULL CHECK (Amount > 0),
+        BalanceBefore DECIMAL(18,2) NOT NULL CHECK (BalanceBefore >= 0),
+        BalanceAfter DECIMAL(18,2) NOT NULL CHECK (BalanceAfter >= 0),
+        PaymentMethod NVARCHAR(50) NULL,
+        Description NVARCHAR(255) NULL,
+        CreatedByUserId INT NULL,
+        CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_WalletTx_User FOREIGN KEY (UserId) REFERENCES AppUser(UserId) ON DELETE CASCADE,
+        CONSTRAINT FK_WalletTx_Session FOREIGN KEY (SessionId) REFERENCES GamingSession(SessionId),
+        CONSTRAINT FK_WalletTx_CreatedBy FOREIGN KEY (CreatedByUserId) REFERENCES AppUser(UserId)
+    );
+END
+GO
+
 -- =======================================================
 -- CHÈN DỮ LIỆU MẪU BAN ĐẦU ĐỂ TEST
 -- =======================================================
@@ -138,7 +200,7 @@ IF NOT EXISTS (SELECT * FROM ComputerStation)
 BEGIN
     INSERT INTO ComputerStation (StationName, ZoneId, IpAddress, Status) VALUES 
     ('PC-01', 1, '192.168.1.101', 'Available'),
-    ('PC-02', 1, '192.168.1.102', 'Available'),
+    ('PC-02', 1, '192.168.1.102', 'InUse'),
     ('PC-03', 1, '192.168.1.103', 'Available'),
     ('PC-04', 2, '192.168.1.104', 'Available'),
     ('PC-05', 2, '192.168.1.105', 'Available'),
@@ -151,11 +213,17 @@ END
 
 IF NOT EXISTS (SELECT * FROM AppUser)
 BEGIN
-    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier) VALUES 
-    ('admin', '123456', N'Quản Lý Cyber', 'Admin', 0, 'Standard'),
-    ('gamer01', '123456', N'Nguyễn Văn A', 'Member', 50000, 'Standard'),
-    ('gamer02', '123456', N'Trần Thị B', 'Member', 120000, 'Silver'),
-    ('gamer03', '123456', N'Lê Hoàng C', 'Member', 300000, 'Gold');
+    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, IsActive) VALUES 
+    ('admin', '123456', N'Quản Lý Cyber', 'Admin', 0, 'Standard', 1),
+    ('gamer01', '123456', N'Nguyễn Văn A', 'Member', 50000, 'Standard', 1),
+    ('gamer02', '123456', N'Trần Thị B', 'Member', 120000, 'Silver', 1),
+    ('gamer03', '123456', N'Lê Hoàng C', 'Member', 300000, 'Gold', 1);
+END
+
+IF NOT EXISTS (SELECT 1 FROM AppUser WHERE Username = 'staff01')
+BEGIN
+    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, IsActive)
+    VALUES ('staff01', '123456', N'Nhân Viên Quầy', 'Staff', 0, 'Standard', 1);
 END
 
 IF NOT EXISTS (SELECT * FROM TariffPlan)
@@ -188,6 +256,36 @@ BEGIN
     (4, 3, DATEADD(hour, -3, GETDATE()), DATEADD(hour, -1, GETDATE()), 'Hourly', 24000, 20000, 44000, 'Completed'),
     (6, 4, DATEADD(hour, -8, GETDATE()), DATEADD(hour, -1, GETDATE()), 'NightCombo', 45000, 25000, 70000, 'Completed'),
     (2, 2, DATEADD(minute, -45, GETDATE()), NULL, 'Hourly', 8000, 10000, 18000, 'Active');
+END
+
+IF NOT EXISTS (SELECT * FROM ServiceItem)
+BEGIN
+    INSERT INTO ServiceItem (ServiceName, Category, UnitPrice, StockQuantity, IsActive) VALUES
+    (N'Sting Dâu', N'Đồ uống', 15000, 50, 1),
+    (N'Red Bull', N'Đồ uống', 20000, 40, 1),
+    (N'Coca-Cola Lon', N'Đồ uống', 15000, 60, 1),
+    (N'Mì Tôm Trứng Xúc Xích', N'Đồ ăn', 25000, 30, 1),
+    (N'Cơm Gà Xối Mỡ', N'Đồ ăn', 45000, 20, 1),
+    (N'Bánh Mì Trứng Ốp La', N'Đồ ăn', 20000, 25, 1);
+END
+
+IF NOT EXISTS (SELECT * FROM SessionService)
+BEGIN
+    IF EXISTS (SELECT 1 FROM GamingSession WHERE SessionId = 1)
+       AND EXISTS (SELECT 1 FROM ServiceItem WHERE ServiceId = 1)
+    BEGIN
+        INSERT INTO SessionService (SessionId, ServiceId, Quantity, UnitPrice, TotalPrice, Note)
+        VALUES (1, 1, 1, 15000, 15000, N'Dịch vụ mẫu phiên 1');
+    END
+END
+
+IF NOT EXISTS (SELECT * FROM WalletTransaction)
+BEGIN
+    IF EXISTS (SELECT 1 FROM AppUser WHERE UserId = 2)
+    BEGIN
+        INSERT INTO WalletTransaction (UserId, SessionId, TransactionType, Amount, BalanceBefore, BalanceAfter, PaymentMethod, Description, CreatedByUserId)
+        VALUES (2, NULL, 'TopUp', 50000, 0, 50000, N'Tiền mặt tại quầy', N'Nạp khởi tạo tài khoản hội viên', 1);
+    END
 END
 GO
 

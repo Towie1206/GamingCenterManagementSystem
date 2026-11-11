@@ -518,7 +518,7 @@ namespace GamingCenterManagementSystem
 
             try
             {
-                if (await _dbUser.TopUpBalanceAsync(targetUserId, amount))
+                if (await _dbUser.TopUpBalanceAsync(targetUserId, amount, hinhThuc))
                 {
                     MessageBox.Show($"Nạp thành công {amount:N0} VNĐ cho tài khoản {targetUsername}!", "Giao dịch thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     OnBalanceTopUpSuccess?.Invoke(targetUsername, amount);
