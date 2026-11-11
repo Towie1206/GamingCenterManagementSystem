@@ -8,6 +8,8 @@ namespace GamingCenterManagementSystem.DAL
 {
     public class DBTournament : IRepository<Tournament>
     {
+        public const decimal MaximumPrizePool = 9999999999999999.99m;
+
         private static readonly List<Tournament> _fallbackTournaments = new()
         {
             new Tournament { TournamentId = 1, Title = "EAUT Valorant Championship 2026", GameTitle = "Valorant", FormatType = "SingleElimination", PrizePool = 10000000, Status = "Ongoing", StartDate = DateTime.Now.AddDays(-1) },
@@ -94,6 +96,10 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool Add(Tournament entity)
         {
+            ArgumentNullException.ThrowIfNull(entity);
+            ValidateTournament(entity.Title, entity.PrizePool, entity.StartDate);
+            ValidateText(entity.GameTitle, 100, "Tên trò chơi");
+
             try
             {
                 using (SqlConnection conn = Database.GetConnection())
@@ -103,18 +109,18 @@ namespace GamingCenterManagementSystem.DAL
                                    VALUES (@Title, @GameTitle, @FormatType, @PrizePool, @Status, @StartDate)";
                     using (SqlCommand cmd = new SqlCommand(sql, conn))
                     {
-                        cmd.Parameters.AddWithValue("@Title", entity.Title);
-                        cmd.Parameters.AddWithValue("@GameTitle", entity.GameTitle);
-                        cmd.Parameters.AddWithValue("@FormatType", entity.FormatType);
+                        cmd.Parameters.AddWithValue("@Title", entity.Title.Trim());
+                        cmd.Parameters.AddWithValue("@GameTitle", entity.GameTitle.Trim());
+                        cmd.Parameters.AddWithValue("@FormatType", (entity.FormatType ?? "SingleElimination").Trim());
                         cmd.Parameters.AddWithValue("@PrizePool", entity.PrizePool);
-                        cmd.Parameters.AddWithValue("@Status", entity.Status);
+                        cmd.Parameters.AddWithValue("@Status", (entity.Status ?? "Upcoming").Trim());
                         cmd.Parameters.AddWithValue("@StartDate", entity.StartDate);
 
                         return cmd.ExecuteNonQuery() > 0;
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not ArgumentException)
             {
                 entity.TournamentId = _fallbackTournaments.Count > 0 ? _fallbackTournaments[^1].TournamentId + 1 : 1;
                 _fallbackTournaments.Add(entity);
@@ -124,6 +130,21 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool Update(Tournament entity)
         {
+            ArgumentNullException.ThrowIfNull(entity);
+            if (entity.StartDate.Date < DateTime.Today && (entity.Status == "Ongoing" || entity.Status == "Finished"))
+            {
+                ValidateText(entity.Title, 150, "Tên giải đấu");
+                if (entity.PrizePool <= 0 || entity.PrizePool > MaximumPrizePool)
+                    throw new ArgumentException("Tổng giải thưởng phải lớn hơn 0 và không vượt quá 9.999.999.999.999.999,99.", nameof(entity.PrizePool));
+                if (decimal.Round(entity.PrizePool, 2) != entity.PrizePool)
+                    throw new ArgumentException("Tổng giải thưởng chỉ được có tối đa 2 chữ số thập phân.", nameof(entity.PrizePool));
+            }
+            else
+            {
+                ValidateTournament(entity.Title, entity.PrizePool, entity.StartDate);
+            }
+            ValidateText(entity.GameTitle, 100, "Tên trò chơi");
+
             try
             {
                 using (SqlConnection conn = Database.GetConnection())
@@ -135,11 +156,11 @@ namespace GamingCenterManagementSystem.DAL
                                    WHERE TournamentId = @TournamentId";
                     using (SqlCommand cmd = new SqlCommand(sql, conn))
                     {
-                        cmd.Parameters.AddWithValue("@Title", entity.Title);
-                        cmd.Parameters.AddWithValue("@GameTitle", entity.GameTitle);
-                        cmd.Parameters.AddWithValue("@FormatType", entity.FormatType);
+                        cmd.Parameters.AddWithValue("@Title", entity.Title.Trim());
+                        cmd.Parameters.AddWithValue("@GameTitle", entity.GameTitle.Trim());
+                        cmd.Parameters.AddWithValue("@FormatType", (entity.FormatType ?? "SingleElimination").Trim());
                         cmd.Parameters.AddWithValue("@PrizePool", entity.PrizePool);
-                        cmd.Parameters.AddWithValue("@Status", entity.Status);
+                        cmd.Parameters.AddWithValue("@Status", (entity.Status ?? "Upcoming").Trim());
                         cmd.Parameters.AddWithValue("@StartDate", entity.StartDate);
                         cmd.Parameters.AddWithValue("@TournamentId", entity.TournamentId);
 
@@ -147,16 +168,16 @@ namespace GamingCenterManagementSystem.DAL
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not ArgumentException)
             {
                 var idx = _fallbackTournaments.FindIndex(t => t.TournamentId == entity.TournamentId);
                 if (idx >= 0)
                 {
-                    _fallbackTournaments[idx].Title = entity.Title;
-                    _fallbackTournaments[idx].GameTitle = entity.GameTitle;
-                    _fallbackTournaments[idx].FormatType = entity.FormatType;
+                    _fallbackTournaments[idx].Title = entity.Title.Trim();
+                    _fallbackTournaments[idx].GameTitle = entity.GameTitle.Trim();
+                    _fallbackTournaments[idx].FormatType = (entity.FormatType ?? "SingleElimination").Trim();
                     _fallbackTournaments[idx].PrizePool = entity.PrizePool;
-                    _fallbackTournaments[idx].Status = entity.Status;
+                    _fallbackTournaments[idx].Status = (entity.Status ?? "Upcoming").Trim();
                     _fallbackTournaments[idx].StartDate = entity.StartDate;
                     return true;
                 }
@@ -228,6 +249,9 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool AddMatch(TournamentMatch match)
         {
+            ArgumentNullException.ThrowIfNull(match);
+            ValidateMatch(match.Team1Name, match.Team2Name, match.RoundNumber);
+
             try
             {
                 using (SqlConnection conn = Database.GetConnection())
@@ -239,8 +263,8 @@ namespace GamingCenterManagementSystem.DAL
                     {
                         cmd.Parameters.AddWithValue("@TournamentId", match.TournamentId);
                         cmd.Parameters.AddWithValue("@RoundNumber", match.RoundNumber);
-                        cmd.Parameters.AddWithValue("@Team1Name", match.Team1Name);
-                        cmd.Parameters.AddWithValue("@Team2Name", match.Team2Name);
+                        cmd.Parameters.AddWithValue("@Team1Name", match.Team1Name.Trim());
+                        cmd.Parameters.AddWithValue("@Team2Name", match.Team2Name.Trim());
                         cmd.Parameters.AddWithValue("@WinnerTeamName", (object?)match.WinnerTeamName ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@Score", (object?)match.Score ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@AssignedStationIds", (object?)match.AssignedStationIds ?? DBNull.Value);
@@ -250,7 +274,7 @@ namespace GamingCenterManagementSystem.DAL
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not ArgumentException)
             {
                 match.MatchId = _fallbackMatches.Count > 0 ? _fallbackMatches[^1].MatchId + 1 : 1;
                 _fallbackMatches.Add(match);
@@ -260,6 +284,17 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool UpdateMatch(TournamentMatch match)
         {
+            ArgumentNullException.ThrowIfNull(match);
+            ValidateMatch(match.Team1Name, match.Team2Name, match.RoundNumber);
+
+            if (match.Status == "Finished" || !string.IsNullOrWhiteSpace(match.WinnerTeamName))
+            {
+                if (!TryParseScore(match.Score, out int s1, out int s2))
+                    throw new ArgumentException("Tỉ số không hợp lệ. Vui lòng nhập theo định dạng 'Đội1 - Đội2' (ví dụ: 2-1).");
+                ValidateMatchScore(match.Team1Name, match.Team2Name, s1, s2, match.WinnerTeamName ?? "");
+                match.Score = FormatScore(s1, s2);
+            }
+
             try
             {
                 using (SqlConnection conn = Database.GetConnection())
@@ -272,8 +307,8 @@ namespace GamingCenterManagementSystem.DAL
                     using (SqlCommand cmd = new SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@RoundNumber", match.RoundNumber);
-                        cmd.Parameters.AddWithValue("@Team1Name", match.Team1Name);
-                        cmd.Parameters.AddWithValue("@Team2Name", match.Team2Name);
+                        cmd.Parameters.AddWithValue("@Team1Name", match.Team1Name.Trim());
+                        cmd.Parameters.AddWithValue("@Team2Name", match.Team2Name.Trim());
                         cmd.Parameters.AddWithValue("@WinnerTeamName", (object?)match.WinnerTeamName ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@Score", (object?)match.Score ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@AssignedStationIds", (object?)match.AssignedStationIds ?? DBNull.Value);
@@ -284,14 +319,14 @@ namespace GamingCenterManagementSystem.DAL
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not ArgumentException)
             {
                 var idx = _fallbackMatches.FindIndex(m => m.MatchId == match.MatchId);
                 if (idx >= 0)
                 {
                     _fallbackMatches[idx].RoundNumber = match.RoundNumber;
-                    _fallbackMatches[idx].Team1Name = match.Team1Name;
-                    _fallbackMatches[idx].Team2Name = match.Team2Name;
+                    _fallbackMatches[idx].Team1Name = match.Team1Name.Trim();
+                    _fallbackMatches[idx].Team2Name = match.Team2Name.Trim();
                     _fallbackMatches[idx].WinnerTeamName = match.WinnerTeamName;
                     _fallbackMatches[idx].Score = match.Score;
                     _fallbackMatches[idx].AssignedStationIds = match.AssignedStationIds;
@@ -348,6 +383,172 @@ namespace GamingCenterManagementSystem.DAL
                 DBStation.UpdateMultipleStatusesFallback(stationIds, "Available");
                 return true;
             }
+        }
+
+        /// <summary>Checks the required tournament fields before creating or updating a tournament.</summary>
+        public static void ValidateTournament(string title, decimal prizePool, DateTime startDate)
+        {
+            ValidateText(title, 150, "Tên giải đấu");
+            if (prizePool <= 0 || prizePool > MaximumPrizePool)
+                throw new ArgumentException("Tổng giải thưởng phải lớn hơn 0 và không vượt quá 9.999.999.999.999.999,99.", nameof(prizePool));
+            if (decimal.Round(prizePool, 2) != prizePool)
+                throw new ArgumentException("Tổng giải thưởng chỉ được có tối đa 2 chữ số thập phân.", nameof(prizePool));
+            if (startDate.Date < DateTime.Today)
+                throw new ArgumentException("Ngày bắt đầu phải từ ngày hiện tại trở đi.", nameof(startDate));
+        }
+
+        /// <summary>Rejects invalid scores, ties, and winners inconsistent with the participating teams or score.</summary>
+        public static void ValidateMatchScore(string team1Name, string team2Name,
+            int team1Score, int team2Score, string winnerTeamName)
+        {
+            ValidateText(team1Name, 100, "Tên đội 1");
+            ValidateText(team2Name, 100, "Tên đội 2");
+            ValidateText(winnerTeamName, 100, "Đội thắng");
+            if (string.Equals(team1Name.Trim(), team2Name.Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Hai đội thi đấu phải có tên khác nhau.");
+            if (team1Score < 0 || team2Score < 0)
+                throw new ArgumentException("Tỉ số không được âm.");
+            if (team1Score == team2Score)
+                throw new ArgumentException("Trận đấu phải có đội thắng; tỉ số không được hòa.");
+            if (FormatScore(team1Score, team2Score).Length > 20)
+                throw new ArgumentException("Tỉ số vượt quá độ dài lưu trữ cho phép (20 ký tự).");
+
+            string expectedWinner = team1Score > team2Score ? team1Name : team2Name;
+            if (!string.Equals(winnerTeamName.Trim(), expectedWinner.Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Đội thắng phải là đội tham gia trận đấu và có tỉ số cao hơn.", nameof(winnerTeamName));
+        }
+
+        /// <summary>Validates team names and round number for a match.</summary>
+        public static void ValidateMatch(string team1Name, string team2Name, int roundNumber)
+        {
+            ValidateText(team1Name, 100, "Tên đội 1");
+            ValidateText(team2Name, 100, "Tên đội 2");
+            if (string.Equals(team1Name.Trim(), team2Name.Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Hai đội thi đấu phải có tên khác nhau.");
+            if (roundNumber <= 0)
+                throw new ArgumentException("Vòng đấu phải lớn hơn 0.", nameof(roundNumber));
+        }
+
+        /// <summary>Validates that text is not null, whitespace, or exceeding maximum length.</summary>
+        public static void ValidateText(string value, int maximumLength, string fieldName)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                throw new ArgumentException($"{fieldName} không được để trống.");
+            if (value.Trim().Length > maximumLength)
+                throw new ArgumentException($"{fieldName} không được dài quá {maximumLength} ký tự.");
+        }
+
+        /// <summary>Formats match score as team1Score-team2Score.</summary>
+        public static string FormatScore(int team1Score, int team2Score) =>
+            $"{team1Score}-{team2Score}";
+
+        /// <summary>Tries to parse score text in formats like '2-1', '2 - 1', '2:1'.</summary>
+        public static bool TryParseScore(string? scoreText, out int score1, out int score2)
+        {
+            score1 = 0;
+            score2 = 0;
+            if (string.IsNullOrWhiteSpace(scoreText)) return false;
+
+            string[] parts = scoreText.Split(new[] { '-', ':', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 2 && int.TryParse(parts[0].Trim(), out score1) && int.TryParse(parts[1].Trim(), out score2))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Creates a tournament after validating the fields.</summary>
+        public int CreateTournament(string title, string gameTitle, decimal prizePool,
+            DateTime startDate, string formatType = "SingleElimination")
+        {
+            var t = new Tournament
+            {
+                Title = title,
+                GameTitle = gameTitle,
+                FormatType = formatType,
+                PrizePool = prizePool,
+                StartDate = startDate,
+                Status = "Upcoming"
+            };
+            Add(t);
+            return t.TournamentId;
+        }
+
+        /// <summary>Creates a match after validating the teams and round.</summary>
+        public int CreateMatch(int tournamentId, string team1Name, string team2Name, int roundNumber)
+        {
+            var m = new TournamentMatch
+            {
+                TournamentId = tournamentId,
+                RoundNumber = roundNumber,
+                Team1Name = team1Name,
+                Team2Name = team2Name,
+                Status = "Pending",
+                Score = "0 - 0"
+            };
+            AddMatch(m);
+            return m.MatchId;
+        }
+
+        /// <summary>Updates match score and sets status to Finished.</summary>
+        public void UpdateMatchScore(int matchId, int team1Score, int team2Score, string winnerTeamName)
+        {
+            TournamentMatch? existing = null;
+            try
+            {
+                using (SqlConnection conn = Database.GetConnection())
+                {
+                    conn.Open();
+                    string sql = "SELECT MatchId, TournamentId, RoundNumber, Team1Name, Team2Name, WinnerTeamName, Score, AssignedStationIds, Status FROM TournamentMatch WHERE MatchId = @MatchId";
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@MatchId", matchId);
+                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                existing = new TournamentMatch
+                                {
+                                    MatchId = Convert.ToInt32(reader["MatchId"]),
+                                    TournamentId = Convert.ToInt32(reader["TournamentId"]),
+                                    RoundNumber = Convert.ToInt32(reader["RoundNumber"]),
+                                    Team1Name = reader["Team1Name"].ToString() ?? "",
+                                    Team2Name = reader["Team2Name"].ToString() ?? "",
+                                    WinnerTeamName = reader["WinnerTeamName"]?.ToString(),
+                                    Score = reader["Score"]?.ToString(),
+                                    AssignedStationIds = reader["AssignedStationIds"]?.ToString(),
+                                    Status = reader["Status"].ToString() ?? "Pending"
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                existing = _fallbackMatches.Find(m => m.MatchId == matchId);
+            }
+
+            if (existing == null)
+                throw new InvalidOperationException("Không tìm thấy trận đấu đã chọn.");
+
+            ValidateMatchScore(existing.Team1Name, existing.Team2Name, team1Score, team2Score, winnerTeamName);
+            existing.Score = FormatScore(team1Score, team2Score);
+            string winner = team1Score > team2Score ? existing.Team1Name : existing.Team2Name;
+            existing.WinnerTeamName = winner;
+            existing.Status = "Finished";
+            UpdateMatch(existing);
+        }
+
+        /// <summary>Checks and reserves station IDs for tournament.</summary>
+        public void LockTournament(int tournamentId, int matchId, IReadOnlyCollection<int> stationIds)
+        {
+            ArgumentNullException.ThrowIfNull(stationIds);
+            int[] ids = stationIds.OrderBy(id => id).ToArray();
+            if (ids.Length != 5 || ids.Distinct().Count() != 5 || ids.Any(id => id <= 0))
+                throw new ArgumentException("Vui lòng chọn đúng 5 máy thi đấu khác nhau.", nameof(stationIds));
+
+            LockTournamentStations(ids);
         }
     }
 }

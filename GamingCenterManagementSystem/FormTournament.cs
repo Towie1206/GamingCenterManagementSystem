@@ -185,29 +185,41 @@ namespace GamingCenterManagementSystem
 
         private void BtnTaoGiai_Click(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtTenGiai.Text) || string.IsNullOrWhiteSpace(txtGameTitle.Text))
+            try
             {
-                MessageBox.Show("Vui lòng nhập tên giải đấu và tựa game!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                if (!decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool))
+                {
+                    MessageBox.Show("Tổng giải thưởng không hợp lệ. Vui lòng nhập số hợp lệ.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                DBTournament.ValidateTournament(txtTenGiai.Text, prizePool, dtpStartDate.Value);
+                DBTournament.ValidateText(txtGameTitle.Text, 100, "Tên trò chơi");
+
+                var newTourney = new Tournament
+                {
+                    Title = txtTenGiai.Text.Trim(),
+                    GameTitle = txtGameTitle.Text.Trim(),
+                    FormatType = cboFormatType.SelectedItem?.ToString() ?? "SingleElimination",
+                    PrizePool = prizePool,
+                    Status = cboTournamentStatus.SelectedItem?.ToString() ?? "Upcoming",
+                    StartDate = dtpStartDate.Value
+                };
+
+                if (_dbTournament.Add(newTourney))
+                {
+                    MessageBox.Show($"Tạo giải đấu '{newTourney.Title}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnTournamentEvent?.Invoke($"Đã tạo giải đấu mới: {newTourney.Title}");
+                    LoadTournaments();
+                }
             }
-
-            decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool);
-
-            var newTourney = new Tournament
+            catch (ArgumentException ex)
             {
-                Title = txtTenGiai.Text.Trim(),
-                GameTitle = txtGameTitle.Text.Trim(),
-                FormatType = cboFormatType.SelectedItem?.ToString() ?? "SingleElimination",
-                PrizePool = prizePool,
-                Status = cboTournamentStatus.SelectedItem?.ToString() ?? "Upcoming",
-                StartDate = dtpStartDate.Value
-            };
-
-            if (_dbTournament.Add(newTourney))
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
             {
-                MessageBox.Show($"Tạo giải đấu '{newTourney.Title}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                OnTournamentEvent?.Invoke($"Đã tạo giải đấu mới: {newTourney.Title}");
-                LoadTournaments();
+                MessageBox.Show($"Lỗi tạo giải đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -219,24 +231,52 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
-            int id = Convert.ToInt32(txtTournamentId.Text);
-            decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool);
-
-            var tourney = new Tournament
+            try
             {
-                TournamentId = id,
-                Title = txtTenGiai.Text.Trim(),
-                GameTitle = txtGameTitle.Text.Trim(),
-                FormatType = cboFormatType.SelectedItem?.ToString() ?? "SingleElimination",
-                PrizePool = prizePool,
-                Status = cboTournamentStatus.SelectedItem?.ToString() ?? "Upcoming",
-                StartDate = dtpStartDate.Value
-            };
+                int id = Convert.ToInt32(txtTournamentId.Text);
+                if (!decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool))
+                {
+                    MessageBox.Show("Tổng giải thưởng không hợp lệ. Vui lòng nhập số hợp lệ.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
 
-            if (_dbTournament.Update(tourney))
+                string status = cboTournamentStatus.SelectedItem?.ToString() ?? "Upcoming";
+                if (dtpStartDate.Value.Date < DateTime.Today && (status != "Ongoing" && status != "Finished"))
+                {
+                    throw new ArgumentException("Ngày bắt đầu phải từ ngày hiện tại trở đi.", nameof(dtpStartDate));
+                }
+
+                DBTournament.ValidateText(txtTenGiai.Text, 150, "Tên giải đấu");
+                if (prizePool <= 0 || prizePool > DBTournament.MaximumPrizePool)
+                    throw new ArgumentException("Tổng giải thưởng phải lớn hơn 0 và không vượt quá 9.999.999.999.999.999,99.", nameof(prizePool));
+                if (decimal.Round(prizePool, 2) != prizePool)
+                    throw new ArgumentException("Tổng giải thưởng chỉ được có tối đa 2 chữ số thập phân.", nameof(prizePool));
+                DBTournament.ValidateText(txtGameTitle.Text, 100, "Tên trò chơi");
+
+                var tourney = new Tournament
+                {
+                    TournamentId = id,
+                    Title = txtTenGiai.Text.Trim(),
+                    GameTitle = txtGameTitle.Text.Trim(),
+                    FormatType = cboFormatType.SelectedItem?.ToString() ?? "SingleElimination",
+                    PrizePool = prizePool,
+                    Status = status,
+                    StartDate = dtpStartDate.Value
+                };
+
+                if (_dbTournament.Update(tourney))
+                {
+                    MessageBox.Show($"Cập nhật thông tin giải '{tourney.Title}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadTournaments();
+                }
+            }
+            catch (ArgumentException ex)
             {
-                MessageBox.Show($"Cập nhật thông tin giải '{tourney.Title}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadTournaments();
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi cập nhật giải đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -264,34 +304,43 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(txtTeam1.Text) || string.IsNullOrWhiteSpace(txtTeam2.Text))
+            try
             {
-                MessageBox.Show("Vui lòng nhập tên hai đội thi đấu!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                if (!int.TryParse(txtRoundNumber.Text.Trim(), out int round) || round <= 0)
+                {
+                    throw new ArgumentException("Vòng đấu phải lớn hơn 0.", nameof(round));
+                }
+
+                DBTournament.ValidateMatch(txtTeam1.Text, txtTeam2.Text, round);
+
+                string assignedCluster = (cboChonDanMay.SelectedIndex == 1)
+                    ? "PC-01,PC-02,PC-03,PC-04,PC-05,PC-06,PC-07,PC-08,PC-09,PC-10"
+                    : "PC-06,PC-07,PC-08,PC-09,PC-10";
+
+                var newMatch = new TournamentMatch
+                {
+                    TournamentId = _selectedTournament.TournamentId,
+                    RoundNumber = round,
+                    Team1Name = txtTeam1.Text.Trim(),
+                    Team2Name = txtTeam2.Text.Trim(),
+                    Score = "0 - 0",
+                    AssignedStationIds = assignedCluster,
+                    Status = "Pending"
+                };
+
+                if (_dbTournament.AddMatch(newMatch))
+                {
+                    MessageBox.Show($"Xếp cặp đấu '{newMatch.Team1Name}' VS '{newMatch.Team2Name}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                }
             }
-
-            int.TryParse(txtRoundNumber.Text.Trim(), out int round);
-            if (round <= 0) round = 1;
-
-            string assignedCluster = (cboChonDanMay.SelectedIndex == 1)
-                ? "PC-01,PC-02,PC-03,PC-04,PC-05,PC-06,PC-07,PC-08,PC-09,PC-10"
-                : "PC-06,PC-07,PC-08,PC-09,PC-10";
-
-            var newMatch = new TournamentMatch
+            catch (ArgumentException ex)
             {
-                TournamentId = _selectedTournament.TournamentId,
-                RoundNumber = round,
-                Team1Name = txtTeam1.Text.Trim(),
-                Team2Name = txtTeam2.Text.Trim(),
-                Score = "0 - 0",
-                AssignedStationIds = assignedCluster,
-                Status = "Pending"
-            };
-
-            if (_dbTournament.AddMatch(newMatch))
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
             {
-                MessageBox.Show($"Xếp cặp đấu '{newMatch.Team1Name}' VS '{newMatch.Team2Name}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                MessageBox.Show($"Lỗi thêm trận đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -303,58 +352,121 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
-            _selectedMatch.Score = txtScore.Text.Trim();
-            string winner = cboWinnerTeam.SelectedItem?.ToString() ?? "";
-            _selectedMatch.WinnerTeamName = (winner == "-- Chưa có --") ? null : winner;
-            _selectedMatch.Status = cboMatchStatus.SelectedItem?.ToString() ?? "Pending";
-
-            if (_dbTournament.UpdateMatch(_selectedMatch))
+            try
             {
-                MessageBox.Show("Cập nhật kết quả trận đấu thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                string scoreText = txtScore.Text.Trim();
+                string winner = cboWinnerTeam.SelectedItem?.ToString() ?? "";
+                string winnerName = (winner == "-- Chưa có --") ? "" : winner;
+                string status = cboMatchStatus.SelectedItem?.ToString() ?? "Pending";
+
+                if (status == "Finished" || !string.IsNullOrEmpty(winnerName))
+                {
+                    if (!DBTournament.TryParseScore(scoreText, out int s1, out int s2))
+                    {
+                        throw new ArgumentException("Tỉ số không hợp lệ. Vui lòng nhập theo định dạng 'Đội1 - Đội2' (ví dụ: 2-1).");
+                    }
+
+                    DBTournament.ValidateMatchScore(_selectedMatch.Team1Name, _selectedMatch.Team2Name, s1, s2, winnerName);
+                    _selectedMatch.Score = DBTournament.FormatScore(s1, s2);
+                    _selectedMatch.WinnerTeamName = winnerName;
+                    _selectedMatch.Status = "Finished";
+                }
+                else
+                {
+                    if (DBTournament.TryParseScore(scoreText, out int s1, out int s2))
+                    {
+                        if (s1 < 0 || s2 < 0)
+                            throw new ArgumentException("Tỉ số không được âm.");
+                        if (DBTournament.FormatScore(s1, s2).Length > 20)
+                            throw new ArgumentException("Tỉ số vượt quá độ dài lưu trữ cho phép (20 ký tự).");
+                        _selectedMatch.Score = DBTournament.FormatScore(s1, s2);
+                    }
+                    else
+                    {
+                        _selectedMatch.Score = scoreText;
+                    }
+                    _selectedMatch.WinnerTeamName = null;
+                    _selectedMatch.Status = status;
+                }
+
+                if (_dbTournament.UpdateMatch(_selectedMatch))
+                {
+                    MessageBox.Show("Cập nhật kết quả trận đấu thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi cập nhật trận đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void BtnKhoaMayGiaiDau_Click(object? sender, EventArgs e)
         {
-            int selectedOption = cboChonDanMay.SelectedIndex;
-            int[] stationIds = (selectedOption == 1)
-                ? new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
-                : new int[] { 6, 7, 8, 9, 10 }; // Dàn đấu trường LAN
-
-            var currentStations = new DBStation().GetAll();
-            var busyStations = currentStations.Where(s => stationIds.Contains(s.StationId) && s.Status.Equals("InUse", StringComparison.OrdinalIgnoreCase)).ToList();
-            if (busyStations.Any())
+            try
             {
-                string busyNames = string.Join(", ", busyStations.Select(s => s.StationName));
-                var confirm = MessageBox.Show(
-                    $"CẢNH BÁO: Cụm máy thi đấu có máy ({busyNames}) hiện đang có khách sử dụng!\n" +
-                    $"Bạn có chắc chắn muốn buộc chuyển trạng thái sang khóa giải đấu không?",
-                    "Cảnh báo máy đang chơi",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning
-                );
-                if (confirm != DialogResult.Yes) return;
+                int selectedOption = cboChonDanMay.SelectedIndex;
+                int[] stationIds = (selectedOption == 1)
+                    ? new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+                    : new int[] { 6, 7, 8, 9, 10 }; // Dàn đấu trường LAN
+
+                var currentStations = new DBStation().GetAll();
+                var busyStations = currentStations.Where(s => stationIds.Contains(s.StationId) && s.Status.Equals("InUse", StringComparison.OrdinalIgnoreCase)).ToList();
+                if (busyStations.Any())
+                {
+                    string busyNames = string.Join(", ", busyStations.Select(s => s.StationName));
+                    var confirm = MessageBox.Show(
+                        $"CẢNH BÁO: Cụm máy thi đấu có máy ({busyNames}) hiện đang có khách sử dụng!\n" +
+                        $"Bạn có chắc chắn muốn buộc chuyển trạng thái sang khóa giải đấu không?",
+                        "Cảnh báo máy đang chơi",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning
+                    );
+                    if (confirm != DialogResult.Yes) return;
+                }
+
+                if (_dbTournament.LockTournamentStations(stationIds))
+                {
+                    MessageBox.Show($"Đã KHÓA thành công {stationIds.Length} máy sang trạng thái 'TournamentLocked' phục vụ giải đấu LAN!", "Khóa máy giải đấu", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnTournamentEvent?.Invoke($"Đã khóa dàn máy thi đấu: {string.Join(", ", stationIds.Select(id => $"PC-{id:D2}"))}");
+                }
             }
-
-            if (_dbTournament.LockTournamentStations(stationIds))
+            catch (ArgumentException ex)
             {
-                MessageBox.Show($"Đã KHÓA thành công {stationIds.Length} máy sang trạng thái 'TournamentLocked' phục vụ giải đấu LAN!", "Khóa máy giải đấu", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                OnTournamentEvent?.Invoke($"Đã khóa dàn máy thi đấu: {string.Join(", ", stationIds.Select(id => $"PC-{id:D2}"))}");
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khóa máy thi đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void BtnMoKhoaMay_Click(object? sender, EventArgs e)
         {
-            int selectedOption = cboChonDanMay.SelectedIndex;
-            int[] stationIds = (selectedOption == 1)
-                ? new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
-                : new int[] { 6, 7, 8, 9, 10 };
-
-            if (_dbTournament.UnlockTournamentStations(stationIds))
+            try
             {
-                MessageBox.Show($"Đã GIẢI PHÓNG thành công {stationIds.Length} máy trở về trạng thái 'Available' cho khách thường!", "Giải phóng dàn máy", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                OnTournamentEvent?.Invoke($"Đã mở lại dàn máy thi đấu sang Available.");
+                int selectedOption = cboChonDanMay.SelectedIndex;
+                int[] stationIds = (selectedOption == 1)
+                    ? new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+                    : new int[] { 6, 7, 8, 9, 10 };
+
+                if (_dbTournament.UnlockTournamentStations(stationIds))
+                {
+                    MessageBox.Show($"Đã GIẢI PHÓNG thành công {stationIds.Length} máy trở về trạng thái 'Available' cho khách thường!", "Giải phóng dàn máy", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnTournamentEvent?.Invoke($"Đã mở lại dàn máy thi đấu sang Available.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi mở khóa dàn máy: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
