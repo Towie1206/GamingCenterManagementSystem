@@ -1,10 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
 using Microsoft.Data.SqlClient;
 using GamingCenterManagementSystem.Models;
 
 namespace GamingCenterManagementSystem.DAL
 {
+    public sealed class StationRevenueSummary
+    {
+        public int StationId { get; set; }
+        public int SessionCount { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
     public class DBBilling
     {
         private static readonly List<TariffPlan> _fallbackPlans = new()
@@ -182,6 +192,110 @@ namespace GamingCenterManagementSystem.DAL
                 filtered = filtered.FindAll(s => s.Status.Equals(status, StringComparison.OrdinalIgnoreCase));
             }
             return filtered;
+        }
+
+
+        // Khôi - Logic 1: LINQ filters completed play sessions by their END date.
+        // The last day is inclusive even when EndTime contains hours/minutes/seconds.
+        public static List<GamingSession> FilterCompletedRevenueSessions(
+            IEnumerable<GamingSession> sessions, DateTime fromDate, DateTime toDate,
+            string? tariffType = null)
+        {
+            if (sessions == null) throw new ArgumentNullException(nameof(sessions));
+            if (fromDate.Date > toDate.Date)
+                throw new ArgumentException("Từ ngày không được sau Đến ngày.");
+
+            DateTime from = fromDate.Date;
+            DateTime toExclusive = toDate.Date.AddDays(1);
+
+            return sessions.Where(s =>
+                    s.EndTime.HasValue
+                    && s.EndTime.Value >= from
+                    && s.EndTime.Value < toExclusive
+                    && string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase)
+                    && (string.IsNullOrWhiteSpace(tariffType)
+                        || tariffType == "Tất cả"
+                        || string.Equals(s.TariffType, tariffType, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(s => s.EndTime)
+                .ThenBy(s => s.SessionId)
+                .ToList();
+        }
+
+        // Khôi - Logic 2: GroupBy(StationId) and rank stations by revenue.
+        public static List<StationRevenueSummary> GroupRevenueByStation(
+            IEnumerable<GamingSession> completedSessions)
+        {
+            if (completedSessions == null)
+                throw new ArgumentNullException(nameof(completedSessions));
+
+            return completedSessions
+                .Where(s => s.EndTime.HasValue &&
+                            string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(s => s.StationId)
+                .Select(group => new StationRevenueSummary
+                {
+                    StationId = group.Key,
+                    SessionCount = group.Count(),
+                    Revenue = group.Sum(s => s.TotalCost)
+                })
+                .OrderByDescending(item => item.Revenue)
+                .ThenBy(item => item.StationId)
+                .ToList();
+        }
+
+        // Khôi - Logic 3: Build the TXT report from the SAME filtered rows as the grid.
+        // The Form handles SaveFileDialog and File.WriteAllText.
+        public static string BuildRevenueShiftReport(
+            IEnumerable<GamingSession> filteredSessions, DateTime fromDate, DateTime toDate)
+        {
+            if (filteredSessions == null)
+                throw new ArgumentNullException(nameof(filteredSessions));
+
+            List<GamingSession> sessions = FilterCompletedRevenueSessions(
+                filteredSessions, fromDate, toDate);
+            List<StationRevenueSummary> byStation = GroupRevenueByStation(sessions);
+            var vn = CultureInfo.GetCultureInfo("vi-VN");
+            var report = new StringBuilder();
+
+            report.AppendLine("BÁO CÁO DOANH THU CA TRỰC - CYBER GAME");
+            report.AppendLine($"Từ ngày: {fromDate:dd/MM/yyyy} | Đến ngày: {toDate:dd/MM/yyyy}");
+            report.AppendLine($"Xuất lúc: {DateTime.Now:dd/MM/yyyy HH:mm:ss}");
+            report.AppendLine(new string('-', 100));
+            report.AppendLine("Mã phiên\tMáy\tHội viên\tBắt đầu\tKết thúc\tGói cước\tTiền giờ\tDịch vụ\tThành tiền (VNĐ)");
+
+            foreach (GamingSession s in sessions)
+            {
+                report.AppendLine(string.Join("\t", new[]
+                {
+                    s.SessionId.ToString(),
+                    $"PC-{s.StationId:D2}",
+                    s.UserId?.ToString() ?? "Khách vãng lai",
+                    s.StartTime.ToString("dd/MM/yyyy HH:mm", vn),
+                    s.EndTime!.Value.ToString("dd/MM/yyyy HH:mm", vn),
+                    s.TariffType,
+                    s.PlayCost.ToString("N0", vn),
+                    s.ServiceCost.ToString("N0", vn),
+                    s.TotalCost.ToString("N0", vn)
+                }));
+            }
+
+            report.AppendLine(new string('-', 100));
+            report.AppendLine($"Tổng số phiên hoàn thành: {sessions.Count}");
+            report.AppendLine($"Tổng tiền giờ: {sessions.Sum(s => s.PlayCost).ToString("N0", vn)} VNĐ");
+            report.AppendLine($"Tổng tiền dịch vụ: {sessions.Sum(s => s.ServiceCost).ToString("N0", vn)} VNĐ");
+            report.AppendLine($"TỔNG DOANH THU: {sessions.Sum(s => s.TotalCost).ToString("N0", vn)} VNĐ");
+            report.AppendLine();
+            report.AppendLine("THỐNG KÊ DOANH THU THEO MÁY (CAO NHẤT TRƯỚC)");
+            report.AppendLine("Máy\tSố phiên\tDoanh thu (VNĐ)");
+            foreach (StationRevenueSummary item in byStation)
+                report.AppendLine($"PC-{item.StationId:D2}\t{item.SessionCount}\t{item.Revenue.ToString("N0", vn)}");
+
+            if (byStation.Count > 0)
+                report.AppendLine($"MÁY DOANH THU CAO NHẤT: PC-{byStation[0].StationId:D2} - {byStation[0].Revenue.ToString("N0", vn)} VNĐ");
+            else
+                report.AppendLine("Không có phiên chơi hoàn thành trong khoảng ngày đã chọn.");
+
+            return report.ToString();
         }
 
         public bool AddSession(GamingSession session)
