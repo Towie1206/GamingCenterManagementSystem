@@ -667,9 +667,9 @@ namespace GamingCenterManagementSystem
             cboLocHangThe.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             cboLocHangThe.FormattingEnabled = true;
             cboLocHangThe.Items.AddRange(new object[] { "Tất cả hạng", "Standard", "Silver", "Gold" });
-            cboLocHangThe.Location = new Point(345, 10);
+            cboLocHangThe.Location = new Point(332, 10);
             cboLocHangThe.Name = "cboLocHangThe";
-            cboLocHangThe.Size = new Size(125, 23);
+            cboLocHangThe.Size = new Size(122, 23);
             cboLocHangThe.TabIndex = 4;
             // 
             // btnDatLaiTimKiem
@@ -678,9 +678,9 @@ namespace GamingCenterManagementSystem
             btnDatLaiTimKiem.FlatStyle = FlatStyle.Flat;
             btnDatLaiTimKiem.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             btnDatLaiTimKiem.ForeColor = Color.White;
-            btnDatLaiTimKiem.Location = new Point(580, 8);
+            btnDatLaiTimKiem.Location = new Point(565, 8);
             btnDatLaiTimKiem.Name = "btnDatLaiTimKiem";
-            btnDatLaiTimKiem.Size = new Size(90, 28);
+            btnDatLaiTimKiem.Size = new Size(88, 28);
             btnDatLaiTimKiem.TabIndex = 3;
             btnDatLaiTimKiem.Text = "Đặt Lại";
             btnDatLaiTimKiem.UseVisualStyleBackColor = false;
@@ -691,7 +691,7 @@ namespace GamingCenterManagementSystem
             btnTimKiem.FlatStyle = FlatStyle.Flat;
             btnTimKiem.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
             btnTimKiem.ForeColor = Color.White;
-            btnTimKiem.Location = new Point(478, 8);
+            btnTimKiem.Location = new Point(462, 8);
             btnTimKiem.Name = "btnTimKiem";
             btnTimKiem.Size = new Size(95, 28);
             btnTimKiem.TabIndex = 2;
@@ -704,7 +704,7 @@ namespace GamingCenterManagementSystem
             txtTimKiem.Location = new Point(140, 10);
             txtTimKiem.Name = "txtTimKiem";
             txtTimKiem.PlaceholderText = "Gõ tên hoặc username...";
-            txtTimKiem.Size = new Size(198, 24);
+            txtTimKiem.Size = new Size(185, 24);
             txtTimKiem.TabIndex = 1;
             // 
             // lblTimKiem
@@ -727,7 +727,7 @@ namespace GamingCenterManagementSystem
             Controls.Add(pnlLeft);
             Controls.Add(pnlStats);
             Controls.Add(pnlHeader);
-            MinimumSize = new Size(950, 650);
+            MinimumSize = new Size(1060, 680);
             Name = "FormMember";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Quản Lý Hội Viên & Số Dư Ví - Cyber Game";

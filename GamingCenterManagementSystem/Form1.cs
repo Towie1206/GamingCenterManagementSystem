@@ -407,20 +407,23 @@ namespace GamingCenterManagementSystem
             string paymentDetail = "";
             if (userId.HasValue)
             {
-                var member = _users.FirstOrDefault(u => u.UserId == userId.Value);
+                var member = _dbUser.GetById(userId.Value) ?? _users.FirstOrDefault(u => u.UserId == userId.Value);
                 if (member != null)
                 {
-                    if (member.Balance >= totalCost)
+                    if (member.Balance >= totalCost && _dbUser.DeductBalance(member.UserId, totalCost))
                     {
-                        _dbUser.DeductBalance(member.UserId, totalCost);
                         paymentDetail = $"\nVí hội viên ({member.Username}): Đã trừ {totalCost:N0} VNĐ. Số dư ví còn lại: {(member.Balance - totalCost):N0} VNĐ.";
                     }
                     else
                     {
-                        decimal walletUsed = member.Balance;
-                        if (walletUsed > 0) _dbUser.DeductBalance(member.UserId, walletUsed);
+                        var latest = _dbUser.GetById(member.UserId) ?? member;
+                        decimal walletUsed = latest.Balance;
+                        if (walletUsed > 0 && !_dbUser.DeductBalance(latest.UserId, walletUsed))
+                        {
+                            walletUsed = 0m;
+                        }
                         decimal cashDue = totalCost - walletUsed;
-                        paymentDetail = $"\nVí hội viên ({member.Username}): Đã trừ toàn bộ {walletUsed:N0} VNĐ trong ví. Cần thu thêm tiền mặt: {cashDue:N0} VNĐ!";
+                        paymentDetail = $"\nVí hội viên ({latest.Username}): Đã trừ toàn bộ {walletUsed:N0} VNĐ trong ví. Cần thu thêm tiền mặt: {cashDue:N0} VNĐ!";
                     }
                 }
             }

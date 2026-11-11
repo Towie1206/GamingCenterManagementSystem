@@ -4,6 +4,7 @@ using System.Data;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using GamingCenterManagementSystem.Exceptions;
 using GamingCenterManagementSystem.Models;
@@ -20,6 +21,7 @@ namespace GamingCenterManagementSystem.DAL
 
         private static readonly string[] AllowedRoles = { "Member", "Staff", "Admin" };
         private static readonly string[] AllowedTiers = { "Standard", "Silver", "Gold" };
+        private static readonly object _fallbackLock = new();
 
         private readonly Func<SqlConnection> _connectionFactory;
 
@@ -77,7 +79,7 @@ namespace GamingCenterManagementSystem.DAL
                 if (parts.Length != 4)
                     return false;
 
-                if (!int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int iterations)
+                if (!int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out int iterations)
                     || iterations <= 0
                     || iterations > 1_000_000)
                 {
@@ -116,8 +118,36 @@ namespace GamingCenterManagementSystem.DAL
         }
 
         // ==========================================
-        // DATA MAPPING & PARAMETER HELPERS
+        // DATA MAPPING, PARSING & PARAMETER HELPERS
         // ==========================================
+
+        public static bool TryParseCurrencyAmount(string? rawText, out decimal amount)
+        {
+            amount = 0m;
+            if (string.IsNullOrWhiteSpace(rawText))
+                return false;
+
+            string cleaned = rawText
+                .Replace("VNĐ", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("VND", "", StringComparison.OrdinalIgnoreCase)
+                .Replace("đ", "", StringComparison.OrdinalIgnoreCase)
+                .Trim();
+
+            if (Regex.IsMatch(cleaned, @"^[+-]?\d{1,3}(\.\d{3})+$"))
+                cleaned = cleaned.Replace(".", "");
+            else if (Regex.IsMatch(cleaned, @"^[+-]?\d{1,3}(,\d{3})+$"))
+                cleaned = cleaned.Replace(",", "");
+
+            const NumberStyles style = NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands;
+
+            if (decimal.TryParse(cleaned, style, CultureInfo.InvariantCulture, out amount))
+                return true;
+
+            if (decimal.TryParse(cleaned, style, CultureInfo.CurrentCulture, out amount))
+                return true;
+
+            return decimal.TryParse(cleaned, style, CultureInfo.GetCultureInfo("vi-VN"), out amount);
+        }
 
         private static AppUser MapUser(SqlDataReader reader)
         {
@@ -154,14 +184,24 @@ namespace GamingCenterManagementSystem.DAL
             return match ?? string.Empty;
         }
 
-        private static string NormalizeTier(string? tier)
+        private static bool TryNormalizeTier(string? tier, out string normalizedTier)
         {
             if (string.IsNullOrWhiteSpace(tier))
-                return "Standard";
+            {
+                normalizedTier = "Standard";
+                return true;
+            }
 
             string trimmed = tier.Trim();
             string? match = AllowedTiers.FirstOrDefault(t => string.Equals(t, trimmed, StringComparison.OrdinalIgnoreCase));
-            return match ?? "Standard";
+            if (match == null)
+            {
+                normalizedTier = string.Empty;
+                return false;
+            }
+
+            normalizedTier = match;
+            return true;
         }
 
         // ==========================================
@@ -171,10 +211,12 @@ namespace GamingCenterManagementSystem.DAL
         public List<AppUser> GetAll()
         {
             var list = new List<AppUser>();
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = @"SELECT UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt
                                      FROM AppUser
                                      ORDER BY UserId";
@@ -186,7 +228,7 @@ namespace GamingCenterManagementSystem.DAL
                 }
                 return list;
             }
-            catch
+            catch when (!opened)
             {
                 return CloneFallbackUsers();
             }
@@ -195,10 +237,12 @@ namespace GamingCenterManagementSystem.DAL
         public async Task<List<AppUser>> GetAllAsync()
         {
             var list = new List<AppUser>();
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
                 const string sql = @"SELECT UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt
                                      FROM AppUser
                                      ORDER BY UserId";
@@ -210,7 +254,7 @@ namespace GamingCenterManagementSystem.DAL
                 }
                 return list;
             }
-            catch
+            catch when (!opened)
             {
                 return CloneFallbackUsers();
             }
@@ -218,10 +262,12 @@ namespace GamingCenterManagementSystem.DAL
 
         public AppUser? GetById(int id)
         {
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = @"SELECT UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt
                                      FROM AppUser
                                      WHERE UserId = @UserId";
@@ -234,10 +280,13 @@ namespace GamingCenterManagementSystem.DAL
                 }
                 return null;
             }
-            catch
+            catch when (!opened)
             {
-                var found = _fallbackUsers.Find(u => u.UserId == id);
-                return found == null ? null : CloneUser(found);
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => u.UserId == id);
+                    return found == null ? null : CloneUser(found);
+                }
             }
         }
 
@@ -251,26 +300,25 @@ namespace GamingCenterManagementSystem.DAL
                 throw new ArgumentException("Tên đăng nhập không hợp lệ.", nameof(entity));
             if (string.IsNullOrWhiteSpace(fullName) || fullName.Length > 100)
                 throw new ArgumentException("Họ và tên không hợp lệ.", nameof(entity));
-            if (entity.Balance < 0)
-                throw new ArgumentException("Số dư tài khoản không được âm.", nameof(entity));
+            if (entity.Balance < 0 || decimal.Round(entity.Balance, 2) != entity.Balance)
+                throw new ArgumentException("Số dư tài khoản không hợp lệ.", nameof(entity));
 
             string role = NormalizeRole(entity.Role);
             if (string.IsNullOrEmpty(role))
                 throw new ArgumentException("Vai trò tài khoản không hợp lệ.", nameof(entity));
 
-            string tier = AppUser.ResolveUpgradedTier(NormalizeTier(entity.MemberTier), entity.Balance);
+            if (!TryNormalizeTier(entity.MemberTier, out string normalizedTier))
+                throw new ArgumentException("Hạng thẻ không hợp lệ (Standard, Silver, Gold).", nameof(entity));
+
+            string tier = AppUser.ResolveUpgradedTier(normalizedTier, entity.Balance);
             string passwordHash = EnsurePasswordHash(entity.PasswordHash);
 
-            entity.Username = username;
-            entity.FullName = fullName;
-            entity.Role = role;
-            entity.MemberTier = tier;
-            entity.PasswordHash = passwordHash;
-
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
                                      OUTPUT INSERTED.UserId, INSERTED.CreatedAt
                                      VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
@@ -287,6 +335,11 @@ namespace GamingCenterManagementSystem.DAL
                 {
                     entity.UserId = reader.GetInt32(0);
                     entity.CreatedAt = reader.IsDBNull(1) ? DateTime.Now : reader.GetDateTime(1);
+                    entity.Username = username;
+                    entity.FullName = fullName;
+                    entity.Role = role;
+                    entity.MemberTier = tier;
+                    entity.PasswordHash = passwordHash;
                     return true;
                 }
                 return false;
@@ -295,39 +348,36 @@ namespace GamingCenterManagementSystem.DAL
             {
                 throw new InvalidOperationException("Tên đăng nhập đã tồn tại trong hệ thống.", ex);
             }
-            catch (Exception ex) when (ex is not (ArgumentException or InvalidOperationException))
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
             {
-                if (_fallbackUsers.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
-                    throw new InvalidOperationException("Tên đăng nhập đã tồn tại trong hệ thống.", ex);
+                lock (_fallbackLock)
+                {
+                    if (_fallbackUsers.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
+                        throw new InvalidOperationException("Tên đăng nhập đã tồn tại trong hệ thống.", ex);
 
-                entity.UserId = _fallbackUsers.Count > 0 ? _fallbackUsers.Max(u => u.UserId) + 1 : 1;
-                entity.CreatedAt = DateTime.Now;
-                _fallbackUsers.Add(CloneUser(entity));
-                return true;
+                    entity.UserId = _fallbackUsers.Count > 0 ? _fallbackUsers.Max(u => u.UserId) + 1 : 1;
+                    entity.CreatedAt = DateTime.Now;
+                    entity.Username = username;
+                    entity.FullName = fullName;
+                    entity.Role = role;
+                    entity.MemberTier = tier;
+                    entity.PasswordHash = passwordHash;
+                    _fallbackUsers.Add(CloneUser(entity));
+                    return true;
+                }
             }
         }
 
         public bool Update(AppUser entity)
         {
-            ArgumentNullException.ThrowIfNull(entity);
+            ValidateUpdateEntity(entity, out string username, out string fullName, out string role, out string tier);
 
-            string username = entity.Username?.Trim() ?? string.Empty;
-            string fullName = entity.FullName?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(username) || username.Length > 50 || username.Any(char.IsWhiteSpace))
-                throw new ArgumentException("Tên đăng nhập không hợp lệ.", nameof(entity));
-            if (string.IsNullOrWhiteSpace(fullName) || fullName.Length > 100)
-                throw new ArgumentException("Họ và tên không hợp lệ.", nameof(entity));
-
-            string role = NormalizeRole(entity.Role);
-            if (string.IsNullOrEmpty(role))
-                throw new ArgumentException("Vai trò tài khoản không hợp lệ.", nameof(entity));
-
-            string tier = NormalizeTier(entity.MemberTier);
-
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = @"UPDATE AppUser
                                      SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier
                                      WHERE UserId = @UserId";
@@ -344,12 +394,82 @@ namespace GamingCenterManagementSystem.DAL
             {
                 throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", ex);
             }
-            catch (Exception ex) when (ex is not (ArgumentException or InvalidOperationException))
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
             {
-                if (_fallbackUsers.Any(u => u.UserId != entity.UserId && u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
-                    throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", ex);
+                return UpdateFallback(entity.UserId, username, fullName, role, tier, ex);
+            }
+        }
 
-                var idx = _fallbackUsers.FindIndex(u => u.UserId == entity.UserId);
+        public async Task<bool> UpdateAsync(AppUser entity)
+        {
+            ValidateUpdateEntity(entity, out string username, out string fullName, out string role, out string tier);
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                const string sql = @"UPDATE AppUser
+                                     SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier
+                                     WHERE UserId = @UserId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = username;
+                cmd.Parameters.Add("@FullName", SqlDbType.NVarChar, 100).Value = fullName;
+                cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = role;
+                cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = tier;
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = entity.UserId;
+
+                return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+            }
+            catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
+            {
+                throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", ex);
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                return UpdateFallback(entity.UserId, username, fullName, role, tier, ex);
+            }
+        }
+
+        private static void ValidateUpdateEntity(
+            AppUser entity,
+            out string username,
+            out string fullName,
+            out string role,
+            out string tier)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+
+            username = entity.Username?.Trim() ?? string.Empty;
+            fullName = entity.FullName?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(username) || username.Length > 50 || username.Any(char.IsWhiteSpace))
+                throw new ArgumentException("Tên đăng nhập không hợp lệ.", nameof(entity));
+            if (string.IsNullOrWhiteSpace(fullName) || fullName.Length > 100)
+                throw new ArgumentException("Họ và tên không hợp lệ.", nameof(entity));
+
+            role = NormalizeRole(entity.Role);
+            if (string.IsNullOrEmpty(role))
+                throw new ArgumentException("Vai trò tài khoản không hợp lệ.", nameof(entity));
+
+            if (!TryNormalizeTier(entity.MemberTier, out tier))
+                throw new ArgumentException("Hạng thẻ không hợp lệ (Standard, Silver, Gold).", nameof(entity));
+        }
+
+        private static bool UpdateFallback(
+            int userId,
+            string username,
+            string fullName,
+            string role,
+            string tier,
+            Exception inner)
+        {
+            lock (_fallbackLock)
+            {
+                if (_fallbackUsers.Any(u => u.UserId != userId && u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", inner);
+
+                var idx = _fallbackUsers.FindIndex(u => u.UserId == userId);
                 if (idx >= 0)
                 {
                     _fallbackUsers[idx].Username = username;
@@ -364,10 +484,12 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool Delete(int id)
         {
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = "DELETE FROM AppUser WHERE UserId = @UserId";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
@@ -377,9 +499,38 @@ namespace GamingCenterManagementSystem.DAL
             {
                 throw new InvalidOperationException("Không thể xóa hội viên đã có lịch sử phiên chơi trong hệ thống.", ex);
             }
-            catch (Exception ex) when (ex is not InvalidOperationException)
+            catch (Exception ex) when (!opened && ex is not InvalidOperationException)
             {
-                return _fallbackUsers.RemoveAll(u => u.UserId == id) > 0;
+                lock (_fallbackLock)
+                {
+                    return _fallbackUsers.RemoveAll(u => u.UserId == id) > 0;
+                }
+            }
+        }
+
+        public async Task<bool> DeleteAsync(int id)
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                const string sql = "DELETE FROM AppUser WHERE UserId = @UserId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
+                return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+            }
+            catch (SqlException ex) when (ex.Number == 547)
+            {
+                throw new InvalidOperationException("Không thể xóa hội viên đã có lịch sử phiên chơi trong hệ thống.", ex);
+            }
+            catch (Exception ex) when (!opened && ex is not InvalidOperationException)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackUsers.RemoveAll(u => u.UserId == id) > 0;
+                }
             }
         }
 
@@ -406,34 +557,15 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool ChangePassword(string username, string oldPassword, string newPassword, out string errorMessage)
         {
-            errorMessage = string.Empty;
-
-            if (string.IsNullOrWhiteSpace(username) ||
-                string.IsNullOrEmpty(oldPassword) ||
-                string.IsNullOrEmpty(newPassword))
-            {
-                errorMessage = "Vui lòng nhập đầy đủ tên đăng nhập, mật khẩu hiện tại và mật khẩu mới.";
+            if (!ValidatePasswordChangeInput(username, oldPassword, newPassword, out string trimmedUsername, out errorMessage))
                 return false;
-            }
 
-            if (newPassword.Length < 6 || newPassword.Length > 100)
-            {
-                errorMessage = "Mật khẩu mới phải có độ dài từ 6 đến 100 ký tự.";
-                return false;
-            }
-
-            if (string.Equals(oldPassword, newPassword, StringComparison.Ordinal))
-            {
-                errorMessage = "Mật khẩu mới phải khác mật khẩu hiện tại.";
-                return false;
-            }
-
-            string trimmedUsername = username.Trim();
-
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 using var trans = conn.BeginTransaction();
 
                 int userId;
@@ -480,7 +612,116 @@ namespace GamingCenterManagementSystem.DAL
                     return updated;
                 }
             }
-            catch
+            catch when (!opened)
+            {
+                return ChangePasswordFallback(trimmedUsername, oldPassword, newPassword, out errorMessage);
+            }
+        }
+
+        public async Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(
+            string username,
+            string oldPassword,
+            string newPassword)
+        {
+            if (!ValidatePasswordChangeInput(username, oldPassword, newPassword, out string trimmedUsername, out string errorMessage))
+                return (false, errorMessage);
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                using var trans = conn.BeginTransaction();
+
+                int userId;
+                string storedPassword;
+
+                const string selectQuery = @"SELECT UserId, PasswordHash
+                                             FROM AppUser WITH (UPDLOCK, HOLDLOCK)
+                                             WHERE Username = @Username";
+                using (var cmd = new SqlCommand(selectQuery, conn, trans))
+                {
+                    cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                    using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                    if (!await reader.ReadAsync().ConfigureAwait(false))
+                    {
+                        return (false, "Tên đăng nhập hoặc mật khẩu hiện tại không chính xác.");
+                    }
+
+                    userId = reader.GetInt32(0);
+                    storedPassword = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                }
+
+                if (!VerifyPassword(oldPassword, storedPassword))
+                {
+                    return (false, "Tên đăng nhập hoặc mật khẩu hiện tại không chính xác.");
+                }
+
+                string newHash = HashPassword(newPassword);
+
+                const string updateQuery = @"UPDATE AppUser
+                                             SET PasswordHash = @NewPassword
+                                             WHERE UserId = @UserId";
+                using (var cmd = new SqlCommand(updateQuery, conn, trans))
+                {
+                    cmd.Parameters.Add("@NewPassword", SqlDbType.NVarChar, 255).Value = newHash;
+                    cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    bool updated = await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+                    await trans.CommitAsync().ConfigureAwait(false);
+                    return updated
+                        ? (true, string.Empty)
+                        : (false, "Không thể cập nhật mật khẩu.");
+                }
+            }
+            catch when (!opened)
+            {
+                bool ok = ChangePasswordFallback(trimmedUsername, oldPassword, newPassword, out string fallbackError);
+                return (ok, fallbackError);
+            }
+        }
+
+        private static bool ValidatePasswordChangeInput(
+            string username,
+            string oldPassword,
+            string newPassword,
+            out string trimmedUsername,
+            out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            trimmedUsername = username?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(trimmedUsername) ||
+                string.IsNullOrEmpty(oldPassword) ||
+                string.IsNullOrEmpty(newPassword))
+            {
+                errorMessage = "Vui lòng nhập đầy đủ tên đăng nhập, mật khẩu hiện tại và mật khẩu mới.";
+                return false;
+            }
+
+            if (newPassword.Length < 6 || newPassword.Length > 100)
+            {
+                errorMessage = "Mật khẩu mới phải có độ dài từ 6 đến 100 ký tự.";
+                return false;
+            }
+
+            if (string.Equals(oldPassword, newPassword, StringComparison.Ordinal))
+            {
+                errorMessage = "Mật khẩu mới phải khác mật khẩu hiện tại.";
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool ChangePasswordFallback(
+            string trimmedUsername,
+            string oldPassword,
+            string newPassword,
+            out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            lock (_fallbackLock)
             {
                 var user = _fallbackUsers.Find(u => u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase));
                 if (user == null || !VerifyPassword(oldPassword, user.PasswordHash))
@@ -492,18 +733,6 @@ namespace GamingCenterManagementSystem.DAL
                 user.PasswordHash = HashPassword(newPassword);
                 return true;
             }
-        }
-
-        public Task<(bool Success, string ErrorMessage)> ChangePasswordAsync(
-            string username,
-            string oldPassword,
-            string newPassword)
-        {
-            return Task.Run(() =>
-            {
-                bool ok = ChangePassword(username, oldPassword, newPassword, out string err);
-                return (ok, err);
-            });
         }
 
         // ==========================================
@@ -646,11 +875,13 @@ namespace GamingCenterManagementSystem.DAL
                 return false;
 
             string trimmedUsername = username.Trim();
+            bool opened = false;
 
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 string sql = excludeUserId.HasValue
                     ? "SELECT COUNT(1) FROM AppUser WHERE Username = @Username AND UserId <> @ExcludeUserId"
                     : "SELECT COUNT(1) FROM AppUser WHERE Username = @Username";
@@ -663,11 +894,14 @@ namespace GamingCenterManagementSystem.DAL
                 object? result = cmd.ExecuteScalar();
                 return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) > 0;
             }
-            catch
+            catch when (!opened)
             {
-                return _fallbackUsers.Any(u =>
-                    u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase) &&
-                    (!excludeUserId.HasValue || u.UserId != excludeUserId.Value));
+                lock (_fallbackLock)
+                {
+                    return _fallbackUsers.Any(u =>
+                        u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase) &&
+                        (!excludeUserId.HasValue || u.UserId != excludeUserId.Value));
+                }
             }
         }
 
@@ -700,20 +934,23 @@ namespace GamingCenterManagementSystem.DAL
             string role = "Member",
             string? requestedTier = null)
         {
-            var user = new AppUser
-            {
-                Username = username?.Trim() ?? string.Empty,
-                FullName = fullName?.Trim() ?? string.Empty,
-                Role = string.IsNullOrWhiteSpace(role) ? "Member" : role.Trim(),
-                MemberTier = NormalizeTier(requestedTier),
-                Balance = Math.Max(0m, initialBalance)
-            };
+            if (!ValidateMemberInput(username, fullName, password, initialBalance, role, out errorMessage))
+                return false;
 
-            if (initialBalance < 0)
+            if (!TryNormalizeTier(requestedTier, out string normalizedTier))
             {
-                errorMessage = "Số dư ban đầu không được âm.";
+                errorMessage = "Hạng thẻ không hợp lệ (Standard, Silver, Gold).";
                 return false;
             }
+
+            var user = new AppUser
+            {
+                Username = username.Trim(),
+                FullName = fullName.Trim(),
+                Role = NormalizeRole(role),
+                MemberTier = normalizedTier,
+                Balance = initialBalance
+            };
 
             return CreateMember(user, password, out errorMessage);
         }
@@ -722,25 +959,25 @@ namespace GamingCenterManagementSystem.DAL
         {
             ArgumentNullException.ThrowIfNull(entity);
 
-            if (!ValidateNewMember(entity.Username, entity.FullName, rawPassword, entity.Balance, out errorMessage, entity.Role))
+            if (!TryPrepareNewMember(entity, rawPassword, out string trimmedUsername, out string trimmedFullName,
+                out string normalizedRole, out string resolvedTier, out string passwordHash, out errorMessage))
+            {
                 return false;
+            }
 
-            string trimmedUsername = entity.Username.Trim();
-            string trimmedFullName = entity.FullName.Trim();
-            string normalizedRole = NormalizeRole(entity.Role);
-            string resolvedTier = AppUser.ResolveUpgradedTier(NormalizeTier(entity.MemberTier), entity.Balance);
-            string passwordHash = HashPassword(rawPassword);
-
-            entity.Username = trimmedUsername;
-            entity.FullName = trimmedFullName;
-            entity.Role = normalizedRole;
-            entity.MemberTier = resolvedTier;
-            entity.PasswordHash = passwordHash;
-
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
+
+                if (IsUsernameExistsOnConnection(conn, trimmedUsername))
+                {
+                    errorMessage = "Tên đăng nhập đã tồn tại trong hệ thống.";
+                    return false;
+                }
+
                 const string sql = @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
                                      OUTPUT INSERTED.UserId, INSERTED.CreatedAt
                                      VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
@@ -757,6 +994,11 @@ namespace GamingCenterManagementSystem.DAL
                 {
                     entity.UserId = reader.GetInt32(0);
                     entity.CreatedAt = reader.IsDBNull(1) ? DateTime.Now : reader.GetDateTime(1);
+                    entity.Username = trimmedUsername;
+                    entity.FullName = trimmedFullName;
+                    entity.Role = normalizedRole;
+                    entity.MemberTier = resolvedTier;
+                    entity.PasswordHash = passwordHash;
                     return true;
                 }
 
@@ -768,7 +1010,135 @@ namespace GamingCenterManagementSystem.DAL
                 errorMessage = "Tên đăng nhập đã tồn tại trong hệ thống.";
                 return false;
             }
-            catch
+            catch when (!opened)
+            {
+                return CreateMemberFallback(entity, trimmedUsername, trimmedFullName, normalizedRole, resolvedTier, passwordHash, out errorMessage);
+            }
+        }
+
+        public async Task<(bool Success, string ErrorMessage)> CreateMemberAsync(
+            AppUser entity,
+            string rawPassword)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+
+            if (!TryPrepareNewMember(entity, rawPassword, out string trimmedUsername, out string trimmedFullName,
+                out string normalizedRole, out string resolvedTier, out string passwordHash, out string errorMessage))
+            {
+                return (false, errorMessage);
+            }
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+
+                if (await IsUsernameExistsOnConnectionAsync(conn, trimmedUsername).ConfigureAwait(false))
+                {
+                    return (false, "Tên đăng nhập đã tồn tại trong hệ thống.");
+                }
+
+                const string sql = @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
+                                     OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                                     VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
+                cmd.Parameters.Add("@FullName", SqlDbType.NVarChar, 100).Value = trimmedFullName;
+                cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = normalizedRole;
+                cmd.Parameters.Add(CreateDecimalParameter("@Balance", entity.Balance));
+                cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = resolvedTier;
+
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                if (await reader.ReadAsync().ConfigureAwait(false))
+                {
+                    entity.UserId = reader.GetInt32(0);
+                    entity.CreatedAt = reader.IsDBNull(1) ? DateTime.Now : reader.GetDateTime(1);
+                    entity.Username = trimmedUsername;
+                    entity.FullName = trimmedFullName;
+                    entity.Role = normalizedRole;
+                    entity.MemberTier = resolvedTier;
+                    entity.PasswordHash = passwordHash;
+                    return (true, string.Empty);
+                }
+
+                return (false, "Không thể tạo tài khoản hội viên.");
+            }
+            catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
+            {
+                return (false, "Tên đăng nhập đã tồn tại trong hệ thống.");
+            }
+            catch when (!opened)
+            {
+                bool ok = CreateMemberFallback(entity, trimmedUsername, trimmedFullName, normalizedRole, resolvedTier, passwordHash, out string err);
+                return (ok, err);
+            }
+        }
+
+        private static bool TryPrepareNewMember(
+            AppUser entity,
+            string rawPassword,
+            out string trimmedUsername,
+            out string trimmedFullName,
+            out string normalizedRole,
+            out string resolvedTier,
+            out string passwordHash,
+            out string errorMessage)
+        {
+            trimmedUsername = string.Empty;
+            trimmedFullName = string.Empty;
+            normalizedRole = string.Empty;
+            resolvedTier = string.Empty;
+            passwordHash = string.Empty;
+
+            if (!ValidateMemberInput(entity.Username, entity.FullName, rawPassword, entity.Balance, entity.Role, out errorMessage))
+                return false;
+
+            if (!TryNormalizeTier(entity.MemberTier, out string normalizedTier))
+            {
+                errorMessage = "Hạng thẻ không hợp lệ (Standard, Silver, Gold).";
+                return false;
+            }
+
+            trimmedUsername = entity.Username.Trim();
+            trimmedFullName = entity.FullName.Trim();
+            normalizedRole = NormalizeRole(entity.Role);
+            resolvedTier = AppUser.ResolveUpgradedTier(normalizedTier, entity.Balance);
+            passwordHash = HashPassword(rawPassword);
+            return true;
+        }
+
+        private static bool IsUsernameExistsOnConnection(SqlConnection conn, string trimmedUsername)
+        {
+            const string sql = "SELECT COUNT(1) FROM AppUser WHERE Username = @Username";
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+            object? result = cmd.ExecuteScalar();
+            return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) > 0;
+        }
+
+        private static async Task<bool> IsUsernameExistsOnConnectionAsync(SqlConnection conn, string trimmedUsername)
+        {
+            const string sql = "SELECT COUNT(1) FROM AppUser WHERE Username = @Username";
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+            object? result = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+            return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) > 0;
+        }
+
+        private static bool CreateMemberFallback(
+            AppUser entity,
+            string trimmedUsername,
+            string trimmedFullName,
+            string normalizedRole,
+            string resolvedTier,
+            string passwordHash,
+            out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            lock (_fallbackLock)
             {
                 if (_fallbackUsers.Any(u => u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase)))
                 {
@@ -778,20 +1148,14 @@ namespace GamingCenterManagementSystem.DAL
 
                 entity.UserId = _fallbackUsers.Count > 0 ? _fallbackUsers.Max(u => u.UserId) + 1 : 1;
                 entity.CreatedAt = DateTime.Now;
+                entity.Username = trimmedUsername;
+                entity.FullName = trimmedFullName;
+                entity.Role = normalizedRole;
+                entity.MemberTier = resolvedTier;
+                entity.PasswordHash = passwordHash;
                 _fallbackUsers.Add(CloneUser(entity));
                 return true;
             }
-        }
-
-        public Task<(bool Success, string ErrorMessage)> CreateMemberAsync(
-            AppUser entity,
-            string rawPassword)
-        {
-            return Task.Run(() =>
-            {
-                bool ok = CreateMember(entity, rawPassword, out string err);
-                return (ok, err);
-            });
         }
 
         // ==========================================
@@ -800,13 +1164,15 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool TopUpBalance(int userId, decimal amount)
         {
-            if (amount <= 0 || amount > MaximumTopUpAmount)
+            if (amount <= 0 || amount > MaximumTopUpAmount || decimal.Round(amount, 2) != amount)
                 return false;
 
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = @"UPDATE AppUser
                                      SET Balance = Balance + @Amount,
                                          MemberTier = CASE
@@ -820,7 +1186,45 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
                 return cmd.ExecuteNonQuery() > 0;
             }
-            catch
+            catch when (!opened)
+            {
+                return TopUpFallback(userId, amount);
+            }
+        }
+
+        public async Task<bool> TopUpBalanceAsync(int userId, decimal amount)
+        {
+            if (amount <= 0 || amount > MaximumTopUpAmount || decimal.Round(amount, 2) != amount)
+                return false;
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                const string sql = @"UPDATE AppUser
+                                     SET Balance = Balance + @Amount,
+                                         MemberTier = CASE
+                                             WHEN (Balance + @Amount) >= 500000 THEN N'Gold'
+                                             WHEN (Balance + @Amount) >= 200000 AND MemberTier <> N'Gold' THEN N'Silver'
+                                             ELSE MemberTier
+                                         END
+                                     WHERE UserId = @UserId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add(CreateDecimalParameter("@Amount", amount));
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+            }
+            catch when (!opened)
+            {
+                return TopUpFallback(userId, amount);
+            }
+        }
+
+        private static bool TopUpFallback(int userId, decimal amount)
+        {
+            lock (_fallbackLock)
             {
                 var user = _fallbackUsers.Find(u => u.UserId == userId);
                 if (user == null)
@@ -834,13 +1238,15 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool DeductBalance(int userId, decimal amount)
         {
-            if (amount <= 0)
+            if (amount <= 0 || decimal.Round(amount, 2) != amount)
                 return false;
 
+            bool opened = false;
             try
             {
                 using var conn = _connectionFactory();
                 conn.Open();
+                opened = true;
                 const string sql = @"UPDATE AppUser
                                      SET Balance = Balance - @Amount
                                      WHERE UserId = @UserId AND Balance >= @Amount";
@@ -849,21 +1255,24 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
                 return cmd.ExecuteNonQuery() > 0;
             }
-            catch
+            catch when (!opened)
             {
-                var user = _fallbackUsers.Find(u => u.UserId == userId);
-                if (user == null || user.Balance < amount)
-                    return false;
+                lock (_fallbackLock)
+                {
+                    var user = _fallbackUsers.Find(u => u.UserId == userId);
+                    if (user == null || user.Balance < amount)
+                        return false;
 
-                user.Balance -= amount;
-                return true;
+                    user.Balance -= amount;
+                    return true;
+                }
             }
         }
 
         public void DeductBalanceOrThrow(int userId, decimal amount)
         {
-            if (amount <= 0)
-                throw new ArgumentException("Số tiền thanh toán phải lớn hơn 0.", nameof(amount));
+            if (amount <= 0 || decimal.Round(amount, 2) != amount)
+                throw new ArgumentException("Số tiền thanh toán phải lớn hơn 0 và tối đa 2 chữ số thập phân.", nameof(amount));
 
             var user = GetById(userId) ?? throw new InvalidOperationException("Không tìm thấy tài khoản hội viên.");
             if (!user.HasSufficientBalance(amount))
@@ -876,7 +1285,13 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
-        private static List<AppUser> CloneFallbackUsers() => _fallbackUsers.Select(CloneUser).ToList();
+        private static List<AppUser> CloneFallbackUsers()
+        {
+            lock (_fallbackLock)
+            {
+                return _fallbackUsers.Select(CloneUser).ToList();
+            }
+        }
 
         private static AppUser CloneUser(AppUser source)
         {
