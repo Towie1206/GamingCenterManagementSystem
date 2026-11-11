@@ -12,6 +12,18 @@
     <Compile Update="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="FormStation.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormMember.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormTournament.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormBilling.cs">
+      <SubType>Form</SubType>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

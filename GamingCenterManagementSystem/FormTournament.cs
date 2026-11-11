@@ -1,380 +1,473 @@
-using System.Data;
-using Microsoft.Data.SqlClient;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Windows.Forms;
+using GamingCenterManagementSystem.DAL;
+using GamingCenterManagementSystem.Models;
 
-namespace GamingCenterManagementSystem;
-
-public sealed class FormTournament : Form
+namespace GamingCenterManagementSystem
 {
-    private readonly DBTournament database = new();
-    private readonly TextBox titleInput = new() { Width = 220, MaxLength = 150 };
-    private readonly TextBox gameInput = new() { Width = 160, MaxLength = 100 };
-    private readonly NumericUpDown prizeInput = new()
+    public partial class FormTournament : Form
     {
-        Width = 160, DecimalPlaces = 2, ThousandsSeparator = true,
-        Maximum = 9999999999999999.99m
-    };
-    private readonly DateTimePicker startInput = new()
-    {
-        Width = 130, Format = DateTimePickerFormat.Custom, CustomFormat = "dd/MM/yyyy", Value = DateTime.Today
-    };
-    private readonly DataGridView tournamentsGrid = CreateGrid();
-    private readonly DataGridView matchesGrid = CreateGrid();
-    private readonly TextBox team1Input = new() { Width = 160, MaxLength = 100 };
-    private readonly TextBox team2Input = new() { Width = 160, MaxLength = 100 };
-    private readonly NumericUpDown roundInput = new() { Width = 65, Minimum = 1, Maximum = int.MaxValue, Value = 1 };
-    private readonly NumericUpDown team1ScoreInput = new() { Width = 90, Maximum = 999999999 };
-    private readonly NumericUpDown team2ScoreInput = new() { Width = 90, Maximum = 999999999 };
-    private readonly ComboBox winnerInput = new() { Width = 190, DropDownStyle = ComboBoxStyle.DropDownList };
-    private readonly Label tournamentLabel = new() { AutoSize = true, Padding = new Padding(4, 10, 4, 4) };
-    private readonly Label matchLabel = new() { AutoSize = true, MaximumSize = new Size(700, 0) };
-    private readonly Label stationCountLabel = new() { AutoSize = true, Text = "Đã chọn: 0/5 máy" };
-    private readonly CheckedListBox stationsList = new() { Dock = DockStyle.Fill, CheckOnClick = true };
-    private readonly Button createMatchButton = new() { Text = "Thêm trận", AutoSize = true };
-    private readonly Button saveScoreButton = new() { Text = "Lưu kết quả", AutoSize = true };
-    private readonly Button lockButton = new() { Text = "Khóa 5 máy cho giải đấu", AutoSize = true };
-    private bool loading;
+        private readonly DBTournament _dbTournament = new();
+        private List<Tournament> _tournamentList = new();
+        private List<TournamentMatch> _matchList = new();
+        private Tournament? _selectedTournament = null;
+        private TournamentMatch? _selectedMatch = null;
 
-    public FormTournament()
-    {
-        Text = "Quản lý giải đấu";
-        StartPosition = FormStartPosition.CenterParent;
-        ClientSize = new Size(1280, 760);
-        MinimumSize = new Size(1100, 700);
-        AutoScaleMode = AutoScaleMode.Font;
+        // Delegate / Action for tournament events (Chapter 4 Delegate requirement)
+        public Action<string>? OnTournamentEvent;
 
-        AddColumn(tournamentsGrid, "Title", "Tên giải", 160);
-        AddColumn(tournamentsGrid, "GameTitle", "Trò chơi", 110);
-        AddColumn(tournamentsGrid, "PrizePool", "Giải thưởng", 110, "N2");
-        AddColumn(tournamentsGrid, "StartDate", "Ngày bắt đầu", 110, "dd/MM/yyyy");
-        AddColumn(tournamentsGrid, "Status", "Trạng thái", 100);
-        AddColumn(matchesGrid, "RoundNumber", "Vòng", 50);
-        AddColumn(matchesGrid, "Team1Name", "Đội 1", 130);
-        AddColumn(matchesGrid, "Team2Name", "Đội 2", 130);
-        AddColumn(matchesGrid, "Score", "Tỉ số", 70);
-        AddColumn(matchesGrid, "WinnerTeamName", "Đội thắng", 130);
-        AddColumn(matchesGrid, "Status", "Trạng thái", 100);
-
-        var createTournamentButton = new Button { Text = "Tạo giải đấu", AutoSize = true };
-        var refreshButton = new Button { Text = "Tải lại", AutoSize = true };
-        var createPanel = CreateFlow();
-        createPanel.Controls.AddRange([
-            Field("Tên giải đấu", titleInput), Field("Trò chơi", gameInput),
-            Field("Tổng giải thưởng", prizeInput), Field("Ngày bắt đầu", startInput),
-            createTournamentButton, refreshButton
-        ]);
-        var createGroup = new GroupBox { Text = "Tạo giải đấu", Dock = DockStyle.Fill };
-        createGroup.Controls.Add(createPanel);
-
-        var matchesPage = new TabPage("Trận đấu") { Padding = new Padding(8) };
-        var matchLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
-        matchLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        matchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
-        matchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
-        matchLayout.Controls.Add(matchesGrid, 0, 0);
-        var newMatchPanel = CreateFlow();
-        newMatchPanel.Controls.AddRange([
-            Field("Đội 1", team1Input), Field("Đội 2", team2Input),
-            Field("Vòng đấu", roundInput), createMatchButton
-        ]);
-        var newMatchGroup = new GroupBox { Text = "Thêm trận vào giải đang chọn", Dock = DockStyle.Fill };
-        newMatchGroup.Controls.Add(newMatchPanel);
-        matchLayout.Controls.Add(newMatchGroup, 0, 1);
-        var scorePanel = CreateFlow();
-        scorePanel.Controls.AddRange([
-            Field("Tỉ số đội 1", team1ScoreInput), Field("Tỉ số đội 2", team2ScoreInput),
-            Field("Đội thắng", winnerInput), saveScoreButton
-        ]);
-        var scoreGroup = new GroupBox { Text = "Kết quả trận đang chọn (tỉ số theo thứ tự đội 1 - đội 2)", Dock = DockStyle.Fill };
-        scoreGroup.Controls.Add(scorePanel);
-        matchLayout.Controls.Add(scoreGroup, 0, 2);
-        matchesPage.Controls.Add(matchLayout);
-
-        var stationsPage = new TabPage("Khóa máy thi đấu") { Padding = new Padding(12) };
-        var stationLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5 };
-        stationLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        stationLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        stationLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        stationLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        stationLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        stationLayout.Controls.Add(matchLabel, 0, 0);
-        stationLayout.Controls.Add(new Label
+        public FormTournament()
         {
-            AutoSize = true, MaximumSize = new Size(700, 0), Margin = new Padding(3, 12, 3, 12),
-            Text = "Chọn trận ở tab Trận đấu, rồi chọn đúng 5 máy. Nếu máy đang có khách, cần chuyển khách sang máy khác trước khi khóa."
-        }, 0, 1);
-        stationLayout.Controls.Add(stationsList, 0, 2);
-        stationLayout.Controls.Add(stationCountLabel, 0, 3);
-        stationLayout.Controls.Add(lockButton, 0, 4);
-        stationsPage.Controls.Add(stationLayout);
-        var tabs = new TabControl { Dock = DockStyle.Fill };
-        tabs.TabPages.AddRange([matchesPage, stationsPage]);
-
-        var detailLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        detailLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        detailLayout.Controls.Add(tournamentLabel, 0, 0);
-        detailLayout.Controls.Add(tabs, 0, 1);
-        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1 };
-        split.Panel1.Controls.Add(tournamentsGrid);
-        split.Panel2.Controls.Add(detailLayout);
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), ColumnCount = 1, RowCount = 2 };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 115));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        layout.Controls.Add(createGroup, 0, 0);
-        layout.Controls.Add(split, 0, 1);
-        Controls.Add(layout);
-        // Set splitter limits after layout gives the container its actual width.
-        Load += (_, _) => { split.SplitterDistance = 440; split.Panel1MinSize = 300; split.Panel2MinSize = 600; };
-
-        Shown += (_, _) => RunAction(() => ReloadAll());
-        refreshButton.Click += (_, _) => RunAction(() => ReloadAll());
-        createTournamentButton.Click += (_, _) => RunAction(CreateTournament);
-        createMatchButton.Click += (_, _) => RunAction(CreateMatch);
-        saveScoreButton.Click += (_, _) => RunAction(SaveScore);
-        lockButton.Click += (_, _) => RunAction(LockStations);
-        tournamentsGrid.CurrentCellChanged += (_, _) =>
-        {
-            if (!loading) RunAction(() => LoadMatches());
-        };
-        matchesGrid.CurrentCellChanged += (_, _) => { if (!loading) UpdateMatchEditor(); };
-        stationsList.ItemCheck += (_, e) =>
-        {
-            int count = stationsList.CheckedItems.Count + (e.NewValue == CheckState.Checked ? 1 : -1);
-            stationCountLabel.Text = $"Đã chọn: {count}/5 máy";
-        };
-        UpdateMatchEditor();
-    }
-
-    private void CreateTournament()
-    {
-        DBTournament.ValidateTournament(titleInput.Text, prizeInput.Value, startInput.Value);
-        int id = database.CreateTournament(titleInput.Text, gameInput.Text, prizeInput.Value, startInput.Value);
-        titleInput.Clear();
-        gameInput.Clear();
-        prizeInput.Value = 0;
-        RefreshAfterSave(() => ReloadAll(id), "Đã tạo giải đấu.");
-    }
-
-    private void CreateMatch()
-    {
-        int tournamentId = SelectedId(tournamentsGrid, "TournamentId")
-            ?? throw new InvalidOperationException("Vui lòng chọn giải đấu trước khi thêm trận.");
-        int id = database.CreateMatch(tournamentId, team1Input.Text, team2Input.Text, (int)roundInput.Value);
-        team1Input.Clear();
-        team2Input.Clear();
-        RefreshAfterSave(() => LoadMatches(id), "Đã thêm trận đấu.");
-    }
-
-    private void SaveScore()
-    {
-        DataRowView? match = SelectedRow(matchesGrid);
-        if (match == null || Convert.ToInt32(match["TournamentId"]) != SelectedId(tournamentsGrid, "TournamentId"))
-            throw new InvalidOperationException("Vui lòng chọn trận đấu thuộc giải đấu hiện tại.");
-        int matchId = SelectedId(matchesGrid, "MatchId")
-            ?? throw new InvalidOperationException("Vui lòng chọn trận đấu cần cập nhật tỉ số.");
-        string winner = winnerInput.SelectedItem as string
-            ?? throw new ArgumentException("Vui lòng chọn đội thắng cuộc.");
-        database.UpdateMatchScore(matchId, (int)team1ScoreInput.Value, (int)team2ScoreInput.Value, winner);
-        RefreshAfterSave(() => LoadMatches(matchId), "Đã lưu tỉ số, đội thắng và trạng thái Finished.");
-    }
-
-    private void LockStations()
-    {
-        int tournamentId = SelectedId(tournamentsGrid, "TournamentId")
-            ?? throw new InvalidOperationException("Vui lòng chọn giải đấu.");
-        int matchId = SelectedId(matchesGrid, "MatchId")
-            ?? throw new InvalidOperationException("Vui lòng chọn trận đấu cần bố trí máy ở tab Trận đấu.");
-        int[] stationIds = stationsList.CheckedItems.Cast<StationOption>().Select(station => station.Id).ToArray();
-        if (stationIds.Length != 5)
-            throw new ArgumentException("Vui lòng chọn đúng 5 máy thi đấu trước khi khóa giải đấu.");
-        database.LockTournament(tournamentId, matchId, stationIds);
-        RefreshAfterSave(() => ReloadAll(tournamentId, matchId), "Đã khóa 5 máy thi đấu và chuyển giải đấu sang Ongoing.");
-    }
-
-    private void ReloadAll(int? tournamentId = null, int? matchId = null)
-    {
-        tournamentId ??= SelectedId(tournamentsGrid, "TournamentId");
-        DataTable tournaments = database.GetTournaments();
-        loading = true;
-        try
-        {
-            ReplaceData(tournamentsGrid, tournaments);
-            SelectRow(tournamentsGrid, "TournamentId", tournamentId);
+            InitializeComponent();
+            SetupEvents();
+            LoadTournaments();
         }
-        finally { loading = false; }
-        LoadMatches(matchId);
-        LoadStations();
-    }
 
-    private void LoadMatches(int? matchId = null)
-    {
-        int? tournamentId = SelectedId(tournamentsGrid, "TournamentId");
-        DataRowView? tournament = SelectedRow(tournamentsGrid);
-        tournamentLabel.Text = tournament == null ? "Chưa có giải đấu. Hãy tạo giải đấu đầu tiên." : $"Giải đấu: {tournament["Title"]}";
-        createMatchButton.Enabled = tournament != null && Convert.ToString(tournament["Status"]) != "Finished";
-        // A failed reload must not leave the previous tournament's matches editable.
-        loading = true;
-        try { ReplaceData(matchesGrid, null); }
-        finally { loading = false; }
-        UpdateMatchEditor();
-        DataTable? matches = tournamentId.HasValue ? database.GetMatches(tournamentId.Value) : null;
-        loading = true;
-        try
+        private void SetupEvents()
         {
-            ReplaceData(matchesGrid, matches);
-            SelectRow(matchesGrid, "MatchId", matchId);
+            Load += (s, e) => LoadTournaments();
+            btnTaoGiai.Click += BtnTaoGiai_Click;
+            btnCapNhatGiai.Click += BtnCapNhatGiai_Click;
+            btnXoaGiai.Click += BtnXoaGiai_Click;
+            btnLamMoi.Click += (s, e) => LoadTournaments();
+
+            btnKhoaMayGiaiDau.Click += BtnKhoaMayGiaiDau_Click;
+            btnMoKhoaMay.Click += BtnMoKhoaMay_Click;
+
+            btnThemTranDau.Click += BtnThemTranDau_Click;
+            btnCapNhatKetQua.Click += BtnCapNhatKetQua_Click;
+
+            dgvGiaiDau.SelectionChanged += DgvGiaiDau_SelectionChanged;
+            dgvTranDau.SelectionChanged += DgvTranDau_SelectionChanged;
         }
-        finally { loading = false; }
-        UpdateMatchEditor();
-    }
 
-    private void LoadStations()
-    {
-        int[] checkedIds = stationsList.CheckedItems.Cast<StationOption>().Select(station => station.Id).ToArray();
-        using DataTable stations = database.GetStations();
-        stationsList.Items.Clear();
-        foreach (DataRow station in stations.Rows)
+        private void LoadTournaments()
         {
-            int id = Convert.ToInt32(station["StationId"]);
-            string status = Convert.ToBoolean(station["IsOccupied"]) ? "Có khách - cần chuyển máy" : Convert.ToString(station["Status"]) switch
+            try
             {
-                "Available" => "Sẵn sàng", "Maintenance" => "Bảo trì",
-                "TournamentLocked" => "Đã khóa thi đấu", var value => value ?? "Không rõ trạng thái"
-            };
-            stationsList.Items.Add(new StationOption(id, $"{station["StationName"]} - {status}"), checkedIds.Contains(id));
-        }
-        stationCountLabel.Text = $"Đã chọn: {stationsList.CheckedItems.Count}/5 máy";
-    }
-
-    private void UpdateMatchEditor()
-    {
-        DataRowView? match = SelectedRow(matchesGrid);
-        winnerInput.Items.Clear();
-        team1ScoreInput.Value = 0;
-        team2ScoreInput.Value = 0;
-        bool tournamentOpen = SelectedRow(tournamentsGrid) is { } tournament && Convert.ToString(tournament["Status"]) != "Finished";
-        saveScoreButton.Enabled = tournamentOpen && match != null && Convert.ToString(match["Status"]) != "Finished";
-        lockButton.Enabled = tournamentOpen && match != null && Convert.ToString(match["Status"]) == "Pending"
-            && string.IsNullOrWhiteSpace(Convert.ToString(match["AssignedStationIds"]));
-        if (match == null)
-        {
-            matchLabel.Text = "Chưa chọn trận đấu.";
-            return;
+                _tournamentList = _dbTournament.GetAll();
+                BindTournamentGrid(_tournamentList);
+                UpdateStatistics();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tải danh sách giải đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
-        string team1 = Convert.ToString(match["Team1Name"]) ?? "";
-        string team2 = Convert.ToString(match["Team2Name"]) ?? "";
-        matchLabel.Text = $"Trận được chọn: {team1} - {team2} (vòng {match["RoundNumber"]}, {match["Status"]})";
-        winnerInput.Items.AddRange([team1, team2]);
-        string? previousWinner = Convert.ToString(match["WinnerTeamName"]);
-        if (!string.IsNullOrEmpty(previousWinner)) winnerInput.SelectedItem = previousWinner;
-        string[] scores = (Convert.ToString(match["Score"]) ?? "").Split('-');
-        if (scores.Length == 2 && int.TryParse(scores[0], out int first) && int.TryParse(scores[1], out int second))
+        private void BindTournamentGrid(List<Tournament> tournaments)
         {
-            team1ScoreInput.Value = Math.Clamp(first, 0, team1ScoreInput.Maximum);
-            team2ScoreInput.Value = Math.Clamp(second, 0, team2ScoreInput.Maximum);
+            // LINQ projection for tournaments
+            var displayData = tournaments.Select(t => new
+            {
+                MaGiai = t.TournamentId,
+                TenGiaiDau = t.Title,
+                TuaGame = t.GameTitle,
+                TheThuc = t.FormatType,
+                TienThuong = $"{t.PrizePool:N0} VNĐ",
+                TrangThai = t.Status,
+                NgayKhoiTranh = t.StartDate.ToString("dd/MM/yyyy HH:mm")
+            }).ToList();
+
+            dgvGiaiDau.DataSource = displayData;
+
+            if (dgvGiaiDau.Columns["MaGiai"] is DataGridViewColumn col1) col1.HeaderText = "Mã";
+            if (dgvGiaiDau.Columns["TenGiaiDau"] is DataGridViewColumn col2) col2.HeaderText = "Tên Giải Đấu";
+            if (dgvGiaiDau.Columns["TuaGame"] is DataGridViewColumn col3) col3.HeaderText = "Tựa Game";
+            if (dgvGiaiDau.Columns["TheThuc"] is DataGridViewColumn col4) col4.HeaderText = "Thể Thức";
+            if (dgvGiaiDau.Columns["TienThuong"] is DataGridViewColumn col5) col5.HeaderText = "Tổng Thưởng";
+            if (dgvGiaiDau.Columns["TrangThai"] is DataGridViewColumn col6) col6.HeaderText = "Trạng Thái";
+            if (dgvGiaiDau.Columns["NgayKhoiTranh"] is DataGridViewColumn col7) col7.HeaderText = "Ngày Khởi Tranh";
         }
-    }
 
-    private void RunAction(Action action)
-    {
-        try
+        private void LoadMatchesForSelectedTournament(int tournamentId)
         {
-            UseWaitCursor = true;
-            action();
+            try
+            {
+                _matchList = _dbTournament.GetMatchesByTournament(tournamentId);
+
+                var displayMatches = _matchList.Select(m => new
+                {
+                    MaTran = m.MatchId,
+                    VongDau = $"Vòng {m.RoundNumber}",
+                    Doi1 = m.Team1Name,
+                    Doi2 = m.Team2Name,
+                    DoiThang = m.WinnerTeamName ?? "-- Chưa rõ --",
+                    TiSo = m.Score ?? "0 - 0",
+                    MayThiDau = m.AssignedStationIds ?? "Chưa gán",
+                    TrangThai = m.Status
+                }).ToList();
+
+                dgvTranDau.DataSource = displayMatches;
+
+                if (dgvTranDau.Columns["MaTran"] is DataGridViewColumn mCol1) mCol1.HeaderText = "Mã";
+                if (dgvTranDau.Columns["VongDau"] is DataGridViewColumn mCol2) mCol2.HeaderText = "Vòng";
+                if (dgvTranDau.Columns["Doi1"] is DataGridViewColumn mCol3) mCol3.HeaderText = "Đội 1";
+                if (dgvTranDau.Columns["Doi2"] is DataGridViewColumn mCol4) mCol4.HeaderText = "Đội 2";
+                if (dgvTranDau.Columns["DoiThang"] is DataGridViewColumn mCol5) mCol5.HeaderText = "Đội Thắng";
+                if (dgvTranDau.Columns["TiSo"] is DataGridViewColumn mCol6) mCol6.HeaderText = "Tỉ Số";
+                if (dgvTranDau.Columns["MayThiDau"] is DataGridViewColumn mCol7) mCol7.HeaderText = "Dàn Máy Gán";
+                if (dgvTranDau.Columns["TrangThai"] is DataGridViewColumn mCol8) mCol8.HeaderText = "Trạng Thái";
+
+                UpdateStatistics();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tải danh sách trận đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+
+        private void UpdateStatistics()
         {
-            MessageBox.Show(this, ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            // LINQ Count
+            int totalTourneys = _tournamentList.Count;
+            int ongoingTourneys = _tournamentList.Count(t => t.Status.Equals("Ongoing", StringComparison.OrdinalIgnoreCase));
+            int totalMatches = _matchList.Count;
+
+            lblTongSoGiai.Text = $"🏆 Tổng số giải: {totalTourneys}";
+            lblGiaiDangDienRa.Text = $"🔥 Đang diễn ra: {ongoingTourneys}";
+            lblSoTranDau.Text = $"⚔️ Tổng số trận đấu: {totalMatches}";
         }
-        catch (SqlException ex)
+
+        private void DgvGiaiDau_SelectionChanged(object? sender, EventArgs e)
         {
-            MessageBox.Show(this, $"Không thể thao tác với cơ sở dữ liệu.\n{ex.Message}", "Lỗi cơ sở dữ liệu",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            if (dgvGiaiDau.CurrentRow != null && dgvGiaiDau.CurrentRow.DataBoundItem != null)
+            {
+                int tournamentId = Convert.ToInt32(dgvGiaiDau.CurrentRow.Cells["MaGiai"].Value);
+                _selectedTournament = _tournamentList.FirstOrDefault(t => t.TournamentId == tournamentId);
+                if (_selectedTournament != null)
+                {
+                    txtTournamentId.Text = _selectedTournament.TournamentId.ToString();
+                    txtTenGiai.Text = _selectedTournament.Title;
+                    txtGameTitle.Text = _selectedTournament.GameTitle;
+                    cboFormatType.SelectedItem = _selectedTournament.FormatType;
+                    txtPrizePool.Text = _selectedTournament.PrizePool.ToString("F0");
+                    dtpStartDate.Value = _selectedTournament.StartDate;
+                    cboTournamentStatus.SelectedItem = _selectedTournament.Status;
+
+                    LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                }
+            }
         }
-        finally { UseWaitCursor = false; }
-    }
 
-    private void RefreshAfterSave(Action refresh, string successMessage)
-    {
-        try { refresh(); }
-        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+        private void DgvTranDau_SelectionChanged(object? sender, EventArgs e)
         {
-            saveScoreButton.Enabled = false;
-            lockButton.Enabled = false;
-            MessageBox.Show(this, $"{successMessage}\nDữ liệu đã được lưu nhưng không thể tải lại danh sách. Bấm Tải lại để cập nhật.\n{ex.Message}",
-                Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            if (dgvTranDau.CurrentRow != null && dgvTranDau.CurrentRow.DataBoundItem != null)
+            {
+                int matchId = Convert.ToInt32(dgvTranDau.CurrentRow.Cells["MaTran"].Value);
+                _selectedMatch = _matchList.FirstOrDefault(m => m.MatchId == matchId);
+                if (_selectedMatch != null)
+                {
+                    txtRoundNumber.Text = _selectedMatch.RoundNumber.ToString();
+                    txtTeam1.Text = _selectedMatch.Team1Name;
+                    txtTeam2.Text = _selectedMatch.Team2Name;
+                    txtScore.Text = _selectedMatch.Score ?? "0 - 0";
+                    cboMatchStatus.SelectedItem = _selectedMatch.Status;
+
+                    cboWinnerTeam.Items.Clear();
+                    cboWinnerTeam.Items.Add("-- Chưa có --");
+                    if (!string.IsNullOrWhiteSpace(_selectedMatch.Team1Name)) cboWinnerTeam.Items.Add(_selectedMatch.Team1Name);
+                    if (!string.IsNullOrWhiteSpace(_selectedMatch.Team2Name)) cboWinnerTeam.Items.Add(_selectedMatch.Team2Name);
+
+                    if (!string.IsNullOrEmpty(_selectedMatch.WinnerTeamName))
+                    {
+                        cboWinnerTeam.SelectedItem = _selectedMatch.WinnerTeamName;
+                    }
+                    else
+                    {
+                        cboWinnerTeam.SelectedIndex = 0;
+                    }
+                }
+            }
         }
-        MessageBox.Show(this, successMessage, Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
 
-    private static DataGridView CreateGrid() => new()
-    {
-        Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-        AutoGenerateColumns = false, MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill
-    };
-
-    private static void AddColumn(DataGridView grid, string property, string header, int weight, string? format = null)
-    {
-        var column = new DataGridViewTextBoxColumn
+        private void BtnTaoGiai_Click(object? sender, EventArgs e)
         {
-            DataPropertyName = property, HeaderText = header, FillWeight = weight, MinimumWidth = 50
-        };
-        if (format != null) column.DefaultCellStyle.Format = format;
-        grid.Columns.Add(column);
-    }
+            try
+            {
+                if (!decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool))
+                {
+                    MessageBox.Show("Tổng giải thưởng không hợp lệ. Vui lòng nhập số hợp lệ.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
 
-    private static FlowLayoutPanel CreateFlow() => new()
-    {
-        Dock = DockStyle.Fill, Padding = new Padding(8), AutoScroll = true, WrapContents = true
-    };
+                DBTournament.ValidateTournament(txtTenGiai.Text, prizePool, dtpStartDate.Value);
+                DBTournament.ValidateText(txtGameTitle.Text, 100, "Tên trò chơi");
 
-    private static Control Field(string caption, Control input)
-    {
-        var panel = new FlowLayoutPanel
-        {
-            AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(3, 0, 8, 3)
-        };
-        panel.Controls.Add(new Label { Text = caption, AutoSize = true });
-        panel.Controls.Add(input);
-        return panel;
-    }
+                var newTourney = new Tournament
+                {
+                    Title = txtTenGiai.Text.Trim(),
+                    GameTitle = txtGameTitle.Text.Trim(),
+                    FormatType = cboFormatType.SelectedItem?.ToString() ?? "SingleElimination",
+                    PrizePool = prizePool,
+                    Status = cboTournamentStatus.SelectedItem?.ToString() ?? "Upcoming",
+                    StartDate = dtpStartDate.Value
+                };
 
-    private static DataRowView? SelectedRow(DataGridView grid) => grid.CurrentRow?.DataBoundItem as DataRowView;
-
-    private static int? SelectedId(DataGridView grid, string column) =>
-        SelectedRow(grid) is { } row ? Convert.ToInt32(row[column]) : null;
-
-    private static void SelectRow(DataGridView grid, string column, int? id)
-    {
-        if (grid.Rows.Count == 0) return;
-        DataGridViewRow target = grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(row =>
-            row.DataBoundItem is DataRowView data && Convert.ToInt32(data[column]) == id) ?? grid.Rows[0];
-        grid.CurrentCell = target.Cells[0];
-        target.Selected = true;
-    }
-
-    private static void ReplaceData(DataGridView grid, DataTable? data)
-    {
-        var previous = grid.DataSource as DataTable;
-        grid.DataSource = data;
-        previous?.Dispose();
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            (tournamentsGrid.DataSource as DataTable)?.Dispose();
-            (matchesGrid.DataSource as DataTable)?.Dispose();
+                if (_dbTournament.Add(newTourney))
+                {
+                    MessageBox.Show($"Tạo giải đấu '{newTourney.Title}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnTournamentEvent?.Invoke($"Đã tạo giải đấu mới: {newTourney.Title}");
+                    LoadTournaments();
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tạo giải đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
-        base.Dispose(disposing);
-    }
 
-    private sealed record StationOption(int Id, string Display)
-    {
-        public override string ToString() => Display;
+        private void BtnCapNhatGiai_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(txtTournamentId.Text))
+            {
+                MessageBox.Show("Vui lòng chọn giải đấu cần cập nhật!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                int id = Convert.ToInt32(txtTournamentId.Text);
+                if (!decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool))
+                {
+                    MessageBox.Show("Tổng giải thưởng không hợp lệ. Vui lòng nhập số hợp lệ.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                string status = cboTournamentStatus.SelectedItem?.ToString() ?? "Upcoming";
+                if (dtpStartDate.Value.Date < DateTime.Today && (status != "Ongoing" && status != "Finished"))
+                {
+                    throw new ArgumentException("Ngày bắt đầu phải từ ngày hiện tại trở đi.", nameof(dtpStartDate));
+                }
+
+                DBTournament.ValidateText(txtTenGiai.Text, 150, "Tên giải đấu");
+                if (prizePool <= 0 || prizePool > DBTournament.MaximumPrizePool)
+                    throw new ArgumentException("Tổng giải thưởng phải lớn hơn 0 và không vượt quá 9.999.999.999.999.999,99.", nameof(prizePool));
+                if (decimal.Round(prizePool, 2) != prizePool)
+                    throw new ArgumentException("Tổng giải thưởng chỉ được có tối đa 2 chữ số thập phân.", nameof(prizePool));
+                DBTournament.ValidateText(txtGameTitle.Text, 100, "Tên trò chơi");
+
+                var tourney = new Tournament
+                {
+                    TournamentId = id,
+                    Title = txtTenGiai.Text.Trim(),
+                    GameTitle = txtGameTitle.Text.Trim(),
+                    FormatType = cboFormatType.SelectedItem?.ToString() ?? "SingleElimination",
+                    PrizePool = prizePool,
+                    Status = status,
+                    StartDate = dtpStartDate.Value
+                };
+
+                if (_dbTournament.Update(tourney))
+                {
+                    MessageBox.Show($"Cập nhật thông tin giải '{tourney.Title}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadTournaments();
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi cập nhật giải đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnXoaGiai_Click(object? sender, EventArgs e)
+        {
+            if (string.IsNullOrEmpty(txtTournamentId.Text)) return;
+            int id = Convert.ToInt32(txtTournamentId.Text);
+
+            var confirm = MessageBox.Show($"Bạn có chắc chắn muốn xóa giải đấu '{txtTenGiai.Text}' cùng toàn bộ các trận đấu?", "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm == DialogResult.Yes)
+            {
+                if (_dbTournament.Delete(id))
+                {
+                    MessageBox.Show("Xóa giải đấu thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadTournaments();
+                }
+            }
+        }
+
+        private void BtnThemTranDau_Click(object? sender, EventArgs e)
+        {
+            if (_selectedTournament == null)
+            {
+                MessageBox.Show("Vui lòng chọn một giải đấu ở bảng trên trước khi xếp cặp đấu!", "Chưa chọn giải", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                if (!int.TryParse(txtRoundNumber.Text.Trim(), out int round) || round <= 0)
+                {
+                    throw new ArgumentException("Vòng đấu phải lớn hơn 0.", nameof(round));
+                }
+
+                DBTournament.ValidateMatch(txtTeam1.Text, txtTeam2.Text, round);
+
+                string assignedCluster = (cboChonDanMay.SelectedIndex == 1)
+                    ? "PC-01,PC-02,PC-03,PC-04,PC-05,PC-06,PC-07,PC-08,PC-09,PC-10"
+                    : "PC-06,PC-07,PC-08,PC-09,PC-10";
+
+                var newMatch = new TournamentMatch
+                {
+                    TournamentId = _selectedTournament.TournamentId,
+                    RoundNumber = round,
+                    Team1Name = txtTeam1.Text.Trim(),
+                    Team2Name = txtTeam2.Text.Trim(),
+                    Score = "0 - 0",
+                    AssignedStationIds = assignedCluster,
+                    Status = "Pending"
+                };
+
+                if (_dbTournament.AddMatch(newMatch))
+                {
+                    MessageBox.Show($"Xếp cặp đấu '{newMatch.Team1Name}' VS '{newMatch.Team2Name}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi thêm trận đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnCapNhatKetQua_Click(object? sender, EventArgs e)
+        {
+            if (_selectedMatch == null || _selectedTournament == null)
+            {
+                MessageBox.Show("Vui lòng chọn trận đấu từ bảng dưới!", "Chưa chọn trận đấu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                string scoreText = txtScore.Text.Trim();
+                string winner = cboWinnerTeam.SelectedItem?.ToString() ?? "";
+                string winnerName = (winner == "-- Chưa có --") ? "" : winner;
+                string status = cboMatchStatus.SelectedItem?.ToString() ?? "Pending";
+
+                if (status == "Finished" || !string.IsNullOrEmpty(winnerName))
+                {
+                    if (!DBTournament.TryParseScore(scoreText, out int s1, out int s2))
+                    {
+                        throw new ArgumentException("Tỉ số không hợp lệ. Vui lòng nhập theo định dạng 'Đội1 - Đội2' (ví dụ: 2-1).");
+                    }
+
+                    DBTournament.ValidateMatchScore(_selectedMatch.Team1Name, _selectedMatch.Team2Name, s1, s2, winnerName);
+                    _selectedMatch.Score = DBTournament.FormatScore(s1, s2);
+                    _selectedMatch.WinnerTeamName = winnerName;
+                    _selectedMatch.Status = "Finished";
+                }
+                else
+                {
+                    if (DBTournament.TryParseScore(scoreText, out int s1, out int s2))
+                    {
+                        if (s1 < 0 || s2 < 0)
+                            throw new ArgumentException("Tỉ số không được âm.");
+                        if (DBTournament.FormatScore(s1, s2).Length > 20)
+                            throw new ArgumentException("Tỉ số vượt quá độ dài lưu trữ cho phép (20 ký tự).");
+                        _selectedMatch.Score = DBTournament.FormatScore(s1, s2);
+                    }
+                    else
+                    {
+                        _selectedMatch.Score = scoreText;
+                    }
+                    _selectedMatch.WinnerTeamName = null;
+                    _selectedMatch.Status = status;
+                }
+
+                if (_dbTournament.UpdateMatch(_selectedMatch))
+                {
+                    MessageBox.Show("Cập nhật kết quả trận đấu thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi cập nhật trận đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnKhoaMayGiaiDau_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                int selectedOption = cboChonDanMay.SelectedIndex;
+                int[] stationIds = (selectedOption == 1)
+                    ? new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+                    : new int[] { 6, 7, 8, 9, 10 }; // Dàn đấu trường LAN
+
+                var currentStations = new DBStation().GetAll();
+                var busyStations = currentStations.Where(s => stationIds.Contains(s.StationId) && s.Status.Equals("InUse", StringComparison.OrdinalIgnoreCase)).ToList();
+                if (busyStations.Any())
+                {
+                    string busyNames = string.Join(", ", busyStations.Select(s => s.StationName));
+                    var confirm = MessageBox.Show(
+                        $"CẢNH BÁO: Cụm máy thi đấu có máy ({busyNames}) hiện đang có khách sử dụng!\n" +
+                        $"Bạn có chắc chắn muốn buộc chuyển trạng thái sang khóa giải đấu không?",
+                        "Cảnh báo máy đang chơi",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning
+                    );
+                    if (confirm != DialogResult.Yes) return;
+                }
+
+                if (_dbTournament.LockTournamentStations(stationIds))
+                {
+                    MessageBox.Show($"Đã KHÓA thành công {stationIds.Length} máy sang trạng thái 'TournamentLocked' phục vụ giải đấu LAN!", "Khóa máy giải đấu", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnTournamentEvent?.Invoke($"Đã khóa dàn máy thi đấu: {string.Join(", ", stationIds.Select(id => $"PC-{id:D2}"))}");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi khóa máy thi đấu: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnMoKhoaMay_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                int selectedOption = cboChonDanMay.SelectedIndex;
+                int[] stationIds = (selectedOption == 1)
+                    ? new int[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 }
+                    : new int[] { 6, 7, 8, 9, 10 };
+
+                if (_dbTournament.UnlockTournamentStations(stationIds))
+                {
+                    MessageBox.Show($"Đã GIẢI PHÓNG thành công {stationIds.Length} máy trở về trạng thái 'Available' cho khách thường!", "Giải phóng dàn máy", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnTournamentEvent?.Invoke($"Đã mở lại dàn máy thi đấu sang Available.");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi mở khóa dàn máy: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
     }
 }
