@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Globalization;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.Data.SqlClient;
 using GamingCenterManagementSystem.Models;
 using GamingCenterManagementSystem.OOP;
@@ -9,6 +13,8 @@ namespace GamingCenterManagementSystem.DAL
     public class DBTournament : IRepository<Tournament>
     {
         public const decimal MaximumPrizePool = 9999999999999999.99m;
+
+        private readonly Func<SqlConnection> _connectionFactory;
 
         private static readonly List<Tournament> _fallbackTournaments = new()
         {
@@ -22,12 +28,44 @@ namespace GamingCenterManagementSystem.DAL
             new TournamentMatch { MatchId = 2, TournamentId = 1, RoundNumber = 2, Team1Name = "Dragon Slayer", Team2Name = "Phoenix Gaming", WinnerTeamName = null, Score = "0 - 0", AssignedStationIds = "PC-06,PC-07,PC-08,PC-09,PC-10", Status = "Playing" }
         };
 
+        public DBTournament() : this(Database.GetConnection)
+        {
+        }
+
+        public DBTournament(Func<SqlConnection> connectionFactory)
+        {
+            ArgumentNullException.ThrowIfNull(connectionFactory);
+            _connectionFactory = connectionFactory;
+        }
+
+        public DataTable GetTournaments() => ReadTable("""
+            SELECT TournamentId, Title, GameTitle, FormatType, PrizePool, Status, StartDate
+            FROM dbo.Tournament ORDER BY StartDate DESC, TournamentId DESC;
+            """);
+
+        public DataTable GetMatches(int tournamentId) => ReadTable("""
+            SELECT MatchId, TournamentId, RoundNumber, Team1Name, Team2Name,
+                   WinnerTeamName, Score, AssignedStationIds, Status
+            FROM dbo.TournamentMatch WHERE TournamentId = @TournamentId
+            ORDER BY RoundNumber, MatchId;
+            """, new SqlParameter("@TournamentId", SqlDbType.Int) { Value = tournamentId });
+
+        public DataTable GetStations() => ReadTable("""
+            SELECT s.StationId, s.StationName, s.Status,
+                   CAST(CASE WHEN s.Status = N'InUse' OR EXISTS (
+                       SELECT 1 FROM dbo.GamingSession AS gs
+                       WHERE gs.StationId = s.StationId
+                         AND (gs.Status = N'Active' OR gs.EndTime IS NULL)
+                   ) THEN 1 ELSE 0 END AS bit) AS IsOccupied
+            FROM dbo.ComputerStation AS s ORDER BY s.StationId;
+            """);
+
         public List<Tournament> GetAll()
         {
             List<Tournament> list = new List<Tournament>();
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string sql = "SELECT TournamentId, Title, GameTitle, FormatType, PrizePool, Status, StartDate FROM Tournament ORDER BY TournamentId";
@@ -61,7 +99,7 @@ namespace GamingCenterManagementSystem.DAL
         {
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string sql = "SELECT TournamentId, Title, GameTitle, FormatType, PrizePool, Status, StartDate FROM Tournament WHERE TournamentId = @TournamentId";
@@ -99,30 +137,42 @@ namespace GamingCenterManagementSystem.DAL
             ArgumentNullException.ThrowIfNull(entity);
             ValidateTournament(entity.Title, entity.PrizePool, entity.StartDate);
             ValidateText(entity.GameTitle, 100, "Tên trò chơi");
+            if (!string.IsNullOrWhiteSpace(entity.FormatType))
+                ValidateText(entity.FormatType, 50, "Thể thức");
 
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string sql = @"INSERT INTO Tournament (Title, GameTitle, FormatType, PrizePool, Status, StartDate)
+                                   OUTPUT INSERTED.TournamentId
                                    VALUES (@Title, @GameTitle, @FormatType, @PrizePool, @Status, @StartDate)";
                     using (SqlCommand cmd = new SqlCommand(sql, conn))
                     {
                         cmd.Parameters.AddWithValue("@Title", entity.Title.Trim());
                         cmd.Parameters.AddWithValue("@GameTitle", entity.GameTitle.Trim());
                         cmd.Parameters.AddWithValue("@FormatType", (entity.FormatType ?? "SingleElimination").Trim());
-                        cmd.Parameters.AddWithValue("@PrizePool", entity.PrizePool);
+                        var prizeParam = cmd.Parameters.Add("@PrizePool", SqlDbType.Decimal);
+                        prizeParam.Precision = 18;
+                        prizeParam.Scale = 2;
+                        prizeParam.Value = entity.PrizePool;
                         cmd.Parameters.AddWithValue("@Status", (entity.Status ?? "Upcoming").Trim());
-                        cmd.Parameters.AddWithValue("@StartDate", entity.StartDate);
+                        cmd.Parameters.AddWithValue("@StartDate", entity.StartDate.Date);
 
-                        return cmd.ExecuteNonQuery() > 0;
+                        object? result = cmd.ExecuteScalar();
+                        if (result != null && result != DBNull.Value)
+                        {
+                            entity.TournamentId = Convert.ToInt32(result, CultureInfo.InvariantCulture);
+                            return true;
+                        }
+                        return false;
                     }
                 }
             }
             catch (Exception ex) when (ex is not ArgumentException)
             {
-                entity.TournamentId = _fallbackTournaments.Count > 0 ? _fallbackTournaments[^1].TournamentId + 1 : 1;
+                entity.TournamentId = _fallbackTournaments.Count > 0 ? _fallbackTournaments.Max(t => t.TournamentId) + 1 : 1;
                 _fallbackTournaments.Add(entity);
                 return true;
             }
@@ -144,10 +194,12 @@ namespace GamingCenterManagementSystem.DAL
                 ValidateTournament(entity.Title, entity.PrizePool, entity.StartDate);
             }
             ValidateText(entity.GameTitle, 100, "Tên trò chơi");
+            if (!string.IsNullOrWhiteSpace(entity.FormatType))
+                ValidateText(entity.FormatType, 50, "Thể thức");
 
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string sql = @"UPDATE Tournament 
@@ -159,9 +211,12 @@ namespace GamingCenterManagementSystem.DAL
                         cmd.Parameters.AddWithValue("@Title", entity.Title.Trim());
                         cmd.Parameters.AddWithValue("@GameTitle", entity.GameTitle.Trim());
                         cmd.Parameters.AddWithValue("@FormatType", (entity.FormatType ?? "SingleElimination").Trim());
-                        cmd.Parameters.AddWithValue("@PrizePool", entity.PrizePool);
+                        var prizeParam = cmd.Parameters.Add("@PrizePool", SqlDbType.Decimal);
+                        prizeParam.Precision = 18;
+                        prizeParam.Scale = 2;
+                        prizeParam.Value = entity.PrizePool;
                         cmd.Parameters.AddWithValue("@Status", (entity.Status ?? "Upcoming").Trim());
-                        cmd.Parameters.AddWithValue("@StartDate", entity.StartDate);
+                        cmd.Parameters.AddWithValue("@StartDate", entity.StartDate.Date);
                         cmd.Parameters.AddWithValue("@TournamentId", entity.TournamentId);
 
                         return cmd.ExecuteNonQuery() > 0;
@@ -189,7 +244,7 @@ namespace GamingCenterManagementSystem.DAL
         {
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string sql = "DELETE FROM TournamentMatch WHERE TournamentId = @TournamentId; DELETE FROM Tournament WHERE TournamentId = @TournamentId";
@@ -212,7 +267,7 @@ namespace GamingCenterManagementSystem.DAL
             List<TournamentMatch> list = new List<TournamentMatch>();
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string sql = "SELECT MatchId, TournamentId, RoundNumber, Team1Name, Team2Name, WinnerTeamName, Score, AssignedStationIds, Status FROM TournamentMatch WHERE TournamentId = @TournamentId ORDER BY RoundNumber, MatchId";
@@ -252,14 +307,28 @@ namespace GamingCenterManagementSystem.DAL
             ArgumentNullException.ThrowIfNull(match);
             ValidateMatch(match.Team1Name, match.Team2Name, match.RoundNumber);
 
+            if (match.Status == "Finished" || !string.IsNullOrWhiteSpace(match.WinnerTeamName))
+            {
+                if (!TryParseScore(match.Score, out int s1, out int s2))
+                    throw new ArgumentException("Tỉ số không hợp lệ. Vui lòng nhập theo định dạng 'Đội1 - Đội2' (ví dụ: 2-1).");
+                ValidateMatchScore(match.Team1Name, match.Team2Name, s1, s2, match.WinnerTeamName ?? "");
+                match.Score = FormatScore(s1, s2);
+                match.WinnerTeamName = (s1 > s2 ? match.Team1Name : match.Team2Name).Trim();
+                match.Status = "Finished";
+            }
+
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
+                    using var trans = conn.BeginTransaction();
+                    RequireTournament(conn, trans, match.TournamentId);
+
                     string sql = @"INSERT INTO TournamentMatch (TournamentId, RoundNumber, Team1Name, Team2Name, WinnerTeamName, Score, AssignedStationIds, Status)
+                                   OUTPUT INSERTED.MatchId
                                    VALUES (@TournamentId, @RoundNumber, @Team1Name, @Team2Name, @WinnerTeamName, @Score, @AssignedStationIds, @Status)";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    using (SqlCommand cmd = new SqlCommand(sql, conn, trans))
                     {
                         cmd.Parameters.AddWithValue("@TournamentId", match.TournamentId);
                         cmd.Parameters.AddWithValue("@RoundNumber", match.RoundNumber);
@@ -270,13 +339,24 @@ namespace GamingCenterManagementSystem.DAL
                         cmd.Parameters.AddWithValue("@AssignedStationIds", (object?)match.AssignedStationIds ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@Status", match.Status);
 
-                        return cmd.ExecuteNonQuery() > 0;
+                        object? result = cmd.ExecuteScalar();
+                        trans.Commit();
+                        if (result != null && result != DBNull.Value)
+                        {
+                            match.MatchId = Convert.ToInt32(result, CultureInfo.InvariantCulture);
+                            return true;
+                        }
+                        return false;
                     }
                 }
             }
-            catch (Exception ex) when (ex is not ArgumentException)
+            catch (Exception ex) when (ex is not (ArgumentException or InvalidOperationException))
             {
-                match.MatchId = _fallbackMatches.Count > 0 ? _fallbackMatches[^1].MatchId + 1 : 1;
+                var tourney = _fallbackTournaments.Find(t => t.TournamentId == match.TournamentId);
+                if (tourney != null && tourney.Status == "Finished")
+                    throw new InvalidOperationException("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.");
+
+                match.MatchId = _fallbackMatches.Count > 0 ? _fallbackMatches.Max(m => m.MatchId) + 1 : 1;
                 _fallbackMatches.Add(match);
                 return true;
             }
@@ -293,18 +373,34 @@ namespace GamingCenterManagementSystem.DAL
                     throw new ArgumentException("Tỉ số không hợp lệ. Vui lòng nhập theo định dạng 'Đội1 - Đội2' (ví dụ: 2-1).");
                 ValidateMatchScore(match.Team1Name, match.Team2Name, s1, s2, match.WinnerTeamName ?? "");
                 match.Score = FormatScore(s1, s2);
+                match.WinnerTeamName = (s1 > s2 ? match.Team1Name : match.Team2Name).Trim();
+                match.Status = "Finished";
+            }
+            else if (!string.IsNullOrWhiteSpace(match.Score))
+            {
+                if (TryParseScore(match.Score, out int s1, out int s2))
+                {
+                    if (s1 < 0 || s2 < 0)
+                        throw new ArgumentException("Tỉ số không được âm.");
+                    if (FormatScore(s1, s2).Length > 20)
+                        throw new ArgumentException("Tỉ số vượt quá độ dài lưu trữ cho phép (20 ký tự).");
+                    match.Score = FormatScore(s1, s2);
+                }
             }
 
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
+                    using var trans = conn.BeginTransaction();
+                    RequireTournament(conn, trans, match.TournamentId);
+
                     string sql = @"UPDATE TournamentMatch 
                                    SET RoundNumber = @RoundNumber, Team1Name = @Team1Name, Team2Name = @Team2Name,
                                        WinnerTeamName = @WinnerTeamName, Score = @Score, AssignedStationIds = @AssignedStationIds, Status = @Status
                                    WHERE MatchId = @MatchId";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    using (SqlCommand cmd = new SqlCommand(sql, conn, trans))
                     {
                         cmd.Parameters.AddWithValue("@RoundNumber", match.RoundNumber);
                         cmd.Parameters.AddWithValue("@Team1Name", match.Team1Name.Trim());
@@ -315,12 +411,18 @@ namespace GamingCenterManagementSystem.DAL
                         cmd.Parameters.AddWithValue("@Status", match.Status);
                         cmd.Parameters.AddWithValue("@MatchId", match.MatchId);
 
-                        return cmd.ExecuteNonQuery() > 0;
+                        int rows = cmd.ExecuteNonQuery();
+                        trans.Commit();
+                        return rows > 0;
                     }
                 }
             }
-            catch (Exception ex) when (ex is not ArgumentException)
+            catch (Exception ex) when (ex is not (ArgumentException or InvalidOperationException))
             {
+                var tourney = _fallbackTournaments.Find(t => t.TournamentId == match.TournamentId);
+                if (tourney != null && tourney.Status == "Finished")
+                    throw new InvalidOperationException("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.");
+
                 var idx = _fallbackMatches.FindIndex(m => m.MatchId == match.MatchId);
                 if (idx >= 0)
                 {
@@ -343,7 +445,7 @@ namespace GamingCenterManagementSystem.DAL
 
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string inClause = string.Join(",", stationIds.Select(id => (int)id));
@@ -367,7 +469,7 @@ namespace GamingCenterManagementSystem.DAL
 
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using (SqlConnection conn = _connectionFactory())
                 {
                     conn.Open();
                     string inClause = string.Join(",", stationIds.Select(id => (int)id));
@@ -442,15 +544,21 @@ namespace GamingCenterManagementSystem.DAL
         public static string FormatScore(int team1Score, int team2Score) =>
             $"{team1Score}-{team2Score}";
 
-        /// <summary>Tries to parse score text in formats like '2-1', '2 - 1', '2:1'.</summary>
+        /// <summary>Tries to parse score text in formats like '2-1', '2 - 1', '2:1'. Accurately preserves negative values.</summary>
         public static bool TryParseScore(string? scoreText, out int score1, out int score2)
         {
             score1 = 0;
             score2 = 0;
             if (string.IsNullOrWhiteSpace(scoreText)) return false;
 
-            string[] parts = scoreText.Split(new[] { '-', ':', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 2 && int.TryParse(parts[0].Trim(), out score1) && int.TryParse(parts[1].Trim(), out score2))
+            var match = Regex.Match(
+                scoreText.Trim(),
+                @"^\s*([+-]?\d+)\s*[-:]\s*([+-]?\d+)\s*$"
+            );
+
+            if (match.Success &&
+                int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out score1) &&
+                int.TryParse(match.Groups[2].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out score2))
             {
                 return true;
             }
@@ -490,57 +598,75 @@ namespace GamingCenterManagementSystem.DAL
             return m.MatchId;
         }
 
-        /// <summary>Updates match score and sets status to Finished.</summary>
+        /// <summary>Saves a validated score and winner, and marks the selected match Finished atomically.</summary>
         public void UpdateMatchScore(int matchId, int team1Score, int team2Score, string winnerTeamName)
         {
-            TournamentMatch? existing = null;
             try
             {
-                using (SqlConnection conn = Database.GetConnection())
+                using var conn = _connectionFactory();
+                conn.Open();
+                using var trans = conn.BeginTransaction();
+
+                using var ownerCmd = new SqlCommand("SELECT TournamentId FROM dbo.TournamentMatch WHERE MatchId = @MatchId;", conn, trans);
+                ownerCmd.Parameters.Add("@MatchId", SqlDbType.Int).Value = matchId;
+                object? tournamentIdObj = ownerCmd.ExecuteScalar();
+                if (tournamentIdObj is null)
+                    throw new InvalidOperationException("Không tìm thấy trận đấu đã chọn. Vui lòng tải lại danh sách.");
+                int tournamentId = Convert.ToInt32(tournamentIdObj, CultureInfo.InvariantCulture);
+                RequireTournament(conn, trans, tournamentId);
+
+                string team1Name;
+                string team2Name;
+                using (var matchCmd = new SqlCommand("""
+                    SELECT Team1Name, Team2Name, Status FROM dbo.TournamentMatch WITH (UPDLOCK, HOLDLOCK)
+                    WHERE MatchId = @MatchId;
+                    """, conn, trans))
                 {
-                    conn.Open();
-                    string sql = "SELECT MatchId, TournamentId, RoundNumber, Team1Name, Team2Name, WinnerTeamName, Score, AssignedStationIds, Status FROM TournamentMatch WHERE MatchId = @MatchId";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@MatchId", matchId);
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                existing = new TournamentMatch
-                                {
-                                    MatchId = Convert.ToInt32(reader["MatchId"]),
-                                    TournamentId = Convert.ToInt32(reader["TournamentId"]),
-                                    RoundNumber = Convert.ToInt32(reader["RoundNumber"]),
-                                    Team1Name = reader["Team1Name"].ToString() ?? "",
-                                    Team2Name = reader["Team2Name"].ToString() ?? "",
-                                    WinnerTeamName = reader["WinnerTeamName"]?.ToString(),
-                                    Score = reader["Score"]?.ToString(),
-                                    AssignedStationIds = reader["AssignedStationIds"]?.ToString(),
-                                    Status = reader["Status"].ToString() ?? "Pending"
-                                };
-                            }
-                        }
-                    }
+                    matchCmd.Parameters.Add("@MatchId", SqlDbType.Int).Value = matchId;
+                    using var reader = matchCmd.ExecuteReader();
+                    if (!reader.Read())
+                        throw new InvalidOperationException("Không tìm thấy trận đấu đã chọn. Vui lòng tải lại danh sách.");
+                    team1Name = reader.GetString(0);
+                    team2Name = reader.GetString(1);
+                    if (reader.GetString(2) == "Finished")
+                        throw new InvalidOperationException("Trận đấu đã kết thúc và đã có kết quả. Vui lòng tải lại danh sách.");
                 }
+
+                ValidateMatchScore(team1Name, team2Name, team1Score, team2Score, winnerTeamName);
+                string winner = team1Score > team2Score ? team1Name : team2Name;
+                using var updateCmd = new SqlCommand("""
+                    UPDATE dbo.TournamentMatch
+                    SET Score = @Score, WinnerTeamName = @WinnerTeamName, Status = N'Finished'
+                    WHERE MatchId = @MatchId;
+                    """, conn, trans);
+                updateCmd.Parameters.Add("@Score", SqlDbType.NVarChar, 20).Value = FormatScore(team1Score, team2Score);
+                updateCmd.Parameters.Add("@WinnerTeamName", SqlDbType.NVarChar, 100).Value = winner.Trim();
+                updateCmd.Parameters.Add("@MatchId", SqlDbType.Int).Value = matchId;
+                updateCmd.ExecuteNonQuery();
+                trans.Commit();
             }
-            catch
+            catch (Exception ex) when (ex is not (ArgumentException or InvalidOperationException))
             {
-                existing = _fallbackMatches.Find(m => m.MatchId == matchId);
+                var existing = _fallbackMatches.Find(m => m.MatchId == matchId);
+                if (existing == null)
+                    throw new InvalidOperationException("Không tìm thấy trận đấu đã chọn. Vui lòng tải lại danh sách.");
+
+                var tourney = _fallbackTournaments.Find(t => t.TournamentId == existing.TournamentId);
+                if (tourney != null && tourney.Status == "Finished")
+                    throw new InvalidOperationException("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.");
+
+                if (existing.Status == "Finished")
+                    throw new InvalidOperationException("Trận đấu đã kết thúc và đã có kết quả. Vui lòng tải lại danh sách.");
+
+                ValidateMatchScore(existing.Team1Name, existing.Team2Name, team1Score, team2Score, winnerTeamName);
+                existing.Score = FormatScore(team1Score, team2Score);
+                string winner = team1Score > team2Score ? existing.Team1Name : existing.Team2Name;
+                existing.WinnerTeamName = winner.Trim();
+                existing.Status = "Finished";
             }
-
-            if (existing == null)
-                throw new InvalidOperationException("Không tìm thấy trận đấu đã chọn.");
-
-            ValidateMatchScore(existing.Team1Name, existing.Team2Name, team1Score, team2Score, winnerTeamName);
-            existing.Score = FormatScore(team1Score, team2Score);
-            string winner = team1Score > team2Score ? existing.Team1Name : existing.Team2Name;
-            existing.WinnerTeamName = winner;
-            existing.Status = "Finished";
-            UpdateMatch(existing);
         }
 
-        /// <summary>Checks and reserves station IDs for tournament.</summary>
+        /// <summary>Checks and reserves exactly five unoccupied stations for a pending match in one transaction.</summary>
         public void LockTournament(int tournamentId, int matchId, IReadOnlyCollection<int> stationIds)
         {
             ArgumentNullException.ThrowIfNull(stationIds);
@@ -548,7 +674,141 @@ namespace GamingCenterManagementSystem.DAL
             if (ids.Length != 5 || ids.Distinct().Count() != 5 || ids.Any(id => id <= 0))
                 throw new ArgumentException("Vui lòng chọn đúng 5 máy thi đấu khác nhau.", nameof(stationIds));
 
-            LockTournamentStations(ids);
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                using var trans = conn.BeginTransaction();
+                RequireTournament(conn, trans, tournamentId);
+
+                using (var matchCmd = new SqlCommand("""
+                    SELECT Status, AssignedStationIds FROM dbo.TournamentMatch WITH (UPDLOCK, HOLDLOCK)
+                    WHERE MatchId = @MatchId AND TournamentId = @TournamentId;
+                    """, conn, trans))
+                {
+                    matchCmd.Parameters.Add("@MatchId", SqlDbType.Int).Value = matchId;
+                    matchCmd.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+                    using var reader = matchCmd.ExecuteReader();
+                    if (!reader.Read())
+                        throw new InvalidOperationException("Trận đấu không thuộc giải đấu đã chọn hoặc không còn tồn tại.");
+                    if (reader.GetString(0) == "Finished")
+                        throw new InvalidOperationException("Trận đấu đã kết thúc, không thể gán máy.");
+                    if (!reader.IsDBNull(1) && !string.IsNullOrWhiteSpace(reader.GetString(1)))
+                        throw new InvalidOperationException("Trận đấu đã được xếp cụm máy thi đấu từ trước.");
+                }
+
+                string parameterNames = string.Join(", ", Enumerable.Range(0, ids.Length).Select(i => $"@Station{i}"));
+                using (var stationCmd = new SqlCommand($"""
+                    SELECT s.StationId, s.StationName, s.Status,
+                           CAST(CASE WHEN s.Status = N'InUse' OR EXISTS (
+                               SELECT 1 FROM dbo.GamingSession AS gs
+                               WHERE gs.StationId = s.StationId
+                                 AND (gs.Status = N'Active' OR gs.EndTime IS NULL)
+                           ) THEN 1 ELSE 0 END AS bit) AS IsOccupied
+                    FROM dbo.ComputerStation AS s WITH (UPDLOCK, HOLDLOCK)
+                    WHERE s.StationId IN ({parameterNames}) ORDER BY s.StationId;
+                    """, conn, trans))
+                {
+                    for (int i = 0; i < ids.Length; i++)
+                        stationCmd.Parameters.Add($"@Station{i}", SqlDbType.Int).Value = ids[i];
+
+                    var occupied = new List<string>();
+                    var unavailable = new List<string>();
+                    int count = 0;
+                    using var reader = stationCmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        count++;
+                        string stationName = reader.GetString(1);
+                        if (reader.GetBoolean(3))
+                            occupied.Add(stationName);
+                        else if (reader.GetString(2) != "Available")
+                            unavailable.Add(stationName);
+                    }
+                    if (occupied.Count > 0)
+                        throw new InvalidOperationException($"Máy {string.Join(", ", occupied)} đang có khách. Vui lòng chuyển khách sang máy khác trước khi khóa giải đấu.");
+                    if (count != 5)
+                        throw new InvalidOperationException("Có máy thi đấu không còn tồn tại. Vui lòng tải lại danh sách và chọn đủ 5 máy.");
+                    if (unavailable.Count > 0)
+                        throw new InvalidOperationException($"Máy {string.Join(", ", unavailable)} không sẵn sàng (đang bảo trì hoặc đã khóa). Vui lòng chọn máy khác.");
+                }
+
+                using (var lockCmd = new SqlCommand($"""
+                    UPDATE dbo.ComputerStation SET Status = N'TournamentLocked'
+                    WHERE StationId IN ({parameterNames});
+                    """, conn, trans))
+                {
+                    for (int i = 0; i < ids.Length; i++)
+                        lockCmd.Parameters.Add($"@Station{i}", SqlDbType.Int).Value = ids[i];
+
+                    if (lockCmd.ExecuteNonQuery() != 5)
+                        throw new InvalidOperationException("Không thể khóa đủ 5 máy. Chưa có thay đổi nào được lưu.");
+                }
+
+                using (var assignCmd = new SqlCommand("""
+                    UPDATE dbo.TournamentMatch SET AssignedStationIds = @StationIds WHERE MatchId = @MatchId;
+                    UPDATE dbo.Tournament SET Status = N'Ongoing' WHERE TournamentId = @TournamentId;
+                    """, conn, trans))
+                {
+                    assignCmd.Parameters.Add("@StationIds", SqlDbType.NVarChar, 100).Value = string.Join(",", ids);
+                    assignCmd.Parameters.Add("@MatchId", SqlDbType.Int).Value = matchId;
+                    assignCmd.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+                    assignCmd.ExecuteNonQuery();
+                }
+                trans.Commit();
+            }
+            catch (Exception ex) when (ex is not (ArgumentException or InvalidOperationException))
+            {
+                var tourney = _fallbackTournaments.Find(t => t.TournamentId == tournamentId);
+                if (tourney is null)
+                    throw new InvalidOperationException("Không tìm thấy giải đấu đã chọn. Vui lòng tải lại danh sách.");
+                if (tourney.Status == "Finished")
+                    throw new InvalidOperationException("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.");
+
+                var match = _fallbackMatches.Find(m => m.MatchId == matchId && m.TournamentId == tournamentId);
+                if (match is null)
+                    throw new InvalidOperationException("Trận đấu không thuộc giải đấu đã chọn hoặc không còn tồn tại.");
+                if (match.Status == "Finished")
+                    throw new InvalidOperationException("Trận đấu đã kết thúc, không thể gán máy.");
+                if (!string.IsNullOrWhiteSpace(match.AssignedStationIds))
+                    throw new InvalidOperationException("Trận đấu đã được xếp cụm máy thi đấu từ trước.");
+
+                DBStation.UpdateMultipleStatusesFallback(ids, "TournamentLocked");
+                match.AssignedStationIds = string.Join(",", ids);
+                tourney.Status = "Ongoing";
+            }
+        }
+
+        private static void RequireTournament(SqlConnection connection, SqlTransaction transaction, int tournamentId)
+        {
+            using var command = new SqlCommand("""
+                SELECT Status FROM dbo.Tournament WITH (UPDLOCK, HOLDLOCK) WHERE TournamentId = @TournamentId;
+                """, connection, transaction);
+            command.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+            object? status = command.ExecuteScalar();
+            if (status is null)
+                throw new InvalidOperationException("Không tìm thấy giải đấu đã chọn. Vui lòng tải lại danh sách.");
+            if (string.Equals(Convert.ToString(status, CultureInfo.InvariantCulture), "Finished", StringComparison.Ordinal))
+                throw new InvalidOperationException("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.");
+        }
+
+        private DataTable ReadTable(string sql, params SqlParameter[] parameters)
+        {
+            try
+            {
+                using var conn = _connectionFactory();
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddRange(parameters);
+                using var adapter = new SqlDataAdapter(cmd);
+                var table = new DataTable();
+                adapter.Fill(table);
+                return table;
+            }
+            catch
+            {
+                var table = new DataTable();
+                return table;
+            }
         }
     }
 }
