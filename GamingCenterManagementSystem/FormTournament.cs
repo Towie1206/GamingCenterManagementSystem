@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
@@ -187,7 +188,8 @@ namespace GamingCenterManagementSystem
         {
             try
             {
-                if (!decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool))
+                if (!decimal.TryParse(txtPrizePool.Text.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out decimal prizePool) &&
+                    !decimal.TryParse(txtPrizePool.Text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out prizePool))
                 {
                     MessageBox.Show("Tổng giải thưởng không hợp lệ. Vui lòng nhập số hợp lệ.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
@@ -213,7 +215,7 @@ namespace GamingCenterManagementSystem
                     LoadTournaments();
                 }
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -234,7 +236,8 @@ namespace GamingCenterManagementSystem
             try
             {
                 int id = Convert.ToInt32(txtTournamentId.Text);
-                if (!decimal.TryParse(txtPrizePool.Text.Trim(), out decimal prizePool))
+                if (!decimal.TryParse(txtPrizePool.Text.Trim(), NumberStyles.Number, CultureInfo.CurrentCulture, out decimal prizePool) &&
+                    !decimal.TryParse(txtPrizePool.Text.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out prizePool))
                 {
                     MessageBox.Show("Tổng giải thưởng không hợp lệ. Vui lòng nhập số hợp lệ.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
@@ -246,11 +249,18 @@ namespace GamingCenterManagementSystem
                     throw new ArgumentException("Ngày bắt đầu phải từ ngày hiện tại trở đi.", nameof(dtpStartDate));
                 }
 
-                DBTournament.ValidateText(txtTenGiai.Text, 150, "Tên giải đấu");
-                if (prizePool <= 0 || prizePool > DBTournament.MaximumPrizePool)
-                    throw new ArgumentException("Tổng giải thưởng phải lớn hơn 0 và không vượt quá 9.999.999.999.999.999,99.", nameof(prizePool));
-                if (decimal.Round(prizePool, 2) != prizePool)
-                    throw new ArgumentException("Tổng giải thưởng chỉ được có tối đa 2 chữ số thập phân.", nameof(prizePool));
+                if (dtpStartDate.Value.Date < DateTime.Today && (status == "Ongoing" || status == "Finished"))
+                {
+                    DBTournament.ValidateText(txtTenGiai.Text, 150, "Tên giải đấu");
+                    if (prizePool <= 0 || prizePool > DBTournament.MaximumPrizePool)
+                        throw new ArgumentException("Tổng giải thưởng phải lớn hơn 0 và không vượt quá 9.999.999.999.999.999,99.", nameof(prizePool));
+                    if (decimal.Round(prizePool, 2) != prizePool)
+                        throw new ArgumentException("Tổng giải thưởng chỉ được có tối đa 2 chữ số thập phân.", nameof(prizePool));
+                }
+                else
+                {
+                    DBTournament.ValidateTournament(txtTenGiai.Text, prizePool, dtpStartDate.Value);
+                }
                 DBTournament.ValidateText(txtGameTitle.Text, 100, "Tên trò chơi");
 
                 var tourney = new Tournament
@@ -270,7 +280,7 @@ namespace GamingCenterManagementSystem
                     LoadTournaments();
                 }
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -304,6 +314,12 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
+            if (_selectedTournament.Status == "Finished")
+            {
+                MessageBox.Show("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             try
             {
                 if (!int.TryParse(txtRoundNumber.Text.Trim(), out int round) || round <= 0)
@@ -334,7 +350,7 @@ namespace GamingCenterManagementSystem
                     LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
                 }
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -349,6 +365,18 @@ namespace GamingCenterManagementSystem
             if (_selectedMatch == null || _selectedTournament == null)
             {
                 MessageBox.Show("Vui lòng chọn trận đấu từ bảng dưới!", "Chưa chọn trận đấu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (_selectedTournament.Status == "Finished")
+            {
+                MessageBox.Show("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (_selectedMatch.Status == "Finished")
+            {
+                MessageBox.Show("Trận đấu đã kết thúc và đã có kết quả. Vui lòng tải lại danh sách.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -368,7 +396,7 @@ namespace GamingCenterManagementSystem
 
                     DBTournament.ValidateMatchScore(_selectedMatch.Team1Name, _selectedMatch.Team2Name, s1, s2, winnerName);
                     _selectedMatch.Score = DBTournament.FormatScore(s1, s2);
-                    _selectedMatch.WinnerTeamName = winnerName;
+                    _selectedMatch.WinnerTeamName = (s1 > s2 ? _selectedMatch.Team1Name : _selectedMatch.Team2Name).Trim();
                     _selectedMatch.Status = "Finished";
                 }
                 else
@@ -395,7 +423,7 @@ namespace GamingCenterManagementSystem
                     LoadMatchesForSelectedTournament(_selectedTournament.TournamentId);
                 }
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -407,6 +435,12 @@ namespace GamingCenterManagementSystem
 
         private void BtnKhoaMayGiaiDau_Click(object? sender, EventArgs e)
         {
+            if (_selectedTournament != null && _selectedTournament.Status == "Finished")
+            {
+                MessageBox.Show("Giải đấu đã kết thúc, không thể thay đổi trận đấu hoặc khóa máy.", "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             try
             {
                 int selectedOption = cboChonDanMay.SelectedIndex;
@@ -435,7 +469,7 @@ namespace GamingCenterManagementSystem
                     OnTournamentEvent?.Invoke($"Đã khóa dàn máy thi đấu: {string.Join(", ", stationIds.Select(id => $"PC-{id:D2}"))}");
                 }
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
@@ -460,7 +494,7 @@ namespace GamingCenterManagementSystem
                     OnTournamentEvent?.Invoke($"Đã mở lại dàn máy thi đấu sang Available.");
                 }
             }
-            catch (ArgumentException ex)
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
                 MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
