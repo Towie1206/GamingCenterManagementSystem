@@ -65,29 +65,30 @@ namespace GamingCenterManagementSystem
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Dock = DockStyle.Top;
             pnlHeader.Location = new Point(0, 0);
+            pnlHeader.Margin = new Padding(3, 4, 3, 4);
             pnlHeader.Name = "pnlHeader";
-            pnlHeader.Size = new Size(1008, 65);
+            pnlHeader.Size = new Size(1152, 87);
             pnlHeader.TabIndex = 0;
             // 
             // lblSubtitle
             // 
             lblSubtitle.AutoSize = true;
-            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Italic, GraphicsUnit.Point);
+            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
             lblSubtitle.ForeColor = Color.FromArgb(0, 190, 255);
-            lblSubtitle.Location = new Point(20, 38);
+            lblSubtitle.Location = new Point(23, 51);
             lblSubtitle.Name = "lblSubtitle";
-            lblSubtitle.Size = new Size(424, 15);
+            lblSubtitle.Size = new Size(543, 20);
             lblSubtitle.TabIndex = 1;
             lblSubtitle.Text = "Phân công: Thành viên 2 (Văn) - Nhánh dev-member-2: Quản lý máy trạm & khu vực";
             // 
             // lblTitle
             // 
             lblTitle.AutoSize = true;
-            lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Point);
+            lblTitle.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             lblTitle.ForeColor = Color.White;
-            lblTitle.Location = new Point(18, 10);
+            lblTitle.Location = new Point(21, 13);
             lblTitle.Name = "lblTitle";
-            lblTitle.Size = new Size(410, 25);
+            lblTitle.Size = new Size(531, 32);
             lblTitle.TabIndex = 0;
             lblTitle.Text = "QUẢN LÝ MÁY TRẠM & KHU VỰC PHÒNG MÁY";
             // 
@@ -99,52 +100,53 @@ namespace GamingCenterManagementSystem
             pnlStats.Controls.Add(lblSoMayTrong);
             pnlStats.Controls.Add(lblTongSoMay);
             pnlStats.Dock = DockStyle.Top;
-            pnlStats.Location = new Point(0, 65);
+            pnlStats.Location = new Point(0, 87);
+            pnlStats.Margin = new Padding(3, 4, 3, 4);
             pnlStats.Name = "pnlStats";
-            pnlStats.Size = new Size(1008, 45);
+            pnlStats.Size = new Size(1152, 60);
             pnlStats.TabIndex = 1;
             // 
             // lblSoMayBaoTri
             // 
             lblSoMayBaoTri.AutoSize = true;
-            lblSoMayBaoTri.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblSoMayBaoTri.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             lblSoMayBaoTri.ForeColor = Color.FromArgb(255, 128, 128);
-            lblSoMayBaoTri.Location = new Point(570, 14);
+            lblSoMayBaoTri.Location = new Point(651, 19);
             lblSoMayBaoTri.Name = "lblSoMayBaoTri";
-            lblSoMayBaoTri.Size = new Size(125, 17);
+            lblSoMayBaoTri.Size = new Size(149, 21);
             lblSoMayBaoTri.TabIndex = 3;
             lblSoMayBaoTri.Text = "🛠️ Đang bảo trì: 0";
             // 
             // lblSoMayDangChoi
             // 
             lblSoMayDangChoi.AutoSize = true;
-            lblSoMayDangChoi.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblSoMayDangChoi.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             lblSoMayDangChoi.ForeColor = Color.FromArgb(255, 215, 0);
-            lblSoMayDangChoi.Location = new Point(370, 14);
+            lblSoMayDangChoi.Location = new Point(423, 19);
             lblSoMayDangChoi.Name = "lblSoMayDangChoi";
-            lblSoMayDangChoi.Size = new Size(144, 17);
+            lblSoMayDangChoi.Size = new Size(161, 21);
             lblSoMayDangChoi.TabIndex = 2;
             lblSoMayDangChoi.Text = "🎮 Đang sử dụng: 0";
             // 
             // lblSoMayTrong
             // 
             lblSoMayTrong.AutoSize = true;
-            lblSoMayTrong.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblSoMayTrong.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             lblSoMayTrong.ForeColor = Color.FromArgb(120, 255, 120);
-            lblSoMayTrong.Location = new Point(190, 14);
+            lblSoMayTrong.Location = new Point(217, 19);
             lblSoMayTrong.Name = "lblSoMayTrong";
-            lblSoMayTrong.Size = new Size(127, 17);
+            lblSoMayTrong.Size = new Size(157, 21);
             lblSoMayTrong.TabIndex = 1;
-            lblSoMayTrong.Text = "🟢 Máy sẵn sàng: 0";
+            lblSoMayTrong.Text = "\U0001f7e2 Máy sẵn sàng: 0";
             // 
             // lblTongSoMay
             // 
             lblTongSoMay.AutoSize = true;
-            lblTongSoMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblTongSoMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             lblTongSoMay.ForeColor = Color.White;
-            lblTongSoMay.Location = new Point(20, 14);
+            lblTongSoMay.Location = new Point(23, 19);
             lblTongSoMay.Name = "lblTongSoMay";
-            lblTongSoMay.Size = new Size(122, 17);
+            lblTongSoMay.Size = new Size(151, 21);
             lblTongSoMay.TabIndex = 0;
             lblTongSoMay.Text = "🖥️ Tổng số máy: 0";
             // 
@@ -167,10 +169,12 @@ namespace GamingCenterManagementSystem
             grpThongTinMay.Controls.Add(txtStationId);
             grpThongTinMay.Controls.Add(lblStationId);
             grpThongTinMay.Dock = DockStyle.Left;
-            grpThongTinMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
-            grpThongTinMay.Location = new Point(0, 110);
+            grpThongTinMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            grpThongTinMay.Location = new Point(0, 147);
+            grpThongTinMay.Margin = new Padding(3, 4, 3, 4);
             grpThongTinMay.Name = "grpThongTinMay";
-            grpThongTinMay.Size = new Size(320, 571);
+            grpThongTinMay.Padding = new Padding(3, 4, 3, 4);
+            grpThongTinMay.Size = new Size(366, 761);
             grpThongTinMay.TabIndex = 2;
             grpThongTinMay.TabStop = false;
             grpThongTinMay.Text = "Thông Tin Máy Trạm";
@@ -180,9 +184,10 @@ namespace GamingCenterManagementSystem
             btnLamMoi.BackColor = Color.FromArgb(70, 80, 95);
             btnLamMoi.FlatStyle = FlatStyle.Flat;
             btnLamMoi.ForeColor = Color.White;
-            btnLamMoi.Location = new Point(160, 385);
+            btnLamMoi.Location = new Point(183, 513);
+            btnLamMoi.Margin = new Padding(3, 4, 3, 4);
             btnLamMoi.Name = "btnLamMoi";
-            btnLamMoi.Size = new Size(135, 34);
+            btnLamMoi.Size = new Size(154, 45);
             btnLamMoi.TabIndex = 15;
             btnLamMoi.Text = "🔄 Làm Mới";
             btnLamMoi.UseVisualStyleBackColor = false;
@@ -192,11 +197,12 @@ namespace GamingCenterManagementSystem
             btnMoMay.BackColor = Color.FromArgb(46, 139, 87);
             btnMoMay.FlatStyle = FlatStyle.Flat;
             btnMoMay.ForeColor = Color.White;
-            btnMoMay.Location = new Point(160, 335);
+            btnMoMay.Location = new Point(183, 447);
+            btnMoMay.Margin = new Padding(3, 4, 3, 4);
             btnMoMay.Name = "btnMoMay";
-            btnMoMay.Size = new Size(135, 34);
+            btnMoMay.Size = new Size(154, 45);
             btnMoMay.TabIndex = 14;
-            btnMoMay.Text = "🟢 Mở Sẵn Sàng";
+            btnMoMay.Text = "\U0001f7e2 Mở Sẵn Sàng";
             btnMoMay.UseVisualStyleBackColor = false;
             // 
             // btnBaoTri
@@ -204,9 +210,10 @@ namespace GamingCenterManagementSystem
             btnBaoTri.BackColor = Color.FromArgb(204, 102, 0);
             btnBaoTri.FlatStyle = FlatStyle.Flat;
             btnBaoTri.ForeColor = Color.White;
-            btnBaoTri.Location = new Point(15, 385);
+            btnBaoTri.Location = new Point(17, 513);
+            btnBaoTri.Margin = new Padding(3, 4, 3, 4);
             btnBaoTri.Name = "btnBaoTri";
-            btnBaoTri.Size = new Size(135, 34);
+            btnBaoTri.Size = new Size(154, 45);
             btnBaoTri.TabIndex = 13;
             btnBaoTri.Text = "🛠️ Đặt Bảo Trì";
             btnBaoTri.UseVisualStyleBackColor = false;
@@ -216,9 +223,10 @@ namespace GamingCenterManagementSystem
             btnXoaMay.BackColor = Color.FromArgb(178, 34, 34);
             btnXoaMay.FlatStyle = FlatStyle.Flat;
             btnXoaMay.ForeColor = Color.White;
-            btnXoaMay.Location = new Point(15, 335);
+            btnXoaMay.Location = new Point(17, 447);
+            btnXoaMay.Margin = new Padding(3, 4, 3, 4);
             btnXoaMay.Name = "btnXoaMay";
-            btnXoaMay.Size = new Size(135, 34);
+            btnXoaMay.Size = new Size(154, 45);
             btnXoaMay.TabIndex = 12;
             btnXoaMay.Text = "🗑️ Xóa Máy";
             btnXoaMay.UseVisualStyleBackColor = false;
@@ -228,9 +236,10 @@ namespace GamingCenterManagementSystem
             btnSuaMay.BackColor = Color.FromArgb(30, 144, 255);
             btnSuaMay.FlatStyle = FlatStyle.Flat;
             btnSuaMay.ForeColor = Color.White;
-            btnSuaMay.Location = new Point(160, 285);
+            btnSuaMay.Location = new Point(183, 380);
+            btnSuaMay.Margin = new Padding(3, 4, 3, 4);
             btnSuaMay.Name = "btnSuaMay";
-            btnSuaMay.Size = new Size(135, 34);
+            btnSuaMay.Size = new Size(154, 45);
             btnSuaMay.TabIndex = 11;
             btnSuaMay.Text = "✏️ Cập Nhật";
             btnSuaMay.UseVisualStyleBackColor = false;
@@ -240,9 +249,10 @@ namespace GamingCenterManagementSystem
             btnThemMay.BackColor = Color.FromArgb(34, 139, 34);
             btnThemMay.FlatStyle = FlatStyle.Flat;
             btnThemMay.ForeColor = Color.White;
-            btnThemMay.Location = new Point(15, 285);
+            btnThemMay.Location = new Point(17, 380);
+            btnThemMay.Margin = new Padding(3, 4, 3, 4);
             btnThemMay.Name = "btnThemMay";
-            btnThemMay.Size = new Size(135, 34);
+            btnThemMay.Size = new Size(154, 45);
             btnThemMay.TabIndex = 10;
             btnThemMay.Text = "➕ Thêm Máy";
             btnThemMay.UseVisualStyleBackColor = false;
@@ -250,96 +260,101 @@ namespace GamingCenterManagementSystem
             // cboTrangThai
             // 
             cboTrangThai.DropDownStyle = ComboBoxStyle.DropDownList;
-            cboTrangThai.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
+            cboTrangThai.Font = new Font("Segoe UI", 9.5F);
             cboTrangThai.FormattingEnabled = true;
             cboTrangThai.Items.AddRange(new object[] { "Available", "InUse", "Maintenance", "TournamentLocked" });
-            cboTrangThai.Location = new Point(110, 215);
+            cboTrangThai.Location = new Point(126, 287);
+            cboTrangThai.Margin = new Padding(3, 4, 3, 4);
             cboTrangThai.Name = "cboTrangThai";
-            cboTrangThai.Size = new Size(185, 24);
+            cboTrangThai.Size = new Size(211, 29);
             cboTrangThai.TabIndex = 9;
             // 
             // lblTrangThai
             // 
             lblTrangThai.AutoSize = true;
-            lblTrangThai.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblTrangThai.Location = new Point(15, 220);
+            lblTrangThai.Font = new Font("Segoe UI", 9F);
+            lblTrangThai.Location = new Point(17, 293);
             lblTrangThai.Name = "lblTrangThai";
-            lblTrangThai.Size = new Size(62, 15);
+            lblTrangThai.Size = new Size(78, 20);
             lblTrangThai.TabIndex = 8;
             lblTrangThai.Text = "Trạng thái:";
             // 
             // txtIpAddress
             // 
-            txtIpAddress.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
-            txtIpAddress.Location = new Point(110, 170);
+            txtIpAddress.Font = new Font("Segoe UI", 9.5F);
+            txtIpAddress.Location = new Point(126, 227);
+            txtIpAddress.Margin = new Padding(3, 4, 3, 4);
             txtIpAddress.Name = "txtIpAddress";
-            txtIpAddress.Size = new Size(185, 24);
+            txtIpAddress.Size = new Size(211, 29);
             txtIpAddress.TabIndex = 7;
             // 
             // lblIpAddress
             // 
             lblIpAddress.AutoSize = true;
-            lblIpAddress.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblIpAddress.Location = new Point(15, 175);
+            lblIpAddress.Font = new Font("Segoe UI", 9F);
+            lblIpAddress.Location = new Point(17, 233);
             lblIpAddress.Name = "lblIpAddress";
-            lblIpAddress.Size = new Size(59, 15);
+            lblIpAddress.Size = new Size(74, 20);
             lblIpAddress.TabIndex = 6;
             lblIpAddress.Text = "Địa chỉ IP:";
             // 
             // cboKhuVuc
             // 
             cboKhuVuc.DropDownStyle = ComboBoxStyle.DropDownList;
-            cboKhuVuc.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
+            cboKhuVuc.Font = new Font("Segoe UI", 9.5F);
             cboKhuVuc.FormattingEnabled = true;
-            cboKhuVuc.Location = new Point(110, 125);
+            cboKhuVuc.Location = new Point(126, 167);
+            cboKhuVuc.Margin = new Padding(3, 4, 3, 4);
             cboKhuVuc.Name = "cboKhuVuc";
-            cboKhuVuc.Size = new Size(185, 24);
+            cboKhuVuc.Size = new Size(211, 29);
             cboKhuVuc.TabIndex = 5;
             // 
             // lblKhuVuc
             // 
             lblKhuVuc.AutoSize = true;
-            lblKhuVuc.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblKhuVuc.Location = new Point(15, 130);
+            lblKhuVuc.Font = new Font("Segoe UI", 9F);
+            lblKhuVuc.Location = new Point(17, 173);
             lblKhuVuc.Name = "lblKhuVuc";
-            lblKhuVuc.Size = new Size(54, 15);
+            lblKhuVuc.Size = new Size(64, 20);
             lblKhuVuc.TabIndex = 4;
             lblKhuVuc.Text = "Khu vực:";
             // 
             // txtStationName
             // 
-            txtStationName.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
-            txtStationName.Location = new Point(110, 80);
+            txtStationName.Font = new Font("Segoe UI", 9.5F);
+            txtStationName.Location = new Point(126, 107);
+            txtStationName.Margin = new Padding(3, 4, 3, 4);
             txtStationName.Name = "txtStationName";
-            txtStationName.Size = new Size(185, 24);
+            txtStationName.Size = new Size(211, 29);
             txtStationName.TabIndex = 3;
             // 
             // lblStationName
             // 
             lblStationName.AutoSize = true;
-            lblStationName.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblStationName.Location = new Point(15, 85);
+            lblStationName.Font = new Font("Segoe UI", 9F);
+            lblStationName.Location = new Point(17, 113);
             lblStationName.Name = "lblStationName";
-            lblStationName.Size = new Size(55, 15);
+            lblStationName.Size = new Size(67, 20);
             lblStationName.TabIndex = 2;
             lblStationName.Text = "Tên máy:";
             // 
             // txtStationId
             // 
-            txtStationId.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
-            txtStationId.Location = new Point(110, 35);
+            txtStationId.Font = new Font("Segoe UI", 9.5F);
+            txtStationId.Location = new Point(126, 47);
+            txtStationId.Margin = new Padding(3, 4, 3, 4);
             txtStationId.Name = "txtStationId";
             txtStationId.ReadOnly = true;
-            txtStationId.Size = new Size(185, 24);
+            txtStationId.Size = new Size(211, 29);
             txtStationId.TabIndex = 1;
             // 
             // lblStationId
             // 
             lblStationId.AutoSize = true;
-            lblStationId.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblStationId.Location = new Point(15, 40);
+            lblStationId.Font = new Font("Segoe UI", 9F);
+            lblStationId.Location = new Point(17, 53);
             lblStationId.Name = "lblStationId";
-            lblStationId.Size = new Size(52, 15);
+            lblStationId.Size = new Size(65, 20);
             lblStationId.TabIndex = 0;
             lblStationId.Text = "Mã máy:";
             // 
@@ -348,10 +363,11 @@ namespace GamingCenterManagementSystem
             pnlMain.Controls.Add(dgvMayTram);
             pnlMain.Controls.Add(pnlFilter);
             pnlMain.Dock = DockStyle.Fill;
-            pnlMain.Location = new Point(320, 110);
+            pnlMain.Location = new Point(366, 147);
+            pnlMain.Margin = new Padding(3, 4, 3, 4);
             pnlMain.Name = "pnlMain";
-            pnlMain.Padding = new Padding(10);
-            pnlMain.Size = new Size(688, 571);
+            pnlMain.Padding = new Padding(11, 13, 11, 13);
+            pnlMain.Size = new Size(786, 761);
             pnlMain.TabIndex = 3;
             // 
             // dgvMayTram
@@ -362,14 +378,16 @@ namespace GamingCenterManagementSystem
             dgvMayTram.BackgroundColor = Color.WhiteSmoke;
             dgvMayTram.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvMayTram.Dock = DockStyle.Fill;
-            dgvMayTram.Location = new Point(10, 55);
+            dgvMayTram.Location = new Point(11, 73);
+            dgvMayTram.Margin = new Padding(3, 4, 3, 4);
             dgvMayTram.MultiSelect = false;
             dgvMayTram.Name = "dgvMayTram";
             dgvMayTram.ReadOnly = true;
             dgvMayTram.RowHeadersVisible = false;
+            dgvMayTram.RowHeadersWidth = 51;
             dgvMayTram.RowTemplate.Height = 28;
             dgvMayTram.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvMayTram.Size = new Size(668, 506);
+            dgvMayTram.Size = new Size(764, 675);
             dgvMayTram.TabIndex = 1;
             // 
             // pnlFilter
@@ -380,20 +398,22 @@ namespace GamingCenterManagementSystem
             pnlFilter.Controls.Add(cboLocKhuVuc);
             pnlFilter.Controls.Add(lblLocKhuVuc);
             pnlFilter.Dock = DockStyle.Top;
-            pnlFilter.Location = new Point(10, 10);
+            pnlFilter.Location = new Point(11, 13);
+            pnlFilter.Margin = new Padding(3, 4, 3, 4);
             pnlFilter.Name = "pnlFilter";
-            pnlFilter.Size = new Size(668, 45);
+            pnlFilter.Size = new Size(764, 60);
             pnlFilter.TabIndex = 0;
             // 
             // btnApDungLoc
             // 
             btnApDungLoc.BackColor = Color.FromArgb(0, 122, 204);
             btnApDungLoc.FlatStyle = FlatStyle.Flat;
-            btnApDungLoc.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            btnApDungLoc.Font = new Font("Segoe UI", 7.8F, FontStyle.Bold, GraphicsUnit.Point, 0);
             btnApDungLoc.ForeColor = Color.White;
-            btnApDungLoc.Location = new Point(540, 7);
+            btnApDungLoc.Location = new Point(617, 9);
+            btnApDungLoc.Margin = new Padding(3, 4, 3, 4);
             btnApDungLoc.Name = "btnApDungLoc";
-            btnApDungLoc.Size = new Size(110, 30);
+            btnApDungLoc.Size = new Size(126, 40);
             btnApDungLoc.TabIndex = 4;
             btnApDungLoc.Text = "🔍 Lọc Dữ Liệu";
             btnApDungLoc.UseVisualStyleBackColor = false;
@@ -402,18 +422,19 @@ namespace GamingCenterManagementSystem
             // 
             cboLocTrangThai.DropDownStyle = ComboBoxStyle.DropDownList;
             cboLocTrangThai.FormattingEnabled = true;
-            cboLocTrangThai.Location = new Point(370, 11);
+            cboLocTrangThai.Location = new Point(423, 15);
+            cboLocTrangThai.Margin = new Padding(3, 4, 3, 4);
             cboLocTrangThai.Name = "cboLocTrangThai";
-            cboLocTrangThai.Size = new Size(150, 23);
+            cboLocTrangThai.Size = new Size(171, 28);
             cboLocTrangThai.TabIndex = 3;
             // 
             // lblLocTrangThai
             // 
             lblLocTrangThai.AutoSize = true;
-            lblLocTrangThai.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
-            lblLocTrangThai.Location = new Point(290, 15);
+            lblLocTrangThai.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblLocTrangThai.Location = new Point(331, 20);
             lblLocTrangThai.Name = "lblLocTrangThai";
-            lblLocTrangThai.Size = new Size(66, 15);
+            lblLocTrangThai.Size = new Size(84, 20);
             lblLocTrangThai.TabIndex = 2;
             lblLocTrangThai.Text = "Trạng thái:";
             // 
@@ -421,32 +442,34 @@ namespace GamingCenterManagementSystem
             // 
             cboLocKhuVuc.DropDownStyle = ComboBoxStyle.DropDownList;
             cboLocKhuVuc.FormattingEnabled = true;
-            cboLocKhuVuc.Location = new Point(110, 11);
+            cboLocKhuVuc.Location = new Point(126, 15);
+            cboLocKhuVuc.Margin = new Padding(3, 4, 3, 4);
             cboLocKhuVuc.Name = "cboLocKhuVuc";
-            cboLocKhuVuc.Size = new Size(160, 23);
+            cboLocKhuVuc.Size = new Size(182, 28);
             cboLocKhuVuc.TabIndex = 1;
             // 
             // lblLocKhuVuc
             // 
             lblLocKhuVuc.AutoSize = true;
-            lblLocKhuVuc.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
-            lblLocKhuVuc.Location = new Point(10, 15);
+            lblLocKhuVuc.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            lblLocKhuVuc.Location = new Point(11, 20);
             lblLocKhuVuc.Name = "lblLocKhuVuc";
-            lblLocKhuVuc.Size = new Size(54, 15);
+            lblLocKhuVuc.Size = new Size(70, 20);
             lblLocKhuVuc.TabIndex = 0;
             lblLocKhuVuc.Text = "Khu vực:";
             // 
             // FormStation
             // 
-            AutoScaleDimensions = new SizeF(7F, 15F);
+            AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = Color.FromArgb(245, 247, 250);
-            ClientSize = new Size(1008, 681);
+            ClientSize = new Size(1152, 908);
             Controls.Add(pnlMain);
             Controls.Add(grpThongTinMay);
             Controls.Add(pnlStats);
             Controls.Add(pnlHeader);
-            MinimumSize = new Size(900, 600);
+            Margin = new Padding(3, 4, 3, 4);
+            MinimumSize = new Size(1026, 784);
             Name = "FormStation";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Quản Lý Máy Trạm & Khu Vực - Cyber Game";
