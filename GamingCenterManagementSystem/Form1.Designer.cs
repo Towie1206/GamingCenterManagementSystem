@@ -6,9 +6,13 @@ namespace GamingCenterManagementSystem
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                DisposeManagedResources();
+                if (components != null)
+                {
+                    components.Dispose();
+                }
             }
             base.Dispose(disposing);
         }
@@ -93,9 +97,9 @@ namespace GamingCenterManagementSystem
             lblCurrentUser.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblCurrentUser.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblCurrentUser.ForeColor = Color.FromArgb(220, 235, 255);
-            lblCurrentUser.Location = new Point(840, 14);
+            lblCurrentUser.Location = new Point(820, 12);
             lblCurrentUser.Name = "lblCurrentUser";
-            lblCurrentUser.Size = new Size(354, 62);
+            lblCurrentUser.Size = new Size(374, 68);
             lblCurrentUser.TabIndex = 2;
             lblCurrentUser.Text = "👤 Chưa đăng nhập";
             lblCurrentUser.TextAlign = ContentAlignment.MiddleRight;
@@ -105,8 +109,8 @@ namespace GamingCenterManagementSystem
             lblLeaderRole.AutoSize = true;
             lblLeaderRole.Font = new Font("Segoe UI", 9.5F, FontStyle.Italic);
             lblLeaderRole.ForeColor = Color.FromArgb(0, 210, 255);
-            lblLeaderRole.Location = new Point(25, 56);
-            lblLeaderRole.MaximumSize = new Size(710, 0);
+            lblLeaderRole.Location = new Point(24, 54);
+            lblLeaderRole.MaximumSize = new Size(650, 0);
             lblLeaderRole.Name = "lblLeaderRole";
             lblLeaderRole.Size = new Size(650, 21);
             lblLeaderRole.TabIndex = 1;
@@ -115,11 +119,11 @@ namespace GamingCenterManagementSystem
             // lblMainTitle
             // 
             lblMainTitle.AutoSize = true;
-            lblMainTitle.Font = new Font("Segoe UI", 16F, FontStyle.Bold);
+            lblMainTitle.Font = new Font("Segoe UI", 14.5F, FontStyle.Bold);
             lblMainTitle.ForeColor = Color.White;
-            lblMainTitle.Location = new Point(21, 12);
+            lblMainTitle.Location = new Point(21, 14);
             lblMainTitle.Name = "lblMainTitle";
-            lblMainTitle.Size = new Size(768, 37);
+            lblMainTitle.Size = new Size(696, 33);
             lblMainTitle.TabIndex = 0;
             lblMainTitle.Text = "GAMING CENTER MANAGEMENT SYSTEM (CYBER MATRIX)";
             // 
@@ -141,6 +145,7 @@ namespace GamingCenterManagementSystem
             // 
             // btnLamMoiSoDo
             // 
+            btnLamMoiSoDo.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnLamMoiSoDo.BackColor = Color.FromArgb(70, 80, 95);
             btnLamMoiSoDo.FlatStyle = FlatStyle.Flat;
             btnLamMoiSoDo.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
@@ -159,10 +164,10 @@ namespace GamingCenterManagementSystem
             btnNavBilling.FlatStyle = FlatStyle.Flat;
             btnNavBilling.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnNavBilling.ForeColor = Color.White;
-            btnNavBilling.Location = new Point(846, 11);
+            btnNavBilling.Location = new Point(728, 11);
             btnNavBilling.Margin = new Padding(3, 4, 3, 4);
             btnNavBilling.Name = "btnNavBilling";
-            btnNavBilling.Size = new Size(263, 45);
+            btnNavBilling.Size = new Size(235, 45);
             btnNavBilling.TabIndex = 3;
             btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
             btnNavBilling.UseVisualStyleBackColor = false;
@@ -173,10 +178,10 @@ namespace GamingCenterManagementSystem
             btnNavTournament.FlatStyle = FlatStyle.Flat;
             btnNavTournament.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnNavTournament.ForeColor = Color.White;
-            btnNavTournament.Location = new Point(566, 11);
+            btnNavTournament.Location = new Point(491, 11);
             btnNavTournament.Margin = new Padding(3, 4, 3, 4);
             btnNavTournament.Name = "btnNavTournament";
-            btnNavTournament.Size = new Size(269, 45);
+            btnNavTournament.Size = new Size(225, 45);
             btnNavTournament.TabIndex = 2;
             btnNavTournament.Text = "🏆 Giải Đấu LAN";
             btnNavTournament.UseVisualStyleBackColor = false;
@@ -187,10 +192,10 @@ namespace GamingCenterManagementSystem
             btnNavMember.FlatStyle = FlatStyle.Flat;
             btnNavMember.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnNavMember.ForeColor = Color.White;
-            btnNavMember.Location = new Point(291, 11);
+            btnNavMember.Location = new Point(254, 11);
             btnNavMember.Margin = new Padding(3, 4, 3, 4);
             btnNavMember.Name = "btnNavMember";
-            btnNavMember.Size = new Size(263, 45);
+            btnNavMember.Size = new Size(225, 45);
             btnNavMember.TabIndex = 1;
             btnNavMember.Text = "👤 Hội Viên & Nạp Ví";
             btnNavMember.UseVisualStyleBackColor = false;
@@ -204,7 +209,7 @@ namespace GamingCenterManagementSystem
             btnNavStation.Location = new Point(17, 11);
             btnNavStation.Margin = new Padding(3, 4, 3, 4);
             btnNavStation.Name = "btnNavStation";
-            btnNavStation.Size = new Size(263, 45);
+            btnNavStation.Size = new Size(225, 45);
             btnNavStation.TabIndex = 0;
             btnNavStation.Text = "🖥️ Máy Trạm & Khu Vực";
             btnNavStation.UseVisualStyleBackColor = false;
@@ -230,9 +235,9 @@ namespace GamingCenterManagementSystem
             lblRealtimeSummary.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             lblRealtimeSummary.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             lblRealtimeSummary.ForeColor = Color.FromArgb(24, 30, 54);
-            lblRealtimeSummary.Location = new Point(985, 13);
+            lblRealtimeSummary.Location = new Point(985, 8);
             lblRealtimeSummary.Name = "lblRealtimeSummary";
-            lblRealtimeSummary.Size = new Size(346, 22);
+            lblRealtimeSummary.Size = new Size(346, 30);
             lblRealtimeSummary.TabIndex = 5;
             lblRealtimeSummary.Text = "🟢 Trống: 0 | 🟠 Đang chơi: 0 | 🕒 --:--:--";
             lblRealtimeSummary.TextAlign = ContentAlignment.MiddleRight;
@@ -331,14 +336,15 @@ namespace GamingCenterManagementSystem
             // 
             // lblKetQuaTinhTien
             // 
+            lblKetQuaTinhTien.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             lblKetQuaTinhTien.BackColor = Color.FromArgb(235, 245, 255);
             lblKetQuaTinhTien.BorderStyle = BorderStyle.FixedSingle;
             lblKetQuaTinhTien.Font = new Font("Segoe UI", 9F);
             lblKetQuaTinhTien.ForeColor = Color.FromArgb(0, 51, 102);
-            lblKetQuaTinhTien.Location = new Point(17, 547);
+            lblKetQuaTinhTien.Location = new Point(17, 464);
             lblKetQuaTinhTien.Name = "lblKetQuaTinhTien";
             lblKetQuaTinhTien.Padding = new Padding(7, 8, 7, 8);
-            lblKetQuaTinhTien.Size = new Size(343, 153);
+            lblKetQuaTinhTien.Size = new Size(343, 240);
             lblKetQuaTinhTien.TabIndex = 11;
             lblKetQuaTinhTien.Text = "Thông tin thanh toán phiên chơi sẽ hiển thị tại đây sau khi chốt phiên tính cước đa hình.";
             // 
@@ -348,10 +354,10 @@ namespace GamingCenterManagementSystem
             btnBaoTri.FlatStyle = FlatStyle.Flat;
             btnBaoTri.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnBaoTri.ForeColor = Color.White;
-            btnBaoTri.Location = new Point(17, 480);
+            btnBaoTri.Location = new Point(17, 406);
             btnBaoTri.Margin = new Padding(3, 4, 3, 4);
             btnBaoTri.Name = "btnBaoTri";
-            btnBaoTri.Size = new Size(343, 47);
+            btnBaoTri.Size = new Size(343, 44);
             btnBaoTri.TabIndex = 10;
             btnBaoTri.Text = "🛠️ CHUYỂN BẢO TRÌ / MỞ LẠI";
             btnBaoTri.UseVisualStyleBackColor = false;
@@ -362,10 +368,10 @@ namespace GamingCenterManagementSystem
             btnDongMay.FlatStyle = FlatStyle.Flat;
             btnDongMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnDongMay.ForeColor = Color.White;
-            btnDongMay.Location = new Point(17, 420);
+            btnDongMay.Location = new Point(17, 352);
             btnDongMay.Margin = new Padding(3, 4, 3, 4);
             btnDongMay.Name = "btnDongMay";
-            btnDongMay.Size = new Size(343, 47);
+            btnDongMay.Size = new Size(343, 44);
             btnDongMay.TabIndex = 9;
             btnDongMay.Text = "🔴 ĐÓNG MÁY & TÍNH TIỀN (Đa Hình)";
             btnDongMay.UseVisualStyleBackColor = false;
@@ -376,10 +382,10 @@ namespace GamingCenterManagementSystem
             btnMoMay.FlatStyle = FlatStyle.Flat;
             btnMoMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnMoMay.ForeColor = Color.White;
-            btnMoMay.Location = new Point(17, 360);
+            btnMoMay.Location = new Point(17, 298);
             btnMoMay.Margin = new Padding(3, 4, 3, 4);
             btnMoMay.Name = "btnMoMay";
-            btnMoMay.Size = new Size(343, 47);
+            btnMoMay.Size = new Size(343, 44);
             btnMoMay.TabIndex = 8;
             btnMoMay.Text = "\U0001f7e2 MỞ MÁY CHO KHÁCH";
             btnMoMay.UseVisualStyleBackColor = false;
@@ -390,7 +396,7 @@ namespace GamingCenterManagementSystem
             cboGoiCuoc.Font = new Font("Segoe UI", 9F);
             cboGoiCuoc.FormattingEnabled = true;
             cboGoiCuoc.Items.AddRange(new object[] { "Hourly (Giờ thường)", "NightCombo (Combo đêm 45k)", "Tournament (Giải LAN - Giảm 50%)", "MemberTier (Ưu đãi hội viên)" });
-            cboGoiCuoc.Location = new Point(131, 291);
+            cboGoiCuoc.Location = new Point(131, 242);
             cboGoiCuoc.Margin = new Padding(3, 4, 3, 4);
             cboGoiCuoc.Name = "cboGoiCuoc";
             cboGoiCuoc.Size = new Size(228, 28);
@@ -400,7 +406,7 @@ namespace GamingCenterManagementSystem
             // 
             lblGoiCuoc.AutoSize = true;
             lblGoiCuoc.Font = new Font("Segoe UI", 9F);
-            lblGoiCuoc.Location = new Point(17, 296);
+            lblGoiCuoc.Location = new Point(17, 248);
             lblGoiCuoc.Name = "lblGoiCuoc";
             lblGoiCuoc.Size = new Size(71, 20);
             lblGoiCuoc.TabIndex = 6;
@@ -411,7 +417,7 @@ namespace GamingCenterManagementSystem
             cboKhachHang.DropDownStyle = ComboBoxStyle.DropDownList;
             cboKhachHang.Font = new Font("Segoe UI", 9F);
             cboKhachHang.FormattingEnabled = true;
-            cboKhachHang.Location = new Point(131, 237);
+            cboKhachHang.Location = new Point(131, 194);
             cboKhachHang.Margin = new Padding(3, 4, 3, 4);
             cboKhachHang.Name = "cboKhachHang";
             cboKhachHang.Size = new Size(228, 28);
@@ -421,7 +427,7 @@ namespace GamingCenterManagementSystem
             // 
             lblKhachHang.AutoSize = true;
             lblKhachHang.Font = new Font("Segoe UI", 9F);
-            lblKhachHang.Location = new Point(17, 243);
+            lblKhachHang.Location = new Point(17, 200);
             lblKhachHang.Name = "lblKhachHang";
             lblKhachHang.Size = new Size(89, 20);
             lblKhachHang.TabIndex = 4;
@@ -432,7 +438,7 @@ namespace GamingCenterManagementSystem
             lblGiaGio.AutoSize = true;
             lblGiaGio.Font = new Font("Segoe UI", 9.5F);
             lblGiaGio.ForeColor = Color.FromArgb(0, 102, 204);
-            lblGiaGio.Location = new Point(17, 187);
+            lblGiaGio.Location = new Point(17, 154);
             lblGiaGio.Name = "lblGiaGio";
             lblGiaGio.Size = new Size(163, 21);
             lblGiaGio.TabIndex = 3;
@@ -442,7 +448,7 @@ namespace GamingCenterManagementSystem
             // 
             lblKhuVucMay.AutoSize = true;
             lblKhuVucMay.Font = new Font("Segoe UI", 9.5F);
-            lblKhuVucMay.Location = new Point(17, 140);
+            lblKhuVucMay.Location = new Point(17, 116);
             lblKhuVucMay.Name = "lblKhuVucMay";
             lblKhuVucMay.Size = new Size(157, 21);
             lblKhuVucMay.TabIndex = 2;
@@ -453,7 +459,7 @@ namespace GamingCenterManagementSystem
             lblTrangThaiMay.AutoSize = true;
             lblTrangThaiMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             lblTrangThaiMay.ForeColor = Color.Green;
-            lblTrangThaiMay.Location = new Point(17, 93);
+            lblTrangThaiMay.Location = new Point(17, 78);
             lblTrangThaiMay.Name = "lblTrangThaiMay";
             lblTrangThaiMay.Size = new Size(167, 21);
             lblTrangThaiMay.TabIndex = 1;
@@ -464,7 +470,7 @@ namespace GamingCenterManagementSystem
             lblMayDangChon.AutoSize = true;
             lblMayDangChon.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
             lblMayDangChon.ForeColor = Color.FromArgb(18, 22, 38);
-            lblMayDangChon.Location = new Point(17, 47);
+            lblMayDangChon.Location = new Point(17, 36);
             lblMayDangChon.Name = "lblMayDangChon";
             lblMayDangChon.Size = new Size(207, 28);
             lblMayDangChon.TabIndex = 0;
@@ -506,7 +512,7 @@ namespace GamingCenterManagementSystem
             Controls.Add(pnlNav);
             Controls.Add(pnlHeader);
             Margin = new Padding(3, 4, 3, 4);
-            MinimumSize = new Size(1255, 918);
+            MinimumSize = new Size(1280, 930);
             Name = "Form1";
             StartPosition = FormStartPosition.CenterScreen;
             Text = "Gaming Center Management System - Cyber Matrix (Leader Dashboard)";

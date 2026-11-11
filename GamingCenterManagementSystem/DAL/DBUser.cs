@@ -504,9 +504,14 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
-                                     OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                                     VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                bool hasIsActive = HasIsActiveColumn(conn);
+                string sql = hasIsActive
+                    ? @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive)
+                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE(), @IsActive)"
+                    : @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
+                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = username;
                 cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
@@ -514,6 +519,8 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = role;
                 cmd.Parameters.Add(CreateDecimalParameter("@Balance", entity.Balance));
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = tier;
+                if (hasIsActive)
+                    cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = entity.IsActive;
 
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
@@ -1163,9 +1170,14 @@ namespace GamingCenterManagementSystem.DAL
                     return false;
                 }
 
-                const string sql = @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
-                                     OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                                     VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                bool hasIsActive = HasIsActiveColumn(conn);
+                string sql = hasIsActive
+                    ? @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive)
+                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE(), @IsActive)"
+                    : @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
+                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
                 cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
@@ -1173,6 +1185,8 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = normalizedRole;
                 cmd.Parameters.Add(CreateDecimalParameter("@Balance", entity.Balance));
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = resolvedTier;
+                if (hasIsActive)
+                    cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = entity.IsActive;
 
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
@@ -1225,9 +1239,14 @@ namespace GamingCenterManagementSystem.DAL
                     return (false, "Tên đăng nhập đã tồn tại trong hệ thống.");
                 }
 
-                const string sql = @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
-                                     OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                                     VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
+                string sql = hasIsActive
+                    ? @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive)
+                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE(), @IsActive)"
+                    : @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
+                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
                 cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
@@ -1235,6 +1254,8 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = normalizedRole;
                 cmd.Parameters.Add(CreateDecimalParameter("@Balance", entity.Balance));
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = resolvedTier;
+                if (hasIsActive)
+                    cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = entity.IsActive;
 
                 using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
                 if (await reader.ReadAsync().ConfigureAwait(false))

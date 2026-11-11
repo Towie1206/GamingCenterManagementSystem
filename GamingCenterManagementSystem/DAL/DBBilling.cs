@@ -51,6 +51,8 @@ namespace GamingCenterManagementSystem.DAL
             _connectionFactory = connectionFactory;
         }
 
+        private static readonly object _fallbackLock = new();
+
         private static readonly List<TariffPlan> _fallbackPlans = new()
         {
             new TariffPlan { PlanId = 1, PlanName = "Cước Theo Giờ Thường", TariffType = "Hourly", FixedPrice = null, DiscountRate = 0, StartHour = null, EndHour = null },
@@ -100,7 +102,10 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return new List<TariffPlan>(_fallbackPlans);
+                lock (_fallbackLock)
+                {
+                    return new List<TariffPlan>(_fallbackPlans);
+                }
             }
         }
 
@@ -136,9 +141,12 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                plan.PlanId = _fallbackPlans.Count > 0 ? _fallbackPlans[^1].PlanId + 1 : 1;
-                _fallbackPlans.Add(plan);
-                return true;
+                lock (_fallbackLock)
+                {
+                    plan.PlanId = _fallbackPlans.Count > 0 ? _fallbackPlans[^1].PlanId + 1 : 1;
+                    _fallbackPlans.Add(plan);
+                    return true;
+                }
             }
         }
 
@@ -177,18 +185,21 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                var idx = _fallbackPlans.FindIndex(p => p.PlanId == plan.PlanId);
-                if (idx >= 0)
+                lock (_fallbackLock)
                 {
-                    _fallbackPlans[idx].PlanName = plan.PlanName;
-                    _fallbackPlans[idx].TariffType = plan.TariffType;
-                    _fallbackPlans[idx].FixedPrice = plan.FixedPrice;
-                    _fallbackPlans[idx].DiscountRate = plan.DiscountRate;
-                    _fallbackPlans[idx].StartHour = plan.StartHour;
-                    _fallbackPlans[idx].EndHour = plan.EndHour;
-                    return true;
+                    var idx = _fallbackPlans.FindIndex(p => p.PlanId == plan.PlanId);
+                    if (idx >= 0)
+                    {
+                        _fallbackPlans[idx].PlanName = plan.PlanName;
+                        _fallbackPlans[idx].TariffType = plan.TariffType;
+                        _fallbackPlans[idx].FixedPrice = plan.FixedPrice;
+                        _fallbackPlans[idx].DiscountRate = plan.DiscountRate;
+                        _fallbackPlans[idx].StartHour = plan.StartHour;
+                        _fallbackPlans[idx].EndHour = plan.EndHour;
+                        return true;
+                    }
+                    return false;
                 }
-                return false;
             }
         }
 
@@ -217,7 +228,10 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return new List<GamingSession>(_fallbackSessions);
+                lock (_fallbackLock)
+                {
+                    return new List<GamingSession>(_fallbackSessions);
+                }
             }
         }
 
@@ -340,15 +354,38 @@ namespace GamingCenterManagementSystem.DAL
             return report.ToString();
         }
 
+        public static string NormalizeTariffType(string? tariffType)
+        {
+            if (string.IsNullOrWhiteSpace(tariffType))
+                return "Hourly";
+
+            string trimmed = tariffType.Trim();
+            if (trimmed.Equals("Hourly", StringComparison.OrdinalIgnoreCase))
+                return "Hourly";
+            if (trimmed.Equals("NightCombo", StringComparison.OrdinalIgnoreCase))
+                return "NightCombo";
+            if (trimmed.Equals("Tournament", StringComparison.OrdinalIgnoreCase))
+                return "Tournament";
+            if (trimmed.Equals("MemberTier", StringComparison.OrdinalIgnoreCase))
+                return "MemberTier";
+
+            throw new ArgumentException("Loại gói cước không hợp lệ (Hourly, NightCombo, Tournament, MemberTier).", nameof(tariffType));
+        }
+
         public static TariffCalculatorBase CreateTariffCalculator(string? tariffType, string? memberTier = null)
         {
-            return tariffType switch
-            {
-                "NightCombo" => new NightComboTariff(),
-                "Tournament" => new TournamentTariff(),
-                "MemberTier" => new MemberTierTariff(string.IsNullOrWhiteSpace(memberTier) ? "Standard" : memberTier),
-                _ => new HourlyTariff()
-            };
+            if (string.IsNullOrWhiteSpace(tariffType))
+                return new HourlyTariff();
+
+            string trimmed = tariffType.Trim();
+            if (trimmed.Equals("NightCombo", StringComparison.OrdinalIgnoreCase))
+                return new NightComboTariff();
+            if (trimmed.Equals("Tournament", StringComparison.OrdinalIgnoreCase))
+                return new TournamentTariff();
+            if (trimmed.Equals("MemberTier", StringComparison.OrdinalIgnoreCase))
+                return new MemberTierTariff(string.IsNullOrWhiteSpace(memberTier) ? "Standard" : memberTier);
+
+            return new HourlyTariff();
         }
 
         private static SqlParameter CreateDecimalParameter(string name, decimal value)
@@ -412,9 +449,12 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                session.SessionId = _fallbackSessions.Count > 0 ? _fallbackSessions.Max(s => s.SessionId) + 1 : 1;
-                _fallbackSessions.Insert(0, session);
-                return true;
+                lock (_fallbackLock)
+                {
+                    session.SessionId = _fallbackSessions.Count > 0 ? _fallbackSessions.Max(s => s.SessionId) + 1 : 1;
+                    _fallbackSessions.Insert(0, session);
+                    return true;
+                }
             }
         }
 
@@ -441,7 +481,10 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return _fallbackSessions.RemoveAll(s => s.SessionId == sessionId) > 0;
+                lock (_fallbackLock)
+                {
+                    return _fallbackSessions.RemoveAll(s => s.SessionId == sessionId) > 0;
+                }
             }
         }
 
@@ -453,10 +496,23 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"SELECT TOP 1 SessionId, StationId, UserId, StartTime, EndTime, TariffType, PlayCost, ServiceCost, TotalCost, Status
-                                     FROM dbo.GamingSession
-                                     WHERE StationId = @StationId AND Status = N'Active'
-                                     ORDER BY SessionId DESC";
+                const string sql = @"IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
+                                         SELECT TOP 1
+                                             gs.SessionId, gs.StationId, gs.UserId, gs.StartTime, gs.EndTime, gs.TariffType, gs.PlayCost,
+                                             CASE
+                                                 WHEN EXISTS (SELECT 1 FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId)
+                                                 THEN ISNULL((SELECT SUM(ss.TotalPrice) FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId), 0)
+                                                 ELSE gs.ServiceCost
+                                             END AS ServiceCost,
+                                             gs.TotalCost, gs.Status
+                                         FROM dbo.GamingSession gs
+                                         WHERE gs.StationId = @StationId AND gs.Status = N'Active'
+                                         ORDER BY gs.SessionId DESC;
+                                     ELSE
+                                         SELECT TOP 1 SessionId, StationId, UserId, StartTime, EndTime, TariffType, PlayCost, ServiceCost, TotalCost, Status
+                                         FROM dbo.GamingSession
+                                         WHERE StationId = @StationId AND Status = N'Active'
+                                         ORDER BY SessionId DESC;";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@StationId", SqlDbType.Int).Value = stationId;
                 using var reader = cmd.ExecuteReader();
@@ -468,7 +524,10 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return _fallbackSessions.Find(s => s.StationId == stationId && s.Status == "Active");
+                lock (_fallbackLock)
+                {
+                    return _fallbackSessions.Find(s => s.StationId == stationId && s.Status == "Active");
+                }
             }
         }
 
@@ -481,10 +540,23 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"SELECT SessionId, StationId, UserId, StartTime, EndTime, TariffType, PlayCost, ServiceCost, TotalCost, Status
-                                     FROM dbo.GamingSession
-                                     WHERE Status = N'Active'
-                                     ORDER BY SessionId DESC";
+                const string sql = @"IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
+                                         SELECT
+                                             gs.SessionId, gs.StationId, gs.UserId, gs.StartTime, gs.EndTime, gs.TariffType, gs.PlayCost,
+                                             CASE
+                                                 WHEN EXISTS (SELECT 1 FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId)
+                                                 THEN ISNULL((SELECT SUM(ss.TotalPrice) FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId), 0)
+                                                 ELSE gs.ServiceCost
+                                             END AS ServiceCost,
+                                             gs.TotalCost, gs.Status
+                                         FROM dbo.GamingSession gs
+                                         WHERE gs.Status = N'Active'
+                                         ORDER BY gs.SessionId DESC;
+                                     ELSE
+                                         SELECT SessionId, StationId, UserId, StartTime, EndTime, TariffType, PlayCost, ServiceCost, TotalCost, Status
+                                         FROM dbo.GamingSession
+                                         WHERE Status = N'Active'
+                                         ORDER BY SessionId DESC;";
                 using var cmd = new SqlCommand(sql, conn);
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
@@ -495,7 +567,10 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return _fallbackSessions.FindAll(s => s.Status == "Active");
+                lock (_fallbackLock)
+                {
+                    return _fallbackSessions.FindAll(s => s.Status == "Active");
+                }
             }
         }
 
@@ -528,9 +603,12 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                session.SessionId = _fallbackSessions.Count > 0 ? _fallbackSessions.Max(s => s.SessionId) + 1 : 1;
-                _fallbackSessions.Insert(0, session);
-                return true;
+                lock (_fallbackLock)
+                {
+                    session.SessionId = _fallbackSessions.Count > 0 ? _fallbackSessions.Max(s => s.SessionId) + 1 : 1;
+                    _fallbackSessions.Insert(0, session);
+                    return true;
+                }
             }
         }
 
@@ -556,17 +634,20 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                var session = _fallbackSessions.Find(s => s.SessionId == sessionId);
-                if (session != null)
+                lock (_fallbackLock)
                 {
-                    session.EndTime = endTime;
-                    session.PlayCost = playCost;
-                    session.ServiceCost = serviceCost;
-                    session.TotalCost = totalCost;
-                    session.Status = "Completed";
-                    return true;
+                    var session = _fallbackSessions.Find(s => s.SessionId == sessionId);
+                    if (session != null)
+                    {
+                        session.EndTime = endTime;
+                        session.PlayCost = playCost;
+                        session.ServiceCost = serviceCost;
+                        session.TotalCost = totalCost;
+                        session.Status = "Completed";
+                        return true;
+                    }
+                    return false;
                 }
-                return false;
             }
         }
 
@@ -580,7 +661,10 @@ namespace GamingCenterManagementSystem.DAL
             if (stationId <= 0)
                 throw new ArgumentException("Mã máy trạm không hợp lệ.", nameof(stationId));
 
-            string normalizedTariff = string.IsNullOrWhiteSpace(tariffType) ? "Hourly" : tariffType.Trim();
+            string normalizedTariff = NormalizeTariffType(tariffType);
+            if (string.Equals(normalizedTariff, "MemberTier", StringComparison.OrdinalIgnoreCase) && !userId.HasValue)
+                throw new InvalidOperationException("Gói cước Ưu đãi hội viên (MemberTier) chỉ áp dụng khi có tài khoản hội viên.");
+
             DateTime effectiveStart = startTime ?? DateTime.Now;
             decimal requiredFloor = minimumRequiredBalance > 0m ? minimumRequiredBalance : 1m;
 
@@ -705,24 +789,27 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException or StationInUseException or InsufficientBalanceException))
             {
-                if (_fallbackSessions.Any(s => s.StationId == stationId && s.Status == "Active"))
-                    throw new StationInUseException(stationId, $"PC-{stationId:D2}");
-
-                var newSession = new GamingSession
+                lock (_fallbackLock)
                 {
-                    SessionId = _fallbackSessions.Count > 0 ? _fallbackSessions.Max(s => s.SessionId) + 1 : 1,
-                    StationId = stationId,
-                    UserId = userId,
-                    StartTime = effectiveStart,
-                    EndTime = null,
-                    TariffType = normalizedTariff,
-                    PlayCost = 0m,
-                    ServiceCost = 0m,
-                    TotalCost = 0m,
-                    Status = "Active"
-                };
-                _fallbackSessions.Insert(0, newSession);
-                return newSession;
+                    if (_fallbackSessions.Any(s => s.StationId == stationId && s.Status == "Active"))
+                        throw new StationInUseException(stationId, $"PC-{stationId:D2}");
+
+                    var newSession = new GamingSession
+                    {
+                        SessionId = _fallbackSessions.Count > 0 ? _fallbackSessions.Max(s => s.SessionId) + 1 : 1,
+                        StationId = stationId,
+                        UserId = userId,
+                        StartTime = effectiveStart,
+                        EndTime = null,
+                        TariffType = normalizedTariff,
+                        PlayCost = 0m,
+                        ServiceCost = 0m,
+                        TotalCost = 0m,
+                        Status = "Active"
+                    };
+                    _fallbackSessions.Insert(0, newSession);
+                    return newSession;
+                }
             }
         }
 
@@ -980,42 +1067,45 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException or StationInUseException or InsufficientBalanceException))
             {
-                var active = _fallbackSessions.Find(s => s.StationId == stationId && s.Status == "Active");
-                DateTime startTime = active?.StartTime ?? fallbackStartTime ?? effectiveEnd.AddHours(-1.5);
-                int? userId = active?.UserId ?? fallbackUserId;
-                string tariffType = active?.TariffType ?? (string.IsNullOrWhiteSpace(fallbackTariffType) ? "Hourly" : fallbackTariffType);
-                decimal serviceCost = active?.ServiceCost ?? 0m;
-
-                TariffCalculatorBase calculator = CreateTariffCalculator(tariffType, "Standard");
-                decimal playCost = calculator.CalculateCost(startTime, effectiveEnd, basePricePerHour);
-                decimal totalCost = playCost + serviceCost;
-
-                if (active != null)
+                lock (_fallbackLock)
                 {
-                    active.EndTime = effectiveEnd;
-                    active.PlayCost = playCost;
-                    active.ServiceCost = serviceCost;
-                    active.TotalCost = totalCost;
-                    active.Status = "Completed";
+                    var active = _fallbackSessions.Find(s => s.StationId == stationId && s.Status == "Active");
+                    DateTime startTime = active?.StartTime ?? fallbackStartTime ?? effectiveEnd.AddHours(-1.5);
+                    int? userId = active?.UserId ?? fallbackUserId;
+                    string tariffType = active?.TariffType ?? (string.IsNullOrWhiteSpace(fallbackTariffType) ? "Hourly" : fallbackTariffType);
+                    decimal serviceCost = active?.ServiceCost ?? 0m;
+
+                    TariffCalculatorBase calculator = CreateTariffCalculator(tariffType, "Standard");
+                    decimal playCost = calculator.CalculateCost(startTime, effectiveEnd, basePricePerHour);
+                    decimal totalCost = playCost + serviceCost;
+
+                    if (active != null)
+                    {
+                        active.EndTime = effectiveEnd;
+                        active.PlayCost = playCost;
+                        active.ServiceCost = serviceCost;
+                        active.TotalCost = totalCost;
+                        active.Status = "Completed";
+                    }
+
+                    return new SessionCloseResult
+                    {
+                        SessionId = active?.SessionId ?? 0,
+                        StationId = stationId,
+                        StationName = $"PC-{stationId:D2}",
+                        UserId = userId,
+                        TariffType = tariffType,
+                        TariffDisplayName = calculator.TariffName,
+                        StartTime = startTime,
+                        EndTime = effectiveEnd,
+                        PlayCost = playCost,
+                        ServiceCost = serviceCost,
+                        TotalCost = totalCost,
+                        WalletDeducted = 0m,
+                        CashDue = totalCost,
+                        RemainingBalance = null
+                    };
                 }
-
-                return new SessionCloseResult
-                {
-                    SessionId = active?.SessionId ?? 0,
-                    StationId = stationId,
-                    StationName = $"PC-{stationId:D2}",
-                    UserId = userId,
-                    TariffType = tariffType,
-                    TariffDisplayName = calculator.TariffName,
-                    StartTime = startTime,
-                    EndTime = effectiveEnd,
-                    PlayCost = playCost,
-                    ServiceCost = serviceCost,
-                    TotalCost = totalCost,
-                    WalletDeducted = 0m,
-                    CashDue = totalCost,
-                    RemainingBalance = null
-                };
             }
         }
 

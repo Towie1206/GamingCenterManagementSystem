@@ -1,4 +1,4 @@
--- =======================================================
+﻿-- =======================================================
 -- KỊCH BẢN TẠO CƠ SỞ DỮ LIỆU: GamingCenterDB
 -- Đồ án: Development of a Gaming Center Management System
 -- Thư viện kết nối: Microsoft.Data.SqlClient
@@ -234,6 +234,11 @@ BEGIN
     (N'Gói Cước Ưu Đãi Giải Đấu LAN', 'Tournament', NULL, 0.5, NULL, NULL),
     (N'Gói Ưu Đãi Hội Viên Vàng', 'MemberTier', NULL, 0.15, NULL, NULL);
 END
+ELSE IF NOT EXISTS (SELECT 1 FROM TariffPlan WHERE TariffType = 'MemberTier')
+BEGIN
+    INSERT INTO TariffPlan (PlanName, TariffType, FixedPrice, DiscountRate, StartHour, EndHour)
+    VALUES (N'Gói Ưu Đãi Hội Viên Vàng', 'MemberTier', NULL, 0.15, NULL, NULL);
+END
 
 IF NOT EXISTS (SELECT * FROM Tournament)
 BEGIN
@@ -256,6 +261,13 @@ BEGIN
     (4, 3, DATEADD(hour, -3, GETDATE()), DATEADD(hour, -1, GETDATE()), 'Hourly', 24000, 20000, 44000, 'Completed'),
     (6, 4, DATEADD(hour, -8, GETDATE()), DATEADD(hour, -1, GETDATE()), 'NightCombo', 45000, 25000, 70000, 'Completed'),
     (2, 2, DATEADD(minute, -45, GETDATE()), NULL, 'Hourly', 8000, 10000, 18000, 'Active');
+END
+
+IF EXISTS (SELECT 1 FROM GamingSession WHERE StationId = 2 AND Status = 'Active')
+BEGIN
+    UPDATE ComputerStation
+    SET Status = 'InUse'
+    WHERE StationId = 2 AND Status = 'Available';
 END
 
 IF NOT EXISTS (SELECT * FROM ServiceItem)

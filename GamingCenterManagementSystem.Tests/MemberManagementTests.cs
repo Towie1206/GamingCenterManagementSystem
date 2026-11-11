@@ -13,6 +13,7 @@ using Xunit;
 
 namespace GamingCenterManagementSystem.Tests
 {
+    [Collection("GamingCenterSequential")]
     public class MemberManagementTests
     {
         private static DBUser CreateOfflineDb() =>

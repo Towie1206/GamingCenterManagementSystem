@@ -64,7 +64,7 @@ namespace GamingCenterManagementSystem.Tests
                                  IF @UserId > 0
                                  BEGIN
                                      IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
-                                         DELETE FROM dbo.WalletTransaction WHERE UserId = @UserId;
+                                         DELETE FROM dbo.WalletTransaction WHERE UserId = @UserId OR CreatedByUserId = @UserId;
                                      DELETE FROM dbo.AppUser WHERE UserId = @UserId;
                                  END";
             using var cmd = new SqlCommand(sql, conn, trans);
@@ -165,6 +165,7 @@ namespace GamingCenterManagementSystem.Tests
         {
             var db = new DBUser();
             string uniqueUsername = $"auth_{Guid.NewGuid():N}"[..15];
+            string inactiveUsername = $"inact_{Guid.NewGuid():N}"[..15];
             var user = new AppUser
             {
                 Username = uniqueUsername,
@@ -173,10 +174,26 @@ namespace GamingCenterManagementSystem.Tests
                 Balance = 0m,
                 MemberTier = "Standard"
             };
+            var inactiveUser = new AppUser
+            {
+                Username = inactiveUsername,
+                FullName = "Initially Inactive User",
+                Role = "Staff",
+                Balance = 0m,
+                MemberTier = "Standard",
+                IsActive = false
+            };
 
             try
             {
                 Assert.True(db.CreateMember(user, "Secret#2026", out string err), err);
+                Assert.True(db.CreateMember(inactiveUser, "Secret#2026", out string err2), err2);
+
+                var reloadedInactive = db.GetById(inactiveUser.UserId);
+                Assert.NotNull(reloadedInactive);
+                Assert.False(reloadedInactive!.IsActive);
+                Assert.False(db.TryAuthenticate(inactiveUsername, "Secret#2026", out _, out string initLockedErr));
+                Assert.Contains("khóa", initLockedErr, StringComparison.OrdinalIgnoreCase);
 
                 var (ok, authUser, authErr) = await db.AuthenticateAsync(uniqueUsername, "Secret#2026");
                 Assert.True(ok, authErr);
@@ -194,6 +211,8 @@ namespace GamingCenterManagementSystem.Tests
             {
                 if (user.UserId > 0)
                     db.Delete(user.UserId);
+                if (inactiveUser.UserId > 0)
+                    db.Delete(inactiveUser.UserId);
             }
         }
 
@@ -424,6 +443,11 @@ namespace GamingCenterManagementSystem.Tests
                 Assert.True(dbUser.CreateMember(zeroBalanceUser, "pass1234", out string err1), err1);
                 Assert.True(dbUser.CreateMember(fundedUser, "pass1234", out string err2), err2);
 
+                // Case-insensitive tariff factory & validation
+                Assert.IsType<MemberTierTariff>(DBBilling.CreateTariffCalculator("membertier", "Gold"));
+                Assert.Throws<InvalidOperationException>(() => dbBilling.OpenStationSession(stationId, null, "MemberTier"));
+                Assert.Throws<ArgumentException>(() => dbBilling.OpenStationSession(stationId, fundedUser.UserId, "InvalidPlan"));
+
                 // 1. Zero balance throws InsufficientBalanceException and leaves station Available
                 Assert.Throws<InsufficientBalanceException>(() =>
                     dbBilling.OpenStationSession(stationId, zeroBalanceUser.UserId, "Hourly", minimumRequiredBalance: 800m));
@@ -487,6 +511,11 @@ namespace GamingCenterManagementSystem.Tests
                     svcCmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = session.SessionId;
                     svcCmd.ExecuteNonQuery();
                 }
+
+                // Live GetActiveSession reflects SessionService sum before close
+                var liveActive = dbBilling.GetActiveSession(stationId);
+                Assert.NotNull(liveActive);
+                Assert.Equal(15000m, liveActive!.ServiceCost);
 
                 // 2h @ 10,000 with Gold (15% off) = 17,000 + 15,000 F&B = 32,000
                 var result = dbBilling.CloseStationSession(stationId, 10000m, endTime: end, allowCashSupplement: false);
@@ -592,7 +621,124 @@ namespace GamingCenterManagementSystem.Tests
         }
 
         [Fact]
-        public void Form1_RealtimeTimer_UpdatesInUseStationButtonAndMasksOtherMemberBalance()
+        public void Form1_RealtimeTimer_TicksViaMessagePumpAndMasksOtherMemberBalance()
+        {
+            var dbUser = new DBUser();
+            var dbBilling = new DBBilling();
+            int stationId = CreateTemporaryStation("TMR");
+            var playingMember = new AppUser
+            {
+                Username = $"ply_{Guid.NewGuid():N}"[..15],
+                FullName = "Playing Member",
+                Role = "Member",
+                Balance = 60000m,
+                MemberTier = "Gold"
+            };
+            var viewingMember = new AppUser
+            {
+                Username = $"viw_{Guid.NewGuid():N}"[..15],
+                FullName = "Viewing Member",
+                Role = "Member",
+                Balance = 40000m,
+                MemberTier = "Silver"
+            };
+
+            Exception? threadException = null;
+
+            try
+            {
+                Assert.True(dbUser.CreateMember(playingMember, "pass1234", out string err1), err1);
+                Assert.True(dbUser.CreateMember(viewingMember, "pass1234", out string err2), err2);
+                dbBilling.OpenStationSession(stationId, playingMember.UserId, "MemberTier", startTime: DateTime.Now.AddMinutes(-30));
+
+                Thread staThread = new(() =>
+                {
+                    try
+                    {
+                        CurrentUserSession.SetUser(viewingMember);
+
+                        using var form1 = new Form1
+                        {
+                            ShowInTaskbar = false,
+                            StartPosition = FormStartPosition.Manual,
+                            Location = new System.Drawing.Point(-2000, -2000)
+                        };
+
+                        var stationButtons = typeof(Form1).GetField("_stationButtons", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1)
+                            as System.Collections.Generic.Dictionary<int, Button>;
+                        var stations = typeof(Form1).GetField("_stations", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1)
+                            as System.Collections.Generic.List<ComputerStation>;
+                        var selectMethod = typeof(Form1).GetMethod("SelectStation", BindingFlags.NonPublic | BindingFlags.Instance);
+                        var lblResult = typeof(Form1).GetField("lblKetQuaTinhTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                        var lblRealtimeSummary = typeof(Form1).GetField("lblRealtimeSummary", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                        var cboKhachHang = typeof(Form1).GetField("cboKhachHang", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as ComboBox;
+
+                        Assert.NotNull(stationButtons);
+                        Assert.NotNull(stations);
+                        Assert.NotNull(selectMethod);
+                        Assert.NotNull(lblResult);
+                        Assert.NotNull(lblRealtimeSummary);
+                        Assert.NotNull(cboKhachHang);
+
+                        // Member must not see other users' balances in cboKhachHang
+                        Assert.Single(cboKhachHang!.Items);
+                        Assert.Contains(viewingMember.Username, cboKhachHang.Items[0]?.ToString());
+
+                        var tempInUseStation = stations!.FirstOrDefault(s => s.StationId == stationId);
+                        Assert.NotNull(tempInUseStation);
+                        Assert.True(stationButtons!.TryGetValue(stationId, out Button? inUseBtn));
+
+                        selectMethod!.Invoke(form1, new object[] { tempInUseStation! });
+                        string initialSummary = lblRealtimeSummary!.Text;
+                        string initialBtnText = inUseBtn!.Text;
+
+                        form1.Show();
+
+                        // Pump real WinForms message loop until _realtimeTimer ticks at least once (>1s)
+                        DateTime deadline = DateTime.UtcNow.AddMilliseconds(2300);
+                        while (DateTime.UtcNow < deadline)
+                        {
+                            Application.DoEvents();
+                            Thread.Sleep(50);
+                            if (lblRealtimeSummary.Text != initialSummary && inUseBtn.Text != initialBtnText)
+                                break;
+                        }
+
+                        Assert.NotEqual(initialSummary, lblRealtimeSummary.Text);
+                        Assert.NotEqual(initialBtnText, inUseBtn.Text);
+                        Assert.Contains("⏱️", inUseBtn.Text);
+                        Assert.Contains("[ĐANG CHƠI]", inUseBtn.Text);
+                        Assert.Contains("Thời lượng:", lblResult!.Text);
+                        Assert.DoesNotContain(playingMember.Username, lblResult.Text);
+                        Assert.DoesNotContain("60,000", lblResult.Text);
+
+                        form1.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        threadException = ex;
+                    }
+                    finally
+                    {
+                        CurrentUserSession.Clear();
+                    }
+                });
+
+                staThread.SetApartmentState(ApartmentState.STA);
+                staThread.Start();
+                staThread.Join();
+
+                Assert.Null(threadException);
+            }
+            finally
+            {
+                CleanupTemporaryArtifacts(stationId, playingMember.UserId);
+                CleanupTemporaryArtifacts(0, viewingMember.UserId);
+            }
+        }
+
+        [Fact]
+        public void Form1_And_FormLogin_Layout_HaveNoOverlapOrClippingAtDefaultAndMinimumSize()
         {
             Exception? threadException = null;
 
@@ -600,40 +746,77 @@ namespace GamingCenterManagementSystem.Tests
             {
                 try
                 {
-                    CurrentUserSession.Clear();
-                    var offlineDb = CreateOfflineUserDb();
-                    Assert.True(offlineDb.TryAuthenticate("gamer03", "123456", out AppUser? gamer03, out _));
+                    var dbUser = new DBUser();
+                    var admin = dbUser.GetByUsername("admin");
+                    Assert.NotNull(admin);
+                    CurrentUserSession.SetUser(admin!);
 
-                    using var form1 = new Form1();
-                    var stationButtonsField = typeof(Form1).GetField("_stationButtons", BindingFlags.NonPublic | BindingFlags.Instance);
-                    var stationsField = typeof(Form1).GetField("_stations", BindingFlags.NonPublic | BindingFlags.Instance);
-                    var updateMethod = typeof(Form1).GetMethod("UpdateRealtimeDisplay", BindingFlags.NonPublic | BindingFlags.Instance);
-                    var selectMethod = typeof(Form1).GetMethod("SelectStation", BindingFlags.NonPublic | BindingFlags.Instance);
-                    var lblResult = typeof(Form1).GetField("lblKetQuaTinhTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
-
-                    Assert.NotNull(stationButtonsField);
-                    Assert.NotNull(stationsField);
-                    Assert.NotNull(updateMethod);
-                    Assert.NotNull(selectMethod);
-                    Assert.NotNull(lblResult);
-
-                    var stationButtons = stationButtonsField!.GetValue(form1) as System.Collections.Generic.Dictionary<int, Button>;
-                    var stations = stationsField!.GetValue(form1) as System.Collections.Generic.List<ComputerStation>;
-                    Assert.NotNull(stationButtons);
-                    Assert.NotNull(stations);
-
-                    var inUseStation = stations!.FirstOrDefault(s => s.Status == "InUse");
-                    if (inUseStation != null && stationButtons!.TryGetValue(inUseStation.StationId, out Button? inUseBtn))
+                    using (var loginForm = new FormLogin
                     {
-                        CurrentUserSession.SetUser(gamer03!);
-                        form1.ApplyRolePermissions();
-                        selectMethod!.Invoke(form1, new object[] { inUseStation });
-                        updateMethod!.Invoke(form1, null);
+                        ShowInTaskbar = false,
+                        StartPosition = FormStartPosition.Manual,
+                        Location = new System.Drawing.Point(-2000, -2000)
+                    })
+                    {
+                        loginForm.Show();
+                        Application.DoEvents();
 
-                        Assert.Contains("⏱️", inUseBtn.Text);
-                        Assert.Contains("[ĐANG CHƠI]", inUseBtn.Text);
-                        Assert.Contains("Thời lượng:", lblResult!.Text);
-                        Assert.DoesNotContain("gamer01", lblResult.Text);
+                        var pnlCard = typeof(FormLogin).GetField("pnlCard", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as Panel;
+                        var btnLogin = typeof(FormLogin).GetField("btnLogin", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as Button;
+                        var btnExit = typeof(FormLogin).GetField("btnExit", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as Button;
+                        var lblRoleHint = typeof(FormLogin).GetField("lblRoleHint", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as Label;
+
+                        Assert.NotNull(pnlCard);
+                        Assert.NotNull(btnLogin);
+                        Assert.NotNull(btnExit);
+                        Assert.NotNull(lblRoleHint);
+                        Assert.True(btnLogin!.Right < btnExit!.Left);
+                        Assert.True(btnExit.Right <= pnlCard!.ClientSize.Width);
+                        Assert.True(lblRoleHint!.Bottom <= pnlCard.ClientSize.Height);
+                        loginForm.Close();
+                    }
+
+                    using (var form1 = new Form1
+                    {
+                        ShowInTaskbar = false,
+                        StartPosition = FormStartPosition.Manual,
+                        Location = new System.Drawing.Point(-2000, -2000)
+                    })
+                    {
+                        form1.Show();
+                        Application.DoEvents();
+
+                        void AssertLayoutClean()
+                        {
+                            var lblMainTitle = typeof(Form1).GetField("lblMainTitle", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                            var lblLeaderRole = typeof(Form1).GetField("lblLeaderRole", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                            var lblCurrentUser = typeof(Form1).GetField("lblCurrentUser", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                            var btnDangXuat = typeof(Form1).GetField("btnDangXuat", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var btnNavBilling = typeof(Form1).GetField("btnNavBilling", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var btnLamMoiSoDo = typeof(Form1).GetField("btnLamMoiSoDo", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var lblLegendTournament = typeof(Form1).GetField("lblLegendTournament", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                            var lblRealtimeSummary = typeof(Form1).GetField("lblRealtimeSummary", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+                            var grpDieuKhienPhien = typeof(Form1).GetField("grpDieuKhienPhien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as GroupBox;
+                            var lblKetQuaTinhTien = typeof(Form1).GetField("lblKetQuaTinhTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
+
+                            Assert.True(lblMainTitle!.Right < lblCurrentUser!.Left, $"lblMainTitle.Right ({lblMainTitle.Right}) >= lblCurrentUser.Left ({lblCurrentUser.Left})");
+                            Assert.True(lblLeaderRole!.Right < lblCurrentUser.Left, $"lblLeaderRole.Right ({lblLeaderRole.Right}) >= lblCurrentUser.Left ({lblCurrentUser.Left})");
+                            Assert.True(lblCurrentUser.Right < btnDangXuat!.Left);
+                            Assert.True(btnDangXuat.Right <= form1.ClientSize.Width);
+                            Assert.True(btnNavBilling!.Right < btnLamMoiSoDo!.Left, $"btnNavBilling.Right ({btnNavBilling.Right}) >= btnLamMoiSoDo.Left ({btnLamMoiSoDo.Left})");
+                            Assert.True(btnLamMoiSoDo.Right <= form1.ClientSize.Width, $"btnLamMoiSoDo.Right ({btnLamMoiSoDo.Right}) > ClientWidth ({form1.ClientSize.Width})");
+                            Assert.True(lblLegendTournament!.Right < lblRealtimeSummary!.Left, $"lblLegendTournament.Right ({lblLegendTournament.Right}) >= lblRealtimeSummary.Left ({lblRealtimeSummary.Left})");
+                            Assert.True(lblRealtimeSummary.Height >= lblRealtimeSummary.PreferredSize.Height, $"lblRealtimeSummary.Height ({lblRealtimeSummary.Height}) < Pref ({lblRealtimeSummary.PreferredSize.Height})");
+                            Assert.True(lblKetQuaTinhTien!.Bottom <= grpDieuKhienPhien!.Height, $"lblKetQuaTinhTien.Bottom ({lblKetQuaTinhTien.Bottom}) > grpHeight ({grpDieuKhienPhien.Height})");
+                        }
+
+                        AssertLayoutClean();
+
+                        form1.Size = form1.MinimumSize;
+                        Application.DoEvents();
+                        AssertLayoutClean();
+
+                        form1.Close();
                     }
                 }
                 catch (Exception ex)
@@ -651,6 +834,169 @@ namespace GamingCenterManagementSystem.Tests
             staThread.Join();
 
             Assert.Null(threadException);
+        }
+
+        [Fact]
+        public void FormLogin_Click_And_Form1_StationClickHandlers_ExecuteEndToEnd()
+        {
+            var dbUser = new DBUser();
+            var dbStation = new DBStation();
+            int stationId = CreateTemporaryStation("UIC");
+            var operatorUser = new AppUser
+            {
+                Username = $"opr_{Guid.NewGuid():N}"[..15],
+                FullName = "Operator Staff",
+                Role = "Staff",
+                Balance = 0m,
+                MemberTier = "Standard"
+            };
+            var gamerUser = new AppUser
+            {
+                Username = $"gmr_{Guid.NewGuid():N}"[..15],
+                FullName = "UI Flow Gamer",
+                Role = "Member",
+                Balance = 10000m,
+                MemberTier = "Standard"
+            };
+
+            Exception? threadException = null;
+
+            try
+            {
+                Assert.True(dbUser.CreateMember(operatorUser, "OpPass#1", out string err1), err1);
+                Assert.True(dbUser.CreateMember(gamerUser, "GmPass#1", out string err2), err2);
+
+                Thread staThread = new(() =>
+                {
+                    try
+                    {
+                        CurrentUserSession.Clear();
+
+                        // 1. Real FormLogin btnLogin click flow
+                        using (var loginForm = new FormLogin
+                        {
+                            ShowInTaskbar = false,
+                            StartPosition = FormStartPosition.Manual,
+                            Location = new System.Drawing.Point(-2000, -2000)
+                        })
+                        {
+                            var userBox = typeof(FormLogin).GetField("txtUsername", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as TextBox;
+                            var passBox = typeof(FormLogin).GetField("txtPassword", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as TextBox;
+                            var btnLogin = typeof(FormLogin).GetField("btnLogin", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(loginForm) as Button;
+
+                            loginForm.Show();
+                            userBox!.Text = operatorUser.Username;
+                            passBox!.Text = "OpPass#1";
+                            btnLogin!.PerformClick();
+
+                            Assert.Equal(DialogResult.OK, loginForm.DialogResult);
+                            Assert.True(CurrentUserSession.IsLoggedIn);
+                            Assert.Equal(operatorUser.UserId, CurrentUserSession.UserId);
+                        }
+
+                        // 2. Real Form1 station open / maintenance / close / logout click flows
+                        using (var form1 = new Form1
+                        {
+                            ShowInTaskbar = false,
+                            StartPosition = FormStartPosition.Manual,
+                            Location = new System.Drawing.Point(-2000, -2000)
+                        })
+                        {
+                            DialogResult nextConfirmResult = DialogResult.Yes;
+                            string lastCaption = string.Empty;
+                            form1.SetPromptHandler((text, caption, buttons, icon) =>
+                            {
+                                lastCaption = caption;
+                                return buttons == MessageBoxButtons.YesNo ? nextConfirmResult : DialogResult.OK;
+                            });
+
+                            var stationButtons = typeof(Form1).GetField("_stationButtons", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1)
+                                as System.Collections.Generic.Dictionary<int, Button>;
+                            var cboKhachHang = typeof(Form1).GetField("cboKhachHang", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as ComboBox;
+                            var cboGoiCuoc = typeof(Form1).GetField("cboGoiCuoc", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as ComboBox;
+                            var btnMoMay = typeof(Form1).GetField("btnMoMay", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var btnDongMay = typeof(Form1).GetField("btnDongMay", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var btnBaoTri = typeof(Form1).GetField("btnBaoTri", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var btnNavBilling = typeof(Form1).GetField("btnNavBilling", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+                            var btnDangXuat = typeof(Form1).GetField("btnDangXuat", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Button;
+
+                            form1.Show();
+                            Application.DoEvents();
+
+                            // Staff cannot access Admin-only Billing module even if handler invoked
+                            Assert.False(btnNavBilling!.Enabled);
+                            var navClickMethod = typeof(Control).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance);
+                            navClickMethod!.Invoke(btnNavBilling, new object[] { EventArgs.Empty });
+                            Assert.Equal("Giới hạn phân quyền", lastCaption);
+
+                            Assert.True(stationButtons!.TryGetValue(stationId, out Button? tempStationBtn));
+                            tempStationBtn!.PerformClick();
+
+                            // Toggle maintenance on Available -> Maintenance -> Available
+                            btnBaoTri!.PerformClick();
+                            Assert.Equal("Maintenance", dbStation.GetById(stationId)?.Status);
+                            btnBaoTri.PerformClick();
+                            Assert.Equal("Available", dbStation.GetById(stationId)?.Status);
+
+                            // Select gamerUser and NightCombo (45,000 VND > 10,000 balance)
+                            int itemIdx = -1;
+                            for (int i = 0; i < cboKhachHang!.Items.Count; i++)
+                            {
+                                if (cboKhachHang.Items[i]?.ToString()?.Contains(gamerUser.Username, StringComparison.Ordinal) == true)
+                                {
+                                    itemIdx = i;
+                                    break;
+                                }
+                            }
+                            Assert.True(itemIdx > 0);
+                            cboKhachHang.SelectedIndex = itemIdx;
+                            cboGoiCuoc!.SelectedIndex = 1; // NightCombo
+
+                            btnMoMay!.PerformClick();
+                            Assert.Equal("Mở máy thành công", lastCaption);
+                            Assert.Equal("InUse", dbStation.GetById(stationId)?.Status);
+
+                            // Close with No -> keeps session Active and preserves balance
+                            nextConfirmResult = DialogResult.No;
+                            btnDongMay!.PerformClick();
+                            Assert.Equal("Số dư ví không đủ", lastCaption);
+                            Assert.Equal("InUse", dbStation.GetById(stationId)?.Status);
+                            Assert.Equal(10000m, dbUser.GetById(gamerUser.UserId)?.Balance);
+
+                            // Close with Yes -> drains wallet to 0 + cash supplement
+                            nextConfirmResult = DialogResult.Yes;
+                            btnDongMay.PerformClick();
+                            Assert.Equal("Thanh toán hoàn tất", lastCaption);
+                            Assert.Equal("Available", dbStation.GetById(stationId)?.Status);
+                            Assert.Equal(0m, dbUser.GetById(gamerUser.UserId)?.Balance);
+
+                            // Logout click sets IsLogoutRequested
+                            nextConfirmResult = DialogResult.Yes;
+                            btnDangXuat!.PerformClick();
+                            Assert.True(form1.IsLogoutRequested);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        threadException = ex;
+                    }
+                    finally
+                    {
+                        CurrentUserSession.Clear();
+                    }
+                });
+
+                staThread.SetApartmentState(ApartmentState.STA);
+                staThread.Start();
+                staThread.Join();
+
+                Assert.Null(threadException);
+            }
+            finally
+            {
+                CleanupTemporaryArtifacts(stationId, gamerUser.UserId);
+                CleanupTemporaryArtifacts(0, operatorUser.UserId);
+            }
         }
     }
 }

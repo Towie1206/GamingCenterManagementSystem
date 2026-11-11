@@ -54,6 +54,7 @@ namespace GamingCenterManagementSystem
 
         public bool TryPerformLogin(out string errorMessage)
         {
+            AuthenticatedUser = null;
             try
             {
                 if (_dbUser.TryAuthenticate(txtUsername.Text, txtPassword.Text, out AppUser? user, out errorMessage)
