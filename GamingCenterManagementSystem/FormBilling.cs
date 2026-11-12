@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Drawing;
@@ -20,6 +21,23 @@ namespace GamingCenterManagementSystem
         private List<GamingSession> _filteredRevenueSessions = new();
         private readonly Label _lblTopRevenueStation = new();
         private List<TariffPlan> _planList = new();
+        private List<ServiceItem> _serviceItems = new();
+        private bool _loadingFnB;
+        private int? _selectedServiceId;
+
+        private sealed class ServiceOption
+        {
+            public int ServiceId { get; init; }
+            public string Display { get; init; } = string.Empty;
+            public override string ToString() => Display;
+        }
+
+        private sealed class SessionOption
+        {
+            public int SessionId { get; init; }
+            public string Display { get; init; } = string.Empty;
+            public override string ToString() => Display;
+        }
 
         // Delegate / Action for billing events (Chapter 4 Delegate requirement)
         public Action<string>? OnBillingNotification;
@@ -50,6 +68,10 @@ namespace GamingCenterManagementSystem
             _lblTopRevenueStation.Location = new Point(20, 44);
             pnlStats.Controls.Add(_lblTopRevenueStation);
             cboTariffType.SelectedIndex = 0;
+            cboServiceCategory.SelectedIndex = 0;
+            chkServiceActive.Checked = true;
+            nudStartHour.Enabled = chkApDungKhungGio.Checked;
+            nudEndHour.Enabled = chkApDungKhungGio.Checked;
         }
 
         private void dtTuNgayInit()
@@ -69,6 +91,28 @@ namespace GamingCenterManagementSystem
 
             btnThemGoiCuoc.Click += BtnThemGoiCuoc_Click;
             btnCapNhatGoiCuoc.Click += BtnCapNhatGoiCuoc_Click;
+            btnXoaGoiCuoc.Click += BtnXoaGoiCuoc_Click;
+            chkApDungKhungGio.CheckedChanged += (s, e) =>
+            {
+                nudStartHour.Enabled = chkApDungKhungGio.Checked;
+                nudEndHour.Enabled = chkApDungKhungGio.Checked;
+            };
+
+            btnThemMon.Click += BtnThemMon_Click;
+            btnCapNhatMon.Click += BtnCapNhatMon_Click;
+            btnBatTatMon.Click += BtnBatTatMon_Click;
+            btnNhapKho.Click += BtnNhapKho_Click;
+            btnLamMoiMon.Click += (s, e) => SafeLoadFnBData();
+            btnGoiMonVaoPhien.Click += BtnGoiMonVaoPhien_Click;
+            dgvDanhMucDichVu.SelectionChanged += DgvDanhMucDichVu_SelectionChanged;
+            cboPhienDangChoi.SelectedIndexChanged += (s, e) =>
+            {
+                if (!_loadingFnB) RefreshSessionServiceGrid();
+            };
+            tabControlBilling.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabControlBilling.SelectedTab == tabDichVuFnB) SafeLoadFnBData();
+            };
 
             dgvGoiCuoc.SelectionChanged += DgvGoiCuoc_SelectionChanged;
         }
@@ -82,6 +126,7 @@ namespace GamingCenterManagementSystem
 
                 BindPlanGrid(_planList);
                 ApplyRevenueFilter(reloadFromDatabase: false);
+                LoadFnBData();
             }
             catch (Exception ex)
             {
@@ -160,6 +205,23 @@ namespace GamingCenterManagementSystem
             _lblTopRevenueStation.Text = byStation.Count == 0
                 ? "🏆 Máy doanh thu cao nhất: Chưa có phiên hoàn thành"
                 : $"🏆 Máy doanh thu cao nhất: PC-{byStation[0].StationId:D2} - {byStation[0].Revenue:N0} VNĐ ({byStation[0].SessionCount} phiên)";
+
+            // Phase 2: three summaries always follow the same filtered sessions.
+            dgvDoanhThuTheoMay.DataSource = byStation.Select(x => new
+            {
+                May = $"PC-{x.StationId:D2}", SoPhien = x.SessionCount,
+                DoanhThu = x.Revenue
+            }).ToList();
+            dgvDoanhThuTheoNgay.DataSource = DBBilling.GroupRevenueByDay(sessions).Select(x => new
+            {
+                Ngay = x.Date.ToString("dd/MM/yyyy"), SoPhien = x.SessionCount,
+                TienGio = x.PlayRevenue, TienDichVu = x.ServiceRevenue, DoanhThu = x.Revenue
+            }).ToList();
+            dgvDoanhThuTheoGoiCuoc.DataSource = DBBilling.GroupRevenueByTariffType(sessions).Select(x => new
+            {
+                GoiCuoc = x.TariffType, SoPhien = x.SessionCount,
+                TienGio = x.PlayRevenue, TienDichVu = x.ServiceRevenue, DoanhThu = x.Revenue
+            }).ToList();
         }
 
         // Khôi - Logic 1: refresh from SQL/fallback and LINQ-filter Completed sessions.
@@ -253,6 +315,9 @@ namespace GamingCenterManagementSystem
                         TongTienDichVu = _filteredRevenueSessions.Sum(s => s.ServiceCost),
                         TongDoanhThu = total,
                         MayDoanhThuCaoNhat = byStation.Count > 0 ? $"PC-{byStation[0].StationId:D2} ({byStation[0].Revenue:N0} VNĐ)" : "N/A",
+                        ThongKeTheoMay = byStation,
+                        ThongKeTheoNgay = DBBilling.GroupRevenueByDay(_filteredRevenueSessions),
+                        ThongKeTheoGoiCuoc = DBBilling.GroupRevenueByTariffType(_filteredRevenueSessions),
                         DanhSachPhien = _filteredRevenueSessions.Select(s => new
                         {
                             MaPhien = s.SessionId,
@@ -333,75 +398,414 @@ namespace GamingCenterManagementSystem
                                  $"Thành tiền: {cost:N0} VNĐ";
         }
 
+        // Shared input parser: Vietnamese comma decimals and English dot decimals.
+        // A short fractional part is treated as a decimal separator even when the
+        // machine culture would otherwise interpret it as a thousands separator.
+        private static bool TryParseDecimalInput(string text, out decimal value)
+        {
+            value = 0m;
+            text = text.Trim();
+            if (text.Length == 0) return false;
+
+            bool dotOnly = text.Contains('.') && !text.Contains(',');
+            bool commaOnly = text.Contains(',') && !text.Contains('.');
+            if (dotOnly && text.LastIndexOf('.') == text.Length - 2 ||
+                dotOnly && text.LastIndexOf('.') == text.Length - 3)
+                return decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+            if (commaOnly && text.LastIndexOf(',') == text.Length - 2 ||
+                commaOnly && text.LastIndexOf(',') == text.Length - 3)
+                return decimal.TryParse(text, NumberStyles.Number, CultureInfo.GetCultureInfo("vi-VN"), out value);
+
+            return decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
+                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value)
+                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.GetCultureInfo("vi-VN"), out value);
+        }
+
+        private bool TryBuildPlanFromInputs(out TariffPlan? plan)
+        {
+            plan = null;
+            string name = txtPlanName.Text.Trim();
+            if (name.Length == 0 || name.Length > 100)
+            {
+                MessageBox.Show("Tên gói cước phải có từ 1 đến 100 ký tự.");
+                return false;
+            }
+
+            decimal? fixedPrice = null;
+            if (!string.IsNullOrWhiteSpace(txtFixedPrice.Text))
+            {
+                if (!TryParseDecimalInput(txtFixedPrice.Text, out decimal parsedPrice) || parsedPrice < 0)
+                {
+                    MessageBox.Show("Giá trọn gói phải là số hợp lệ, không được âm.");
+                    return false;
+                }
+                fixedPrice = parsedPrice;
+            }
+            if (!TryParseDecimalInput(txtDiscountRate.Text, out decimal discount) || discount < 0m || discount > 1m)
+            {
+                MessageBox.Show("Chiết khấu phải nằm trong khoảng 0 đến 1 (ví dụ: 0.15).");
+                return false;
+            }
+            int? start = chkApDungKhungGio.Checked ? (int)nudStartHour.Value : null;
+            int? end = chkApDungKhungGio.Checked ? (int)nudEndHour.Value : null;
+            if (start.HasValue && start == end)
+            {
+                MessageBox.Show("Giờ bắt đầu và giờ kết thúc không được trùng nhau.");
+                return false;
+            }
+            try
+            {
+                plan = new TariffPlan
+                {
+                    PlanName = name,
+                    TariffType = DBBilling.NormalizeTariffType(cboTariffType.SelectedItem?.ToString()),
+                    FixedPrice = fixedPrice,
+                    DiscountRate = (double)discount,
+                    StartHour = start,
+                    EndHour = end
+                };
+                return true;
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Dữ liệu gói cước");
+                return false;
+            }
+        }
+
         private void DgvGoiCuoc_SelectionChanged(object? sender, EventArgs e)
         {
-            if (dgvGoiCuoc.CurrentRow != null && dgvGoiCuoc.CurrentRow.DataBoundItem != null)
+            if (dgvGoiCuoc.CurrentRow?.DataBoundItem == null) return;
+            int id = Convert.ToInt32(dgvGoiCuoc.CurrentRow.Cells["MaGoi"].Value);
+            TariffPlan? plan = _planList.FirstOrDefault(x => x.PlanId == id);
+            if (plan == null) return;
+            txtPlanName.Text = plan.PlanName;
+            cboTariffType.SelectedItem = plan.TariffType;
+            txtFixedPrice.Text = plan.FixedPrice?.ToString("F0") ?? string.Empty;
+            txtDiscountRate.Text = plan.DiscountRate.ToString("F2");
+            chkApDungKhungGio.Checked = plan.StartHour.HasValue && plan.EndHour.HasValue;
+            if (plan.StartHour.HasValue && plan.EndHour.HasValue)
             {
-                int planId = Convert.ToInt32(dgvGoiCuoc.CurrentRow.Cells["MaGoi"].Value);
-                var plan = _planList.FirstOrDefault(p => p.PlanId == planId);
-                if (plan != null)
-                {
-                    txtPlanName.Text = plan.PlanName;
-                    cboTariffType.SelectedItem = plan.TariffType;
-                    txtFixedPrice.Text = plan.FixedPrice.HasValue ? plan.FixedPrice.Value.ToString("F0") : "";
-                    txtDiscountRate.Text = plan.DiscountRate.ToString("F2");
-                }
+                nudStartHour.Value = Math.Clamp(plan.StartHour.Value, 0, 23);
+                nudEndHour.Value = Math.Clamp(plan.EndHour.Value, 0, 23);
             }
         }
 
         private void BtnThemGoiCuoc_Click(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtPlanName.Text))
+            if (!TryBuildPlanFromInputs(out TariffPlan? plan) || plan == null) return;
+            try
             {
-                MessageBox.Show("Vui lòng nhập tên gói cước!", "Thiếu thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                if (_dbBilling.AddPlan(plan))
+                {
+                    LoadData();
+                    OnBillingNotification?.Invoke($"Đã thêm gói cước: {plan.PlanName}");
+                    MessageBox.Show("Thêm gói cước thành công.");
+                }
             }
-
-            decimal? fixedPrice = null;
-            if (decimal.TryParse(txtFixedPrice.Text.Trim(), out decimal fp)) fixedPrice = fp;
-
-            double.TryParse(txtDiscountRate.Text.Trim(), out double discount);
-
-            var newPlan = new TariffPlan
+            catch (Exception ex)
             {
-                PlanName = txtPlanName.Text.Trim(),
-                TariffType = cboTariffType.SelectedItem?.ToString() ?? "Hourly",
-                FixedPrice = fixedPrice,
-                DiscountRate = discount
-            };
-
-            if (_dbBilling.AddPlan(newPlan))
-            {
-                MessageBox.Show($"Thêm gói cước '{newPlan.PlanName}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                OnBillingNotification?.Invoke($"Đã thêm gói cước mới: {newPlan.PlanName}");
-                LoadData();
+                MessageBox.Show($"Không thể thêm gói cước: {ex.Message}");
             }
         }
 
         private void BtnCapNhatGoiCuoc_Click(object? sender, EventArgs e)
         {
-            if (dgvGoiCuoc.CurrentRow == null) return;
-            int planId = Convert.ToInt32(dgvGoiCuoc.CurrentRow.Cells["MaGoi"].Value);
-
-            decimal? fixedPrice = null;
-            if (decimal.TryParse(txtFixedPrice.Text.Trim(), out decimal fp)) fixedPrice = fp;
-            double.TryParse(txtDiscountRate.Text.Trim(), out double discount);
-
-            var plan = new TariffPlan
+            if (dgvGoiCuoc.CurrentRow?.DataBoundItem == null) return;
+            if (!TryBuildPlanFromInputs(out TariffPlan? plan) || plan == null) return;
+            plan.PlanId = Convert.ToInt32(dgvGoiCuoc.CurrentRow.Cells["MaGoi"].Value);
+            try
             {
-                PlanId = planId,
-                PlanName = txtPlanName.Text.Trim(),
-                TariffType = cboTariffType.SelectedItem?.ToString() ?? "Hourly",
-                FixedPrice = fixedPrice,
-                DiscountRate = discount
-            };
-
-            if (_dbBilling.UpdatePlan(plan))
+                if (_dbBilling.UpdatePlan(plan))
+                {
+                    LoadData();
+                    OnBillingNotification?.Invoke($"Đã cập nhật gói cước: {plan.PlanName}");
+                    MessageBox.Show("Cập nhật gói cước thành công.");
+                }
+            }
+            catch (Exception ex)
             {
-                MessageBox.Show($"Cập nhật gói cước '{plan.PlanName}' thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                OnBillingNotification?.Invoke($"Đã cập nhật gói cước: {plan.PlanName}");
-                LoadData();
+                MessageBox.Show($"Không thể cập nhật gói cước: {ex.Message}");
             }
         }
+
+        private void BtnXoaGoiCuoc_Click(object? sender, EventArgs e)
+        {
+            if (dgvGoiCuoc.CurrentRow?.DataBoundItem == null) return;
+            int id = Convert.ToInt32(dgvGoiCuoc.CurrentRow.Cells["MaGoi"].Value);
+            string name = dgvGoiCuoc.CurrentRow.Cells["TenGoi"].Value?.ToString() ?? "";
+            if (MessageBox.Show($"Xóa gói cước '{name}'?", "Xác nhận xóa",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            try
+            {
+                if (_dbBilling.DeletePlan(id))
+                {
+                    LoadData();
+                    OnBillingNotification?.Invoke($"Đã xóa gói cước: {name}");
+                    MessageBox.Show("Đã xóa gói cước.");
+                }
+                else MessageBox.Show("Không tìm thấy gói cước để xóa.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Không thể xóa gói cước: {ex.Message}");
+            }
+        }
+
+        private void SafeLoadFnBData()
+        {
+            try { LoadFnBData(); }
+            catch (Exception ex) { MessageBox.Show($"Lỗi tải danh mục F&B: {ex.Message}"); }
+        }
+
+        // Load both the menu and active sessions whenever the form is refreshed.
+        private void LoadFnBData()
+        {
+            if (_loadingFnB) return;
+            int? previousSession = (cboPhienDangChoi.SelectedItem as SessionOption)?.SessionId;
+            int? previousService = (cboMonGoi.SelectedItem as ServiceOption)?.ServiceId;
+            _loadingFnB = true;
+            try
+            {
+                _serviceItems = _dbBilling.GetAllServiceItems();
+                var active = _dbBilling.GetActiveSessions();
+                var stations = new DBStation().GetAll()
+                    .GroupBy(x => x.StationId).ToDictionary(x => x.Key, x => x.First().StationName);
+
+                dgvDanhMucDichVu.DataSource = _serviceItems.Select(item => new
+                {
+                    MaDichVu = item.ServiceId,
+                    TenDichVu = item.ServiceName,
+                    PhanLoai = item.Category,
+                    DonGia = item.UnitPrice,
+                    TonKho = item.StockQuantity,
+                    TrangThai = item.IsActive ? "Đang bán" : "Ngừng bán"
+                }).ToList();
+
+                cboMonGoi.Items.Clear();
+                foreach (ServiceItem item in _serviceItems.Where(x => x.IsActive && x.StockQuantity > 0))
+                    cboMonGoi.Items.Add(new ServiceOption
+                    {
+                        ServiceId = item.ServiceId,
+                        Display = $"{item.ServiceName} - {item.UnitPrice:N0}đ (Còn: {item.StockQuantity})"
+                    });
+                if (cboMonGoi.Items.Count > 0)
+                {
+                    int pos = cboMonGoi.Items.Cast<ServiceOption>().ToList()
+                        .FindIndex(x => x.ServiceId == previousService);
+                    cboMonGoi.SelectedIndex = pos >= 0 ? pos : 0;
+                }
+
+                cboPhienDangChoi.Items.Clear();
+                foreach (GamingSession session in active)
+                {
+                    string station = stations.TryGetValue(session.StationId, out string? n)
+                        ? n : $"PC-{session.StationId:D2}";
+                    cboPhienDangChoi.Items.Add(new SessionOption
+                    {
+                        SessionId = session.SessionId,
+                        Display = $"Phiên #{session.SessionId} - {station} (Bắt đầu: {session.StartTime:HH:mm} | DV: {session.ServiceCost:N0}đ)"
+                    });
+                }
+                if (cboPhienDangChoi.Items.Count > 0)
+                {
+                    int pos = cboPhienDangChoi.Items.Cast<SessionOption>().ToList()
+                        .FindIndex(x => x.SessionId == previousSession);
+                    cboPhienDangChoi.SelectedIndex = pos >= 0 ? pos : 0;
+                }
+
+                if (_selectedServiceId.HasValue)
+                {
+                    foreach (DataGridViewRow row in dgvDanhMucDichVu.Rows)
+                        if (Convert.ToInt32(row.Cells["MaDichVu"].Value) == _selectedServiceId.Value)
+                        {
+                            row.Selected = true;
+                            dgvDanhMucDichVu.CurrentCell = row.Cells[0];
+                            break;
+                        }
+                }
+                btnGoiMonVaoPhien.Enabled = cboPhienDangChoi.Items.Count > 0 &&
+                    cboMonGoi.Items.Count > 0;
+            }
+            finally { _loadingFnB = false; }
+
+            DgvDanhMucDichVu_SelectionChanged(null, EventArgs.Empty);
+            RefreshSessionServiceGrid();
+        }
+
+        private void DgvDanhMucDichVu_SelectionChanged(object? sender, EventArgs e)
+        {
+            if (_loadingFnB || dgvDanhMucDichVu.CurrentRow?.DataBoundItem == null) return;
+            int id = Convert.ToInt32(dgvDanhMucDichVu.CurrentRow.Cells["MaDichVu"].Value);
+            ServiceItem? item = _serviceItems.FirstOrDefault(x => x.ServiceId == id);
+            if (item == null) return;
+            _selectedServiceId = id;
+            txtServiceName.Text = item.ServiceName;
+            cboServiceCategory.SelectedItem = item.Category;
+            if (cboServiceCategory.SelectedIndex < 0) cboServiceCategory.SelectedIndex = 0;
+            txtServicePrice.Text = item.UnitPrice.ToString("0.##", CultureInfo.InvariantCulture);
+            txtServiceStock.Text = item.StockQuantity.ToString(CultureInfo.InvariantCulture);
+            chkServiceActive.Checked = item.IsActive;
+        }
+
+        private void RefreshSessionServiceGrid()
+        {
+            if (_loadingFnB) return;
+            if (cboPhienDangChoi.SelectedItem is not SessionOption session)
+            {
+                dgvDichVuTheoPhien.DataSource = null;
+                lblTongDichVuPhien.Text = "Chưa có máy nào đang chơi";
+                btnGoiMonVaoPhien.Enabled = false;
+                return;
+            }
+            try
+            {
+                List<SessionServiceDetail> orders = _dbBilling.GetSessionServices(session.SessionId);
+                dgvDichVuTheoPhien.DataSource = orders.Select(x => new
+                {
+                    MaDon = x.SessionServiceId, TenMon = x.ServiceName,
+                    SoLuong = x.Quantity, DonGia = x.UnitPrice,
+                    ThanhTien = x.TotalPrice,
+                    ThoiGian = x.OrderedAt.ToString("dd/MM/yyyy HH:mm"),
+                    GhiChu = x.Note
+                }).ToList();
+                lblTongDichVuPhien.Text = $"Tổng F&B phiên: {orders.Sum(x => x.TotalPrice):N0} VNĐ";
+                btnGoiMonVaoPhien.Enabled = cboMonGoi.SelectedItem is ServiceOption;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Không tải được món của phiên: {ex.Message}");
+            }
+        }
+
+        private bool TryBuildServiceItemFromInputs(out ServiceItem? item)
+        {
+            item = null;
+            string name = txtServiceName.Text.Trim();
+            string category = cboServiceCategory.SelectedItem?.ToString() ?? "Đồ uống";
+            if (name.Length == 0 || name.Length > 100 || category.Length > 50)
+            {
+                MessageBox.Show("Tên món phải có từ 1 đến 100 ký tự và phân loại tối đa 50 ký tự.");
+                return false;
+            }
+            if (!TryParseDecimalInput(txtServicePrice.Text, out decimal price) || price < 0m)
+            {
+                MessageBox.Show("Đơn giá phải là số hợp lệ và không được âm.");
+                return false;
+            }
+            if (!int.TryParse(txtServiceStock.Text.Trim(), out int stock) || stock < 0)
+            {
+                MessageBox.Show("Tồn kho phải là số nguyên không âm.");
+                return false;
+            }
+            item = new ServiceItem
+            {
+                ServiceName = name, Category = category,
+                UnitPrice = price, StockQuantity = stock, IsActive = chkServiceActive.Checked
+            };
+            return true;
+        }
+
+        private void BtnThemMon_Click(object? sender, EventArgs e)
+        {
+            if (!TryBuildServiceItemFromInputs(out ServiceItem? item) || item == null) return;
+            try
+            {
+                if (_dbBilling.AddServiceItem(item))
+                {
+                    _selectedServiceId = item.ServiceId;
+                    LoadFnBData();
+                    OnBillingNotification?.Invoke($"Đã thêm món mới: {item.ServiceName}");
+                    MessageBox.Show("Thêm món thành công.");
+                }
+            }
+            catch (Exception ex) { MessageBox.Show($"Không thể thêm món: {ex.Message}"); }
+        }
+
+        private void BtnCapNhatMon_Click(object? sender, EventArgs e)
+        {
+            if (dgvDanhMucDichVu.CurrentRow?.DataBoundItem == null) return;
+            if (!TryBuildServiceItemFromInputs(out ServiceItem? item) || item == null) return;
+            item.ServiceId = Convert.ToInt32(dgvDanhMucDichVu.CurrentRow.Cells["MaDichVu"].Value);
+            try
+            {
+                if (_dbBilling.UpdateServiceItem(item))
+                {
+                    _selectedServiceId = item.ServiceId;
+                    LoadFnBData();
+                    OnBillingNotification?.Invoke($"Đã cập nhật món: {item.ServiceName}");
+                    MessageBox.Show("Cập nhật món thành công.");
+                }
+            }
+            catch (Exception ex) { MessageBox.Show($"Không thể sửa món: {ex.Message}"); }
+        }
+
+        private void BtnBatTatMon_Click(object? sender, EventArgs e)
+        {
+            if (dgvDanhMucDichVu.CurrentRow?.DataBoundItem == null) return;
+            int id = Convert.ToInt32(dgvDanhMucDichVu.CurrentRow.Cells["MaDichVu"].Value);
+            try
+            {
+                if (_dbBilling.ToggleServiceItemActive(id))
+                {
+                    _selectedServiceId = id;
+                    LoadFnBData();
+                    OnBillingNotification?.Invoke("Đã đổi trạng thái kinh doanh món F&B");
+                }
+            }
+            catch (Exception ex) { MessageBox.Show($"Không thể đổi trạng thái món: {ex.Message}"); }
+        }
+
+        private void BtnNhapKho_Click(object? sender, EventArgs e)
+        {
+            if (dgvDanhMucDichVu.CurrentRow?.DataBoundItem == null) return;
+            int id = Convert.ToInt32(dgvDanhMucDichVu.CurrentRow.Cells["MaDichVu"].Value);
+            try
+            {
+                if (_dbBilling.RestockServiceItem(id, (int)nudRestockQty.Value))
+                {
+                    _selectedServiceId = id;
+                    LoadFnBData();
+                    OnBillingNotification?.Invoke("Đã nhập thêm hàng F&B");
+                    MessageBox.Show("Nhập kho thành công.");
+                }
+            }
+            catch (Exception ex) { MessageBox.Show($"Không thể nhập kho: {ex.Message}"); }
+        }
+
+        private void BtnGoiMonVaoPhien_Click(object? sender, EventArgs e)
+        {
+            if (cboPhienDangChoi.SelectedItem is not SessionOption session)
+            {
+                MessageBox.Show("Chưa có máy nào đang chơi. Hãy mở máy từ màn hình chính trước.");
+                return;
+            }
+            if (cboMonGoi.SelectedItem is not ServiceOption selected)
+            {
+                MessageBox.Show("Vui lòng chọn món còn hàng.");
+                return;
+            }
+
+            try
+            {
+                if (_dbBilling.OrderServiceForSession(session.SessionId, selected.ServiceId,
+                    (int)nudSoLuongGoi.Value, txtGhiChuGoiMon.Text))
+                {
+                    LoadFnBData();
+                    _sessionList = _dbBilling.GetAllSessions();
+                    ApplyRevenueFilter(reloadFromDatabase: false);
+                    OnBillingNotification?.Invoke($"Đã gọi món vào phiên #{session.SessionId}");
+                    MessageBox.Show("Đã thêm món vào phiên đang chơi.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Không thể gọi món: {ex.Message}", "Lỗi gọi món",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
     }
 }

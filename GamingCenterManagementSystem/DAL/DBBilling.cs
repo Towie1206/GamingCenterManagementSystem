@@ -18,6 +18,39 @@ namespace GamingCenterManagementSystem.DAL
         public decimal Revenue { get; set; }
     }
 
+
+    public sealed class DailyRevenueSummary
+    {
+        public DateTime Date { get; set; }
+        public int SessionCount { get; set; }
+        public decimal PlayRevenue { get; set; }
+        public decimal ServiceRevenue { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public sealed class TariffRevenueSummary
+    {
+        public string TariffType { get; set; } = string.Empty;
+        public int SessionCount { get; set; }
+        public decimal PlayRevenue { get; set; }
+        public decimal ServiceRevenue { get; set; }
+        public decimal Revenue { get; set; }
+    }
+
+    public sealed class SessionServiceDetail
+    {
+        public int SessionServiceId { get; set; }
+        public int SessionId { get; set; }
+        public int ServiceId { get; set; }
+        public string ServiceName { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public int Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+        public decimal TotalPrice { get; set; }
+        public DateTime OrderedAt { get; set; }
+        public string? Note { get; set; }
+    }
+
     public sealed class SessionCloseResult
     {
         public int SessionId { get; set; }
@@ -67,6 +100,24 @@ namespace GamingCenterManagementSystem.DAL
             new GamingSession { SessionId = 2, StationId = 4, UserId = 3, StartTime = DateTime.Today.AddHours(9), EndTime = DateTime.Today.AddHours(12), TariffType = "Hourly", PlayCost = 36000, ServiceCost = 30000, TotalCost = 66000, Status = "Completed" },
             new GamingSession { SessionId = 3, StationId = 6, UserId = 4, StartTime = DateTime.Today.AddHours(22).AddDays(-1), EndTime = DateTime.Today.AddHours(6), TariffType = "NightCombo", PlayCost = 45000, ServiceCost = 25000, TotalCost = 70000, Status = "Completed" },
             new GamingSession { SessionId = 4, StationId = 2, UserId = 2, StartTime = DateTime.Now.AddHours(-1), EndTime = null, TariffType = "Hourly", PlayCost = 8000, ServiceCost = 10000, TotalCost = 18000, Status = "Active" }
+        };
+
+
+        // Shared offline fallback used when SQL Server is unavailable.
+        private static readonly List<ServiceItem> _fallbackServiceItems = new()
+        {
+            new() { ServiceId = 1, ServiceName = "Sting Dâu", Category = "Đồ uống", UnitPrice = 15000m, StockQuantity = 50, IsActive = true },
+            new() { ServiceId = 2, ServiceName = "Red Bull", Category = "Đồ uống", UnitPrice = 20000m, StockQuantity = 40, IsActive = true },
+            new() { ServiceId = 3, ServiceName = "Coca-Cola Lon", Category = "Đồ uống", UnitPrice = 15000m, StockQuantity = 60, IsActive = true },
+            new() { ServiceId = 4, ServiceName = "Mì Tôm Trứng Xúc Xích", Category = "Đồ ăn", UnitPrice = 25000m, StockQuantity = 30, IsActive = true },
+            new() { ServiceId = 5, ServiceName = "Cơm Gà Xối Mỡ", Category = "Đồ ăn", UnitPrice = 45000m, StockQuantity = 20, IsActive = true },
+            new() { ServiceId = 6, ServiceName = "Bánh Mì Trứng Ốp La", Category = "Đồ ăn", UnitPrice = 20000m, StockQuantity = 25, IsActive = true }
+        };
+
+        private static readonly List<SessionService> _fallbackSessionServices = new()
+        {
+            new() { SessionServiceId = 1, SessionId = 1, ServiceId = 1, Quantity = 1,
+                UnitPrice = 15000m, TotalPrice = 15000m, Note = "Dịch vụ mẫu phiên 1", OrderedAt = DateTime.Today.AddHours(9) }
         };
 
         public List<TariffPlan> GetAllPlans()
@@ -203,6 +254,31 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+
+        public bool DeletePlan(int planId)
+        {
+            if (planId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(planId), "Mã gói cước không hợp lệ.");
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                using var cmd = new SqlCommand("DELETE FROM dbo.TariffPlan WHERE PlanId = @PlanId", conn);
+                cmd.Parameters.Add("@PlanId", SqlDbType.Int).Value = planId;
+                return cmd.ExecuteNonQuery() == 1;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackPlans.RemoveAll(p => p.PlanId == planId) > 0;
+                }
+            }
+        }
+
         public List<GamingSession> GetAllSessions()
         {
             List<GamingSession> list = new List<GamingSession>();
@@ -299,6 +375,45 @@ namespace GamingCenterManagementSystem.DAL
                 .ToList();
         }
 
+
+        public static List<DailyRevenueSummary> GroupRevenueByDay(IEnumerable<GamingSession> completedSessions)
+        {
+            ArgumentNullException.ThrowIfNull(completedSessions);
+            return completedSessions
+                .Where(s => s.EndTime.HasValue && string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(s => s.EndTime!.Value.Date)
+                .Select(g => new DailyRevenueSummary
+                {
+                    Date = g.Key,
+                    SessionCount = g.Count(),
+                    PlayRevenue = g.Sum(s => s.PlayCost),
+                    ServiceRevenue = g.Sum(s => s.ServiceCost),
+                    Revenue = g.Sum(s => s.TotalCost)
+                })
+                .OrderByDescending(x => x.Date)
+                .ToList();
+        }
+
+        public static List<TariffRevenueSummary> GroupRevenueByTariffType(IEnumerable<GamingSession> completedSessions)
+        {
+            ArgumentNullException.ThrowIfNull(completedSessions);
+            return completedSessions
+                .Where(s => s.EndTime.HasValue && string.Equals(s.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(s => string.IsNullOrWhiteSpace(s.TariffType) ? "Hourly" : s.TariffType.Trim(),
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(g => new TariffRevenueSummary
+                {
+                    TariffType = g.Key,
+                    SessionCount = g.Count(),
+                    PlayRevenue = g.Sum(s => s.PlayCost),
+                    ServiceRevenue = g.Sum(s => s.ServiceCost),
+                    Revenue = g.Sum(s => s.TotalCost)
+                })
+                .OrderByDescending(x => x.Revenue)
+                .ThenBy(x => x.TariffType)
+                .ToList();
+        }
+
         // Khôi - Logic 3: Build the TXT report from the SAME filtered rows as the grid.
         // The Form handles SaveFileDialog and File.WriteAllText.
         public static string BuildRevenueShiftReport(
@@ -350,6 +465,19 @@ namespace GamingCenterManagementSystem.DAL
                 report.AppendLine($"MÁY DOANH THU CAO NHẤT: PC-{byStation[0].StationId:D2} - {byStation[0].Revenue.ToString("N0", vn)} VNĐ");
             else
                 report.AppendLine("Không có phiên chơi hoàn thành trong khoảng ngày đã chọn.");
+
+
+            report.AppendLine();
+            report.AppendLine("THỐNG KÊ DOANH THU THEO NGÀY");
+            report.AppendLine("Ngày\tSố phiên\tTiền giờ\tTiền dịch vụ\tTổng doanh thu (VNĐ)");
+            foreach (DailyRevenueSummary item in GroupRevenueByDay(sessions))
+                report.AppendLine($"{item.Date:dd/MM/yyyy}\t{item.SessionCount}\t{item.PlayRevenue.ToString("N0", vn)}\t{item.ServiceRevenue.ToString("N0", vn)}\t{item.Revenue.ToString("N0", vn)}");
+
+            report.AppendLine();
+            report.AppendLine("THỐNG KÊ DOANH THU THEO GÓI CƯỚC");
+            report.AppendLine("Gói cước\tSố phiên\tTiền giờ\tTiền dịch vụ\tTổng doanh thu (VNĐ)");
+            foreach (TariffRevenueSummary item in GroupRevenueByTariffType(sessions))
+                report.AppendLine($"{item.TariffType}\t{item.SessionCount}\t{item.PlayRevenue.ToString("N0", vn)}\t{item.ServiceRevenue.ToString("N0", vn)}\t{item.Revenue.ToString("N0", vn)}");
 
             return report.ToString();
         }
@@ -413,6 +541,425 @@ namespace GamingCenterManagementSystem.DAL
                 TotalCost = reader.IsDBNull(8) ? 0m : reader.GetDecimal(8),
                 Status = reader.IsDBNull(9) ? "Active" : reader.GetString(9)
             };
+        }
+
+
+        private static void ValidateServiceItem(ServiceItem item)
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            item.ServiceName = (item.ServiceName ?? string.Empty).Trim();
+            item.Category = string.IsNullOrWhiteSpace(item.Category) ? "Đồ uống" : item.Category.Trim();
+            if (item.ServiceName.Length == 0 || item.ServiceName.Length > 100)
+                throw new ArgumentException("Tên món phải có từ 1 đến 100 ký tự.");
+            if (item.Category.Length > 50)
+                throw new ArgumentException("Phân loại không được vượt quá 50 ký tự.");
+            if (item.UnitPrice < 0m || item.StockQuantity < 0)
+                throw new ArgumentException("Giá hoặc số lượng tồn kho không được âm.");
+        }
+
+        private static ServiceItem CopyServiceItem(ServiceItem item) => new()
+        {
+            ServiceId = item.ServiceId,
+            ServiceName = item.ServiceName,
+            Category = item.Category,
+            UnitPrice = item.UnitPrice,
+            StockQuantity = item.StockQuantity,
+            IsActive = item.IsActive
+        };
+
+        public List<ServiceItem> GetAllServiceItems(bool activeOnly = false)
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                string sql = @"SELECT ServiceId, ServiceName, Category, UnitPrice, StockQuantity, IsActive
+                               FROM dbo.ServiceItem" + (activeOnly ? " WHERE IsActive = 1" : "") + " ORDER BY Category, ServiceName";
+                using var cmd = new SqlCommand(sql, conn);
+                using var reader = cmd.ExecuteReader();
+                var items = new List<ServiceItem>();
+                while (reader.Read())
+                {
+                    items.Add(new ServiceItem
+                    {
+                        ServiceId = reader.GetInt32(0),
+                        ServiceName = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
+                        Category = reader.IsDBNull(2) ? "Đồ uống" : reader.GetString(2),
+                        UnitPrice = reader.IsDBNull(3) ? 0m : reader.GetDecimal(3),
+                        StockQuantity = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                        IsActive = !reader.IsDBNull(5) && reader.GetBoolean(5)
+                    });
+                }
+                return items;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackServiceItems.Where(s => !activeOnly || s.IsActive)
+                        .OrderBy(s => s.Category).ThenBy(s => s.ServiceName)
+                        .Select(CopyServiceItem).ToList();
+                }
+            }
+        }
+
+        public bool AddServiceItem(ServiceItem item)
+        {
+            ValidateServiceItem(item);
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string existsSql = @"SELECT COUNT(1) FROM dbo.ServiceItem
+                    WHERE LOWER(LTRIM(RTRIM(ServiceName))) = LOWER(LTRIM(RTRIM(@ServiceName)))";
+                using (var exists = new SqlCommand(existsSql, conn))
+                {
+                    exists.Parameters.Add("@ServiceName", SqlDbType.NVarChar, 100).Value = item.ServiceName;
+                    if (Convert.ToInt32(exists.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
+                        throw new InvalidOperationException("Đã có món ăn hoặc đồ uống trùng tên.");
+                }
+
+                const string sql = @"INSERT INTO dbo.ServiceItem
+                    (ServiceName, Category, UnitPrice, StockQuantity, IsActive)
+                    OUTPUT INSERTED.ServiceId
+                    VALUES (@ServiceName, @Category, @UnitPrice, @StockQuantity, @IsActive)";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@ServiceName", SqlDbType.NVarChar, 100).Value = item.ServiceName;
+                cmd.Parameters.Add("@Category", SqlDbType.NVarChar, 50).Value = item.Category;
+                cmd.Parameters.Add(CreateDecimalParameter("@UnitPrice", item.UnitPrice));
+                cmd.Parameters.Add("@StockQuantity", SqlDbType.Int).Value = item.StockQuantity;
+                cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = item.IsActive;
+                item.ServiceId = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+                return item.ServiceId > 0;
+            }
+            catch (SqlException ex) when (opened && (ex.Number == 2627 || ex.Number == 2601))
+            {
+                throw new InvalidOperationException("Đã có món ăn hoặc đồ uống trùng tên.", ex);
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    if (_fallbackServiceItems.Any(s => s.ServiceName.Trim().Equals(item.ServiceName, StringComparison.OrdinalIgnoreCase)))
+                        throw new InvalidOperationException("Đã có món ăn hoặc đồ uống trùng tên.");
+                    item.ServiceId = _fallbackServiceItems.Count == 0 ? 1 : _fallbackServiceItems.Max(s => s.ServiceId) + 1;
+                    _fallbackServiceItems.Add(CopyServiceItem(item));
+                    return true;
+                }
+            }
+        }
+
+        public bool UpdateServiceItem(ServiceItem item)
+        {
+            ValidateServiceItem(item);
+            if (item.ServiceId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(item.ServiceId));
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string existsSql = @"SELECT COUNT(1) FROM dbo.ServiceItem
+                    WHERE ServiceId <> @ServiceId AND LOWER(LTRIM(RTRIM(ServiceName))) = LOWER(LTRIM(RTRIM(@ServiceName)))";
+                using (var exists = new SqlCommand(existsSql, conn))
+                {
+                    exists.Parameters.Add("@ServiceId", SqlDbType.Int).Value = item.ServiceId;
+                    exists.Parameters.Add("@ServiceName", SqlDbType.NVarChar, 100).Value = item.ServiceName;
+                    if (Convert.ToInt32(exists.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
+                        throw new InvalidOperationException("Tên món đã được dùng cho một món khác.");
+                }
+                const string sql = @"UPDATE dbo.ServiceItem SET ServiceName=@ServiceName, Category=@Category,
+                    UnitPrice=@UnitPrice, StockQuantity=@StockQuantity, IsActive=@IsActive WHERE ServiceId=@ServiceId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = item.ServiceId;
+                cmd.Parameters.Add("@ServiceName", SqlDbType.NVarChar, 100).Value = item.ServiceName;
+                cmd.Parameters.Add("@Category", SqlDbType.NVarChar, 50).Value = item.Category;
+                cmd.Parameters.Add(CreateDecimalParameter("@UnitPrice", item.UnitPrice));
+                cmd.Parameters.Add("@StockQuantity", SqlDbType.Int).Value = item.StockQuantity;
+                cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = item.IsActive;
+                return cmd.ExecuteNonQuery() == 1;
+            }
+            catch (SqlException ex) when (opened && (ex.Number == 2627 || ex.Number == 2601))
+            {
+                throw new InvalidOperationException("Tên món đã được dùng cho một món khác.", ex);
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    if (_fallbackServiceItems.Any(s => s.ServiceId != item.ServiceId && s.ServiceName.Trim().Equals(item.ServiceName, StringComparison.OrdinalIgnoreCase)))
+                        throw new InvalidOperationException("Tên món đã được dùng cho một món khác.");
+                    int index = _fallbackServiceItems.FindIndex(s => s.ServiceId == item.ServiceId);
+                    if (index < 0) return false;
+                    _fallbackServiceItems[index] = CopyServiceItem(item);
+                    return true;
+                }
+            }
+        }
+
+        public bool ToggleServiceItemActive(int serviceId)
+        {
+            if (serviceId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(serviceId));
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string sql = @"UPDATE dbo.ServiceItem SET IsActive = CASE WHEN IsActive = 1 THEN 0 ELSE 1 END
+                                     OUTPUT INSERTED.IsActive WHERE ServiceId = @ServiceId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = serviceId;
+                return cmd.ExecuteScalar() is not null;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    ServiceItem? item = _fallbackServiceItems.FirstOrDefault(x => x.ServiceId == serviceId);
+                    if (item is null) return false;
+                    item.IsActive = !item.IsActive;
+                    return true;
+                }
+            }
+        }
+
+        public bool RestockServiceItem(int serviceId, int addedQuantity)
+        {
+            if (serviceId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(serviceId));
+            if (addedQuantity <= 0)
+                throw new ArgumentOutOfRangeException(nameof(addedQuantity), "Số lượng nhập thêm phải lớn hơn 0.");
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string sql = @"UPDATE dbo.ServiceItem
+                                     SET StockQuantity = StockQuantity + @AddedQuantity
+                                     WHERE ServiceId = @ServiceId AND StockQuantity <= 2147483647 - @AddedQuantity";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = serviceId;
+                cmd.Parameters.Add("@AddedQuantity", SqlDbType.Int).Value = addedQuantity;
+                return cmd.ExecuteNonQuery() == 1;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    ServiceItem? item = _fallbackServiceItems.FirstOrDefault(s => s.ServiceId == serviceId);
+                    if (item == null) return false;
+                    item.StockQuantity = checked(item.StockQuantity + addedQuantity);
+                    return true;
+                }
+            }
+        }
+
+        private static SessionServiceDetail MapSessionService(SqlDataReader reader)
+        {
+            return new SessionServiceDetail
+            {
+                SessionServiceId = reader.GetInt32(0),
+                SessionId = reader.GetInt32(1),
+                ServiceId = reader.GetInt32(2),
+                ServiceName = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                Category = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                Quantity = reader.GetInt32(5),
+                UnitPrice = reader.GetDecimal(6),
+                TotalPrice = reader.GetDecimal(7),
+                OrderedAt = reader.GetDateTime(8),
+                Note = reader.IsDBNull(9) ? null : reader.GetString(9)
+            };
+        }
+
+        public List<SessionServiceDetail> GetSessionServices(int sessionId)
+        {
+            if (sessionId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(sessionId));
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string sql = @"SELECT ss.SessionServiceId, ss.SessionId, ss.ServiceId, si.ServiceName,
+                       si.Category, ss.Quantity, ss.UnitPrice, ss.TotalPrice, ss.OrderedAt, ss.Note
+                    FROM dbo.SessionService ss INNER JOIN dbo.ServiceItem si ON ss.ServiceId = si.ServiceId
+                    WHERE ss.SessionId = @SessionId ORDER BY ss.OrderedAt DESC, ss.SessionServiceId DESC";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
+                using var reader = cmd.ExecuteReader();
+                var items = new List<SessionServiceDetail>();
+                while (reader.Read()) items.Add(MapSessionService(reader));
+                return items;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackSessionServices.Where(ss => ss.SessionId == sessionId)
+                        .OrderByDescending(ss => ss.OrderedAt).ThenByDescending(ss => ss.SessionServiceId)
+                        .Select(ss =>
+                        {
+                            ServiceItem? item = _fallbackServiceItems.FirstOrDefault(x => x.ServiceId == ss.ServiceId);
+                            return new SessionServiceDetail
+                            {
+                                SessionServiceId = ss.SessionServiceId,
+                                SessionId = ss.SessionId,
+                                ServiceId = ss.ServiceId,
+                                ServiceName = item?.ServiceName ?? string.Empty,
+                                Category = item?.Category ?? string.Empty,
+                                Quantity = ss.Quantity,
+                                UnitPrice = ss.UnitPrice,
+                                TotalPrice = ss.TotalPrice,
+                                OrderedAt = ss.OrderedAt,
+                                Note = ss.Note
+                            };
+                        }).ToList();
+                }
+            }
+        }
+
+        public bool OrderServiceForSession(int sessionId, int serviceId, int quantity, string? note = null)
+        {
+            if (sessionId <= 0) throw new ArgumentOutOfRangeException(nameof(sessionId));
+            if (serviceId <= 0) throw new ArgumentOutOfRangeException(nameof(serviceId));
+            if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
+
+            string? cleanNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+            if (cleanNote is { Length: > 255 })
+                throw new ArgumentException("Ghi chú không được vượt quá 255 ký tự.", nameof(note));
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                using var trans = conn.BeginTransaction();
+
+                const string sessionSql = @"SELECT Status FROM dbo.GamingSession WITH (UPDLOCK, HOLDLOCK)
+                                            WHERE SessionId = @SessionId";
+                using (var cmd = new SqlCommand(sessionSql, conn, trans))
+                {
+                    cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
+                    string? status = cmd.ExecuteScalar() as string;
+                    if (!string.Equals(status, "Active", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Phiên chơi không tồn tại hoặc đã thanh toán, không thể gọi thêm món.");
+                }
+
+                decimal unitPrice;
+                using (var cmd = new SqlCommand(
+                    @"SELECT ServiceName, UnitPrice, StockQuantity, IsActive FROM dbo.ServiceItem WITH (UPDLOCK, HOLDLOCK)
+                      WHERE ServiceId = @ServiceId", conn, trans))
+                {
+                    cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = serviceId;
+                    using var reader = cmd.ExecuteReader();
+                    if (!reader.Read())
+                        throw new InvalidOperationException("Không tìm thấy món cần gọi.");
+                    unitPrice = reader.GetDecimal(1);
+                    var item = new ServiceItem
+                    {
+                        ServiceId = serviceId,
+                        ServiceName = reader.IsDBNull(0) ? "" : reader.GetString(0),
+                        UnitPrice = unitPrice,
+                        StockQuantity = reader.GetInt32(2),
+                        IsActive = reader.GetBoolean(3)
+                    };
+                    if (!item.IsActive)
+                        throw new InvalidOperationException("Món đang tạm ngừng bán.");
+                    if (!item.IsAvailableForOrder(quantity))
+                        throw new InvalidOperationException($"{item.ServiceName}: Tồn kho chỉ còn {item.StockQuantity}, không đủ số lượng yêu cầu.");
+                }
+
+                const string reduceSql = @"UPDATE dbo.ServiceItem SET StockQuantity = StockQuantity - @Quantity
+                                           WHERE ServiceId = @ServiceId AND IsActive = 1 AND StockQuantity >= @Quantity";
+                using (var cmd = new SqlCommand(reduceSql, conn, trans))
+                {
+                    cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = serviceId;
+                    cmd.Parameters.Add("@Quantity", SqlDbType.Int).Value = quantity;
+                    if (cmd.ExecuteNonQuery() != 1)
+                        throw new InvalidOperationException("Không đủ tồn kho để gọi món.");
+                }
+
+                var order = new SessionService
+                {
+                    SessionId = sessionId,
+                    ServiceId = serviceId,
+                    Quantity = quantity,
+                    UnitPrice = unitPrice,
+                    OrderedAt = DateTime.Now,
+                    Note = cleanNote
+                };
+                order.TotalPrice = order.CalculateLineTotal();
+
+                const string insertSql = @"INSERT INTO dbo.SessionService
+                        (SessionId, ServiceId, Quantity, UnitPrice, TotalPrice, OrderedAt, Note)
+                        OUTPUT INSERTED.SessionServiceId
+                        VALUES (@SessionId, @ServiceId, @Quantity, @UnitPrice, @TotalPrice, @OrderedAt, @Note)";
+                using (var cmd = new SqlCommand(insertSql, conn, trans))
+                {
+                    cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
+                    cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = serviceId;
+                    cmd.Parameters.Add("@Quantity", SqlDbType.Int).Value = quantity;
+                    cmd.Parameters.Add(CreateDecimalParameter("@UnitPrice", unitPrice));
+                    cmd.Parameters.Add(CreateDecimalParameter("@TotalPrice", order.TotalPrice));
+                    cmd.Parameters.Add("@OrderedAt", SqlDbType.DateTime).Value = order.OrderedAt;
+                    cmd.Parameters.Add("@Note", SqlDbType.NVarChar, 255).Value = (object?)cleanNote ?? DBNull.Value;
+                    object? orderId = cmd.ExecuteScalar();
+                    if (orderId == null || orderId == DBNull.Value)
+                        throw new InvalidOperationException("Không lưu được món đã gọi.");
+                }
+
+                const string updateSessionSql = @"UPDATE dbo.GamingSession
+                    SET ServiceCost = ISNULL((SELECT SUM(TotalPrice) FROM dbo.SessionService WHERE SessionId = @SessionId), 0),
+                        TotalCost = PlayCost + ISNULL((SELECT SUM(TotalPrice) FROM dbo.SessionService WHERE SessionId = @SessionId), 0)
+                    WHERE SessionId = @SessionId";
+                using (var cmd = new SqlCommand(updateSessionSql, conn, trans))
+                {
+                    cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
+                    if (cmd.ExecuteNonQuery() != 1)
+                        throw new InvalidOperationException("Không cập nhật được tiền dịch vụ của phiên chơi.");
+                }
+
+                trans.Commit();
+                return true;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                lock (_fallbackLock)
+                {
+                    GamingSession? session = _fallbackSessions.FirstOrDefault(s => s.SessionId == sessionId);
+                    if (session == null || !string.Equals(session.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Phiên chơi không tồn tại hoặc đã thanh toán, không thể gọi thêm món.");
+                    ServiceItem? item = _fallbackServiceItems.FirstOrDefault(s => s.ServiceId == serviceId);
+                    if (item == null) throw new InvalidOperationException("Không tìm thấy món cần gọi.");
+                    if (!item.IsActive) throw new InvalidOperationException("Món đang tạm ngừng bán.");
+                    if (!item.IsAvailableForOrder(quantity))
+                        throw new InvalidOperationException($"{item.ServiceName}: Tồn kho chỉ còn {item.StockQuantity}, không đủ số lượng yêu cầu.");
+                    var order = new SessionService
+                    {
+                        SessionServiceId = _fallbackSessionServices.Count == 0 ? 1 : _fallbackSessionServices.Max(s => s.SessionServiceId) + 1,
+                        SessionId = sessionId, ServiceId = serviceId, Quantity = quantity,
+                        UnitPrice = item.UnitPrice, OrderedAt = DateTime.Now, Note = cleanNote
+                    };
+                    order.TotalPrice = order.CalculateLineTotal();
+                    decimal totalService = _fallbackSessionServices.Where(s => s.SessionId == sessionId).Sum(s => s.TotalPrice) + order.TotalPrice;
+                    item.StockQuantity -= quantity;
+                    _fallbackSessionServices.Add(order);
+                    session.ServiceCost = totalService;
+                    session.TotalCost = session.PlayCost + totalService;
+                    return true;
+                }
+            }
         }
 
         public bool AddSession(GamingSession session)
