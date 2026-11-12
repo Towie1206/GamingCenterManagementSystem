@@ -47,7 +47,6 @@ namespace GamingCenterManagementSystem
             InitializeComponent();
             SetupEvents();
             InitDefaults();
-            LoadData();
         }
 
         private void InitDefaults()
@@ -441,7 +440,8 @@ namespace GamingCenterManagementSystem
                 }
                 fixedPrice = parsedPrice;
             }
-            if (!TryParseDecimalInput(txtDiscountRate.Text, out decimal discount) || discount < 0m || discount > 1m)
+            if (!double.TryParse(txtDiscountRate.Text.Trim().Replace(',', '.'), NumberStyles.Float,
+                CultureInfo.InvariantCulture, out double discount) || !double.IsFinite(discount) || discount < 0 || discount > 1)
             {
                 MessageBox.Show("Chiết khấu phải nằm trong khoảng 0 đến 1 (ví dụ: 0.15).");
                 return false;
@@ -460,7 +460,7 @@ namespace GamingCenterManagementSystem
                     PlanName = name,
                     TariffType = DBBilling.NormalizeTariffType(cboTariffType.SelectedItem?.ToString()),
                     FixedPrice = fixedPrice,
-                    DiscountRate = (double)discount,
+                    DiscountRate = discount,
                     StartHour = start,
                     EndHour = end
                 };
@@ -481,8 +481,8 @@ namespace GamingCenterManagementSystem
             if (plan == null) return;
             txtPlanName.Text = plan.PlanName;
             cboTariffType.SelectedItem = plan.TariffType;
-            txtFixedPrice.Text = plan.FixedPrice?.ToString("F0") ?? string.Empty;
-            txtDiscountRate.Text = plan.DiscountRate.ToString("F2");
+            txtFixedPrice.Text = plan.FixedPrice?.ToString("0.##", CultureInfo.InvariantCulture) ?? string.Empty;
+            txtDiscountRate.Text = plan.DiscountRate.ToString("R", CultureInfo.InvariantCulture);
             chkApDungKhungGio.Checked = plan.StartHour.HasValue && plan.EndHour.HasValue;
             if (plan.StartHour.HasValue && plan.EndHour.HasValue)
             {
@@ -671,7 +671,7 @@ namespace GamingCenterManagementSystem
                     ThoiGian = x.OrderedAt.ToString("dd/MM/yyyy HH:mm"),
                     GhiChu = x.Note
                 }).ToList();
-                lblTongDichVuPhien.Text = $"Tổng F&B phiên: {orders.Sum(x => x.TotalPrice):N0} VNĐ";
+                lblTongDichVuPhien.Text = $"Tổng các món trong lịch sử: {orders.Sum(x => x.TotalPrice):N0} VNĐ";
                 btnGoiMonVaoPhien.Enabled = cboMonGoi.SelectedItem is ServiceOption;
             }
             catch (Exception ex)
@@ -731,12 +731,18 @@ namespace GamingCenterManagementSystem
             item.ServiceId = Convert.ToInt32(dgvDanhMucDichVu.CurrentRow.Cells["MaDichVu"].Value);
             try
             {
-                if (_dbBilling.UpdateServiceItem(item))
+                int expectedStock = _serviceItems.First(x => x.ServiceId == item.ServiceId).StockQuantity;
+                if (_dbBilling.UpdateServiceItem(item, expectedStock))
                 {
                     _selectedServiceId = item.ServiceId;
                     LoadFnBData();
                     OnBillingNotification?.Invoke($"Đã cập nhật món: {item.ServiceName}");
                     MessageBox.Show("Cập nhật món thành công.");
+                }
+                else
+                {
+                    MessageBox.Show("Tồn kho đã thay đổi hoặc món đã bị xóa. Hãy kiểm tra lại trước khi lưu.");
+                    LoadFnBData();
                 }
             }
             catch (Exception ex) { MessageBox.Show($"Không thể sửa món: {ex.Message}"); }
@@ -790,22 +796,28 @@ namespace GamingCenterManagementSystem
 
             try
             {
-                if (_dbBilling.OrderServiceForSession(session.SessionId, selected.ServiceId,
-                    (int)nudSoLuongGoi.Value, txtGhiChuGoiMon.Text))
-                {
-                    LoadFnBData();
-                    _sessionList = _dbBilling.GetAllSessions();
-                    ApplyRevenueFilter(reloadFromDatabase: false);
-                    OnBillingNotification?.Invoke($"Đã gọi món vào phiên #{session.SessionId}");
-                    MessageBox.Show("Đã thêm món vào phiên đang chơi.");
-                }
+                if (!_dbBilling.OrderServiceForSession(session.SessionId, selected.ServiceId,
+                    (int)nudSoLuongGoi.Value, txtGhiChuGoiMon.Text)) return;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Không thể gọi món: {ex.Message}", "Lỗi gọi món",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                LoadFnBData();
+                _sessionList = _dbBilling.GetAllSessions();
+                ApplyRevenueFilter(reloadFromDatabase: false);
+                OnBillingNotification?.Invoke($"Đã gọi món vào phiên #{session.SessionId}");
+                MessageBox.Show("Đã thêm món vào phiên đang chơi.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Đã lưu món cho phiên #{session.SessionId}. Hãy làm mới để xem dữ liệu: {ex.Message}");
             }
         }
-
     }
 }

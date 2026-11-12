@@ -653,7 +653,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
-        public bool UpdateServiceItem(ServiceItem item)
+        public bool UpdateServiceItem(ServiceItem item) => UpdateServiceItem(item, null);
+
+        public bool UpdateServiceItem(ServiceItem item, int? expectedStock)
         {
             ValidateServiceItem(item);
             if (item.ServiceId <= 0)
@@ -674,13 +676,15 @@ namespace GamingCenterManagementSystem.DAL
                         throw new InvalidOperationException("Tên món đã được dùng cho một món khác.");
                 }
                 const string sql = @"UPDATE dbo.ServiceItem SET ServiceName=@ServiceName, Category=@Category,
-                    UnitPrice=@UnitPrice, StockQuantity=@StockQuantity, IsActive=@IsActive WHERE ServiceId=@ServiceId";
+                    UnitPrice=@UnitPrice, StockQuantity=@StockQuantity, IsActive=@IsActive WHERE ServiceId=@ServiceId
+                    AND (@ExpectedStock IS NULL OR StockQuantity=@ExpectedStock)";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@ServiceId", SqlDbType.Int).Value = item.ServiceId;
                 cmd.Parameters.Add("@ServiceName", SqlDbType.NVarChar, 100).Value = item.ServiceName;
                 cmd.Parameters.Add("@Category", SqlDbType.NVarChar, 50).Value = item.Category;
                 cmd.Parameters.Add(CreateDecimalParameter("@UnitPrice", item.UnitPrice));
                 cmd.Parameters.Add("@StockQuantity", SqlDbType.Int).Value = item.StockQuantity;
+                cmd.Parameters.Add("@ExpectedStock", SqlDbType.Int).Value = (object?)expectedStock ?? DBNull.Value;
                 cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = item.IsActive;
                 return cmd.ExecuteNonQuery() == 1;
             }
@@ -695,7 +699,7 @@ namespace GamingCenterManagementSystem.DAL
                     if (_fallbackServiceItems.Any(s => s.ServiceId != item.ServiceId && s.ServiceName.Trim().Equals(item.ServiceName, StringComparison.OrdinalIgnoreCase)))
                         throw new InvalidOperationException("Tên món đã được dùng cho một món khác.");
                     int index = _fallbackServiceItems.FindIndex(s => s.ServiceId == item.ServiceId);
-                    if (index < 0) return false;
+                    if (index < 0 || (expectedStock.HasValue && _fallbackServiceItems[index].StockQuantity != expectedStock.Value)) return false;
                     _fallbackServiceItems[index] = CopyServiceItem(item);
                     return true;
                 }
@@ -919,13 +923,19 @@ namespace GamingCenterManagementSystem.DAL
                         throw new InvalidOperationException("Không lưu được món đã gọi.");
                 }
 
-                const string updateSessionSql = @"UPDATE dbo.GamingSession
-                    SET ServiceCost = ISNULL((SELECT SUM(TotalPrice) FROM dbo.SessionService WHERE SessionId = @SessionId), 0),
-                        TotalCost = PlayCost + ISNULL((SELECT SUM(TotalPrice) FROM dbo.SessionService WHERE SessionId = @SessionId), 0)
-                    WHERE SessionId = @SessionId";
+                // Older sessions can include charges without itemized orders.
+                const string updateSessionSql = @"UPDATE gs
+                    SET ServiceCost = totals.Amount, TotalCost = gs.PlayCost + totals.Amount
+                    FROM dbo.GamingSession gs
+                    CROSS APPLY (SELECT SUM(ss.TotalPrice) AS Itemized FROM dbo.SessionService ss
+                                 WHERE ss.SessionId = gs.SessionId) items
+                    CROSS APPLY (SELECT CASE WHEN gs.ServiceCost + @Charge > items.Itemized
+                                        THEN gs.ServiceCost + @Charge ELSE items.Itemized END AS Amount) totals
+                    WHERE gs.SessionId = @SessionId";
                 using (var cmd = new SqlCommand(updateSessionSql, conn, trans))
                 {
                     cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
+                    cmd.Parameters.Add(CreateDecimalParameter("@Charge", order.TotalPrice));
                     if (cmd.ExecuteNonQuery() != 1)
                         throw new InvalidOperationException("Không cập nhật được tiền dịch vụ của phiên chơi.");
                 }
@@ -952,7 +962,8 @@ namespace GamingCenterManagementSystem.DAL
                         UnitPrice = item.UnitPrice, OrderedAt = DateTime.Now, Note = cleanNote
                     };
                     order.TotalPrice = order.CalculateLineTotal();
-                    decimal totalService = _fallbackSessionServices.Where(s => s.SessionId == sessionId).Sum(s => s.TotalPrice) + order.TotalPrice;
+                    decimal itemized = _fallbackSessionServices.Where(s => s.SessionId == sessionId).Sum(s => s.TotalPrice);
+                    decimal totalService = Math.Max(session.ServiceCost, itemized) + order.TotalPrice;
                     item.StockQuantity -= quantity;
                     _fallbackSessionServices.Add(order);
                     session.ServiceCost = totalService;
@@ -1047,7 +1058,7 @@ namespace GamingCenterManagementSystem.DAL
                                          SELECT TOP 1
                                              gs.SessionId, gs.StationId, gs.UserId, gs.StartTime, gs.EndTime, gs.TariffType, gs.PlayCost,
                                              CASE
-                                                 WHEN EXISTS (SELECT 1 FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId)
+                                                 WHEN (SELECT SUM(ss.TotalPrice) FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId) > gs.ServiceCost
                                                  THEN ISNULL((SELECT SUM(ss.TotalPrice) FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId), 0)
                                                  ELSE gs.ServiceCost
                                              END AS ServiceCost,
@@ -1091,7 +1102,7 @@ namespace GamingCenterManagementSystem.DAL
                                          SELECT
                                              gs.SessionId, gs.StationId, gs.UserId, gs.StartTime, gs.EndTime, gs.TariffType, gs.PlayCost,
                                              CASE
-                                                 WHEN EXISTS (SELECT 1 FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId)
+                                                 WHEN (SELECT SUM(ss.TotalPrice) FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId) > gs.ServiceCost
                                                  THEN ISNULL((SELECT SUM(ss.TotalPrice) FROM dbo.SessionService ss WHERE ss.SessionId = gs.SessionId), 0)
                                                  ELSE gs.ServiceCost
                                              END AS ServiceCost,
@@ -1446,7 +1457,7 @@ namespace GamingCenterManagementSystem.DAL
                         decimal itemSum = svcReader.IsDBNull(1) ? 0m : svcReader.GetDecimal(1);
                         if (itemCount > 0)
                         {
-                            serviceCost = itemSum;
+                            serviceCost = Math.Max(existingServiceCost, itemSum);
                         }
                     }
                 }
