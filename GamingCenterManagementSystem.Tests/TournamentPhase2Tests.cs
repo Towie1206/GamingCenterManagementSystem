@@ -531,7 +531,8 @@ public class TournamentPhase2Tests
                 {
                     ShowInTaskbar = false,
                     StartPosition = FormStartPosition.Manual,
-                    Location = new Point(-2000, -2000)
+                    Location = new Point(0, 0),
+                    Opacity = 0
                 };
                 form.Show();
                 Application.DoEvents();
