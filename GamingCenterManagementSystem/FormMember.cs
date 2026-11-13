@@ -17,6 +17,12 @@ namespace GamingCenterManagementSystem
         private AppUser? _selectedUser = null;
         private bool _skipInitialLoadEvent = false;
         private bool _isBindingGrid = false;
+        private Func<string, string, MessageBoxButtons, MessageBoxIcon, DialogResult> _messageBox = MessageBox.Show;
+
+        internal void SetPromptHandler(Func<string, string, MessageBoxButtons, MessageBoxIcon, DialogResult>? handler)
+        {
+            _messageBox = handler ?? MessageBox.Show;
+        }
 
         // Delegate / Action notifications for parent Dashboard sync
         public Action<string, decimal>? OnBalanceTopUpSuccess;
@@ -148,6 +154,7 @@ namespace GamingCenterManagementSystem
                     MaHoiVien = u.UserId,
                     TenDangNhap = u.Username,
                     HoVaTen = u.FullName,
+                    SoCCCD = string.IsNullOrWhiteSpace(u.CitizenId) ? "Chưa khai báo" : u.CitizenId,
                     VaiTro = u.Role,
                     SoDuVi = $"{u.Balance:N0} VNĐ",
                     HangThe = u.MemberTier,
@@ -159,6 +166,7 @@ namespace GamingCenterManagementSystem
                 if (dgvHoiVien.Columns["MaHoiVien"] is DataGridViewColumn col1) col1.HeaderText = "Mã";
                 if (dgvHoiVien.Columns["TenDangNhap"] is DataGridViewColumn col2) col2.HeaderText = "Tên Đăng Nhập";
                 if (dgvHoiVien.Columns["HoVaTen"] is DataGridViewColumn col3) col3.HeaderText = "Họ và Tên";
+                if (dgvHoiVien.Columns["SoCCCD"] is DataGridViewColumn colCccd) colCccd.HeaderText = "Số CCCD/CMND";
                 if (dgvHoiVien.Columns["VaiTro"] is DataGridViewColumn col4) col4.HeaderText = "Vai Trò";
                 if (dgvHoiVien.Columns["SoDuVi"] is DataGridViewColumn col5) col5.HeaderText = "Số Dư Ví";
                 if (dgvHoiVien.Columns["HangThe"] is DataGridViewColumn col6) col6.HeaderText = "Hạng Thẻ";
@@ -225,6 +233,7 @@ namespace GamingCenterManagementSystem
             txtPassword.Clear();
             txtPassword.PlaceholderText = "Tối thiểu 6 ký tự";
             txtFullName.Clear();
+            txtCccd.Clear();
             cboRole.SelectedItem = "Member";
             cboMemberTier.SelectedItem = "Standard";
             SetBalanceEditable(true, DBUser.MinimumMemberInitialBalance.ToString("F0", CultureInfo.InvariantCulture));
@@ -275,6 +284,7 @@ namespace GamingCenterManagementSystem
                 txtPassword.Clear();
                 txtPassword.PlaceholderText = "Để trống (dùng khung Đổi Mật Khẩu)";
                 txtFullName.Text = _selectedUser.FullName;
+                txtCccd.Text = _selectedUser.CitizenId ?? string.Empty;
                 cboMemberTier.SelectedItem = _selectedUser.MemberTier;
                 cboRole.SelectedItem = _selectedUser.Role;
                 SetBalanceEditable(false, $"{_selectedUser.Balance:N0} VNĐ");
@@ -346,9 +356,45 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
-            if (!DBUser.ValidateMemberInput(txtUsername.Text, txtFullName.Text, txtPassword.Text, initialBalance, role, out string validationError))
+            string cccd = txtCccd.Text.Trim();
+            if (string.IsNullOrWhiteSpace(cccd))
             {
-                MessageBox.Show(validationError, "Không thể tạo tài khoản", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _messageBox(
+                    "Theo quy định Nghị định 72/2013/NĐ-CP & 27/2018/NĐ-CP, bắt buộc phải khai báo CCCD/CMND khi tạo tài khoản hội viên!",
+                    "Thiếu số CCCD/CMND",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                txtCccd.Focus();
+                return;
+            }
+
+            if (!DBUser.IsValidCitizenId(cccd))
+            {
+                _messageBox(
+                    "Số CCCD/CMND không đúng định dạng! Vui lòng nhập đúng 12 chữ số (CCCD) hoặc 9 chữ số (CMND cũ).",
+                    "CCCD/CMND không hợp lệ",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                txtCccd.Focus();
+                txtCccd.SelectAll();
+                return;
+            }
+
+            if (_dbUser.IsCitizenIdExists(cccd))
+            {
+                _messageBox(
+                    "Số CCCD/CMND này đã được đăng ký cho một tài khoản khác trong hệ thống!",
+                    "Trùng lặp CCCD/CMND",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                txtCccd.Focus();
+                txtCccd.SelectAll();
+                return;
+            }
+
+            if (!DBUser.ValidateMemberInput(txtUsername.Text, txtFullName.Text, txtPassword.Text, initialBalance, role, cccd, out string validationError, requireCitizenId: true))
+            {
+                _messageBox(validationError, "Không thể tạo tài khoản", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 if (validationError.Contains("Số dư", StringComparison.OrdinalIgnoreCase))
                 {
                     SetBalanceEditable(true, DBUser.MinimumMemberInitialBalance.ToString("F0", CultureInfo.InvariantCulture));
@@ -362,6 +408,7 @@ namespace GamingCenterManagementSystem
             {
                 Username = txtUsername.Text.Trim(),
                 FullName = txtFullName.Text.Trim(),
+                CitizenId = cccd,
                 Role = role,
                 MemberTier = requestedTier,
                 Balance = initialBalance
@@ -372,11 +419,11 @@ namespace GamingCenterManagementSystem
                 var (success, errorMessage) = await _dbUser.CreateMemberAsync(newUser, txtPassword.Text);
                 if (!success)
                 {
-                    MessageBox.Show(errorMessage, "Không thể tạo tài khoản", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _messageBox(errorMessage, "Không thể tạo tài khoản", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                MessageBox.Show(
+                _messageBox(
                     $"Tạo tài khoản '{newUser.Username}' thành công!\nHạng thẻ: {newUser.MemberTier} | Số dư: {newUser.Balance:N0} VNĐ",
                     "Thành công",
                     MessageBoxButtons.OK,
@@ -388,7 +435,7 @@ namespace GamingCenterManagementSystem
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Lỗi tạo tài khoản: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _messageBox($"Lỗi tạo tài khoản: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -396,13 +443,13 @@ namespace GamingCenterManagementSystem
         {
             if (_selectedUser == null || !int.TryParse(txtUserId.Text, out int id))
             {
-                MessageBox.Show("Vui lòng chọn hội viên cần sửa từ bảng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _messageBox("Vui lòng chọn hội viên cần sửa từ bảng!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (!string.IsNullOrEmpty(txtPassword.Text))
             {
-                MessageBox.Show(
+                _messageBox(
                     "Nút '✏️ Cập Nhật' không dùng để đổi mật khẩu. Vui lòng xóa ô Mật khẩu hoặc dùng khung 'Đổi Mật Khẩu Hội Viên' bên dưới.",
                     "Lưu ý bảo mật",
                     MessageBoxButtons.OK,
@@ -411,37 +458,77 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
+            string role = cboRole.SelectedItem?.ToString() ?? "Member";
+            string cccd = txtCccd.Text.Trim();
+
+            if (string.Equals(role, "Member", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(cccd))
+            {
+                _messageBox(
+                    "Theo quy định Nghị định 72/2013/NĐ-CP & 27/2018/NĐ-CP, bắt buộc phải khai báo CCCD/CMND cho tài khoản hội viên!",
+                    "Thiếu số CCCD/CMND",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                txtCccd.Focus();
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(cccd))
+            {
+                if (!DBUser.IsValidCitizenId(cccd))
+                {
+                    _messageBox(
+                        "Số CCCD/CMND không đúng định dạng! Vui lòng nhập đúng 12 chữ số (CCCD) hoặc 9 chữ số (CMND cũ).",
+                        "CCCD/CMND không hợp lệ",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    txtCccd.Focus();
+                    return;
+                }
+
+                if (_dbUser.IsCitizenIdExists(cccd, id))
+                {
+                    _messageBox(
+                        "Số CCCD/CMND này đã thuộc về tài khoản khác trong hệ thống!",
+                        "Trùng lặp CCCD/CMND",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    txtCccd.Focus();
+                    return;
+                }
+            }
+
             var user = new AppUser
             {
                 UserId = id,
                 Username = txtUsername.Text.Trim(),
                 FullName = txtFullName.Text.Trim(),
-                Role = cboRole.SelectedItem?.ToString() ?? "Member",
+                CitizenId = string.IsNullOrWhiteSpace(cccd) ? null : cccd,
+                Role = role,
                 MemberTier = cboMemberTier.SelectedItem?.ToString() ?? "Standard"
             };
 
             try
             {
-                bool updated = await _dbUser.UpdateAsync(user);
+                bool updated = await _dbUser.UpdateUserAsync(user);
                 if (updated)
                 {
-                    MessageBox.Show($"Cập nhật hội viên {user.Username} thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _messageBox($"Cập nhật hội viên {user.Username} thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     OnMemberChanged?.Invoke($"Đã cập nhật tài khoản: {user.Username}");
                     await LoadDataAsync(id);
                 }
                 else
                 {
-                    MessageBox.Show("Không tìm thấy tài khoản cần cập nhật (có thể đã bị xóa).", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _messageBox("Không tìm thấy tài khoản cần cập nhật (có thể đã bị xóa).", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     await LoadDataAsync();
                 }
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                MessageBox.Show(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                _messageBox(ex.Message, "Kiểm tra thông tin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Lỗi cập nhật hội viên: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                _messageBox($"Lỗi cập nhật hội viên: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

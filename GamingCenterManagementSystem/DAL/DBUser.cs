@@ -25,15 +25,24 @@ namespace GamingCenterManagementSystem.DAL
 
         private readonly Func<SqlConnection> _connectionFactory;
 
+        public static readonly Regex CitizenIdRegex = new(@"^\d{12}$|^\d{9}$", RegexOptions.Compiled);
+
         // Mock fallback data in case database is offline
         private static readonly List<AppUser> _fallbackUsers = new()
         {
-            new AppUser { UserId = 1, Username = "admin", PasswordHash = HashPassword("123456"), FullName = "Quản Lý Cyber", Role = "Admin", Balance = 0, MemberTier = "Standard", CreatedAt = DateTime.Now.AddMonths(-3), IsActive = true },
-            new AppUser { UserId = 2, Username = "gamer01", PasswordHash = HashPassword("123456"), FullName = "Nguyễn Văn A", Role = "Member", Balance = 50000, MemberTier = "Standard", CreatedAt = DateTime.Now.AddDays(-20), IsActive = true },
-            new AppUser { UserId = 3, Username = "gamer02", PasswordHash = HashPassword("123456"), FullName = "Trần Thị B", Role = "Member", Balance = 120000, MemberTier = "Silver", CreatedAt = DateTime.Now.AddDays(-10), IsActive = true },
-            new AppUser { UserId = 4, Username = "gamer03", PasswordHash = HashPassword("123456"), FullName = "Lê Hoàng C", Role = "Member", Balance = 300000, MemberTier = "Gold", CreatedAt = DateTime.Now.AddDays(-5), IsActive = true },
-            new AppUser { UserId = 5, Username = "staff01", PasswordHash = HashPassword("123456"), FullName = "Nhân Viên Quầy", Role = "Staff", Balance = 0, MemberTier = "Standard", CreatedAt = DateTime.Now.AddDays(-2), IsActive = true }
+            new AppUser { UserId = 1, Username = "admin", PasswordHash = HashPassword("123456"), FullName = "Quản Lý Cyber", Role = "Admin", Balance = 0, MemberTier = "Standard", CitizenId = "001099000001", CreatedAt = DateTime.Now.AddMonths(-3), IsActive = true },
+            new AppUser { UserId = 2, Username = "gamer01", PasswordHash = HashPassword("123456"), FullName = "Nguyễn Văn A", Role = "Member", Balance = 50000, MemberTier = "Standard", CitizenId = "001099000002", CreatedAt = DateTime.Now.AddDays(-20), IsActive = true },
+            new AppUser { UserId = 3, Username = "gamer02", PasswordHash = HashPassword("123456"), FullName = "Trần Thị B", Role = "Member", Balance = 120000, MemberTier = "Silver", CitizenId = "001099000003", CreatedAt = DateTime.Now.AddDays(-10), IsActive = true },
+            new AppUser { UserId = 4, Username = "gamer03", PasswordHash = HashPassword("123456"), FullName = "Lê Hoàng C", Role = "Member", Balance = 300000, MemberTier = "Gold", CitizenId = "001099000004", CreatedAt = DateTime.Now.AddDays(-5), IsActive = true },
+            new AppUser { UserId = 5, Username = "staff01", PasswordHash = HashPassword("123456"), FullName = "Nhân Viên Quầy", Role = "Staff", Balance = 0, MemberTier = "Standard", CitizenId = "001099000005", CreatedAt = DateTime.Now.AddDays(-2), IsActive = true }
         };
+
+        public static bool IsValidCitizenId(string? citizenId)
+        {
+            if (string.IsNullOrWhiteSpace(citizenId))
+                return false;
+            return CitizenIdRegex.IsMatch(citizenId.Trim());
+        }
 
         public DBUser() : this(Database.GetConnection)
         {
@@ -152,7 +161,7 @@ namespace GamingCenterManagementSystem.DAL
 
         private static AppUser MapUser(SqlDataReader reader)
         {
-            return new AppUser
+            var user = new AppUser
             {
                 UserId = reader.GetInt32(0),
                 Username = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
@@ -161,9 +170,23 @@ namespace GamingCenterManagementSystem.DAL
                 Role = reader.IsDBNull(4) ? "Member" : reader.GetString(4),
                 Balance = reader.IsDBNull(5) ? 0m : reader.GetDecimal(5),
                 MemberTier = reader.IsDBNull(6) ? "Standard" : reader.GetString(6),
-                CreatedAt = reader.IsDBNull(7) ? DateTime.Now : reader.GetDateTime(7),
-                IsActive = reader.FieldCount > 8 && !reader.IsDBNull(8) ? reader.GetBoolean(8) : true
+                CreatedAt = reader.IsDBNull(7) ? DateTime.Now : reader.GetDateTime(7)
             };
+
+            for (int i = 8; i < reader.FieldCount; i++)
+            {
+                string colName = reader.GetName(i);
+                if (string.Equals(colName, "IsActive", StringComparison.OrdinalIgnoreCase))
+                {
+                    user.IsActive = reader.IsDBNull(i) || reader.GetBoolean(i);
+                }
+                else if (string.Equals(colName, "CitizenId", StringComparison.OrdinalIgnoreCase))
+                {
+                    user.CitizenId = reader.IsDBNull(i) ? null : reader.GetString(i);
+                }
+            }
+
+            return user;
         }
 
         private static bool HasIsActiveColumn(SqlConnection conn, SqlTransaction? trans = null)
@@ -182,10 +205,32 @@ namespace GamingCenterManagementSystem.DAL
             return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) == 1;
         }
 
-        private static string GetUserSelectColumns(bool includeIsActive) =>
-            includeIsActive
-                ? "UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive"
-                : "UserId, Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt";
+        private static bool HasCitizenIdColumn(SqlConnection conn, SqlTransaction? trans = null)
+        {
+            const string sql = "SELECT CASE WHEN COL_LENGTH('dbo.AppUser', 'CitizenId') IS NOT NULL THEN 1 ELSE 0 END";
+            using var cmd = new SqlCommand(sql, conn, trans);
+            object? result = cmd.ExecuteScalar();
+            return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) == 1;
+        }
+
+        private static async Task<bool> HasCitizenIdColumnAsync(SqlConnection conn, SqlTransaction? trans = null)
+        {
+            const string sql = "SELECT CASE WHEN COL_LENGTH('dbo.AppUser', 'CitizenId') IS NOT NULL THEN 1 ELSE 0 END";
+            using var cmd = new SqlCommand(sql, conn, trans);
+            object? result = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+            return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) == 1;
+        }
+
+        private static string GetUserSelectColumns(bool includeIsActive, bool includeCitizenId = false)
+        {
+            var cols = new List<string>
+            {
+                "UserId", "Username", "PasswordHash", "FullName", "Role", "Balance", "MemberTier", "CreatedAt"
+            };
+            if (includeIsActive) cols.Add("IsActive");
+            if (includeCitizenId) cols.Add("CitizenId");
+            return string.Join(", ", cols);
+        }
 
         private static SqlParameter CreateDecimalParameter(string name, decimal value)
         {
@@ -240,7 +285,7 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                string cols = GetUserSelectColumns(HasIsActiveColumn(conn));
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn), HasCitizenIdColumn(conn));
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 ORDER BY UserId";
@@ -267,7 +312,9 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
                 opened = true;
-                string cols = GetUserSelectColumns(await HasIsActiveColumnAsync(conn).ConfigureAwait(false));
+                bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
+                bool hasCitizenId = await HasCitizenIdColumnAsync(conn).ConfigureAwait(false);
+                string cols = GetUserSelectColumns(hasIsActive, hasCitizenId);
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 ORDER BY UserId";
@@ -293,7 +340,7 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                string cols = GetUserSelectColumns(HasIsActiveColumn(conn));
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn), HasCitizenIdColumn(conn));
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 WHERE UserId = @UserId";
@@ -301,6 +348,39 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
+                {
+                    return MapUser(reader);
+                }
+                return null;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => u.UserId == id);
+                    return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        public async Task<AppUser?> GetByIdAsync(int id)
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
+                bool hasCitizenId = await HasCitizenIdColumnAsync(conn).ConfigureAwait(false);
+                string cols = GetUserSelectColumns(hasIsActive, hasCitizenId);
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                WHERE UserId = @UserId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                if (await reader.ReadAsync().ConfigureAwait(false))
                 {
                     return MapUser(reader);
                 }
@@ -328,7 +408,7 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                string cols = GetUserSelectColumns(HasIsActiveColumn(conn));
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn), HasCitizenIdColumn(conn));
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 WHERE Username = @Username";
@@ -363,7 +443,9 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
                 opened = true;
-                string cols = GetUserSelectColumns(await HasIsActiveColumnAsync(conn).ConfigureAwait(false));
+                bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
+                bool hasCitizenId = await HasCitizenIdColumnAsync(conn).ConfigureAwait(false);
+                string cols = GetUserSelectColumns(hasIsActive, hasCitizenId);
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 WHERE Username = @Username";
@@ -382,6 +464,161 @@ namespace GamingCenterManagementSystem.DAL
                 {
                     var found = _fallbackUsers.Find(u => u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase));
                     return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        public AppUser? GetByCitizenId(string citizenId)
+        {
+            if (string.IsNullOrWhiteSpace(citizenId))
+                return null;
+
+            string trimmed = citizenId.Trim();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                if (!HasCitizenIdColumn(conn))
+                    return null;
+
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn), true);
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                WHERE CitizenId = @CitizenId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = trimmed;
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    return MapUser(reader);
+                }
+                return null;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => !string.IsNullOrEmpty(u.CitizenId) && u.CitizenId.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+                    return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        public async Task<AppUser?> GetByCitizenIdAsync(string citizenId)
+        {
+            if (string.IsNullOrWhiteSpace(citizenId))
+                return null;
+
+            string trimmed = citizenId.Trim();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                if (!await HasCitizenIdColumnAsync(conn).ConfigureAwait(false))
+                    return null;
+
+                bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
+                string cols = GetUserSelectColumns(hasIsActive, true);
+                string sql = $@"SELECT {cols}
+                                FROM AppUser
+                                WHERE CitizenId = @CitizenId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = trimmed;
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                if (await reader.ReadAsync().ConfigureAwait(false))
+                {
+                    return MapUser(reader);
+                }
+                return null;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => !string.IsNullOrEmpty(u.CitizenId) && u.CitizenId.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+                    return found == null ? null : CloneUser(found);
+                }
+            }
+        }
+
+        public bool IsCitizenIdExists(string citizenId, int? excludeUserId = null)
+        {
+            if (string.IsNullOrWhiteSpace(citizenId))
+                return false;
+
+            string trimmed = citizenId.Trim();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                if (!HasCitizenIdColumn(conn))
+                    return false;
+
+                string sql = excludeUserId.HasValue
+                    ? "SELECT COUNT(1) FROM dbo.AppUser WHERE CitizenId = @CitizenId AND UserId <> @ExcludeUserId"
+                    : "SELECT COUNT(1) FROM dbo.AppUser WHERE CitizenId = @CitizenId";
+
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = trimmed;
+                if (excludeUserId.HasValue)
+                    cmd.Parameters.Add("@ExcludeUserId", SqlDbType.Int).Value = excludeUserId.Value;
+
+                object? result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) > 0;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackUsers.Any(u =>
+                        !string.IsNullOrEmpty(u.CitizenId) &&
+                        string.Equals(u.CitizenId, trimmed, StringComparison.OrdinalIgnoreCase) &&
+                        (!excludeUserId.HasValue || u.UserId != excludeUserId.Value));
+                }
+            }
+        }
+
+        public async Task<bool> IsCitizenIdExistsAsync(string citizenId, int? excludeUserId = null)
+        {
+            if (string.IsNullOrWhiteSpace(citizenId))
+                return false;
+
+            string trimmed = citizenId.Trim();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                if (!await HasCitizenIdColumnAsync(conn).ConfigureAwait(false))
+                    return false;
+
+                string sql = excludeUserId.HasValue
+                    ? "SELECT COUNT(1) FROM dbo.AppUser WHERE CitizenId = @CitizenId AND UserId <> @ExcludeUserId"
+                    : "SELECT COUNT(1) FROM dbo.AppUser WHERE CitizenId = @CitizenId";
+
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = trimmed;
+                if (excludeUserId.HasValue)
+                    cmd.Parameters.Add("@ExcludeUserId", SqlDbType.Int).Value = excludeUserId.Value;
+
+                object? result = await cmd.ExecuteScalarAsync().ConfigureAwait(false);
+                return result != null && result != DBNull.Value && Convert.ToInt32(result, CultureInfo.InvariantCulture) > 0;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackUsers.Any(u =>
+                        !string.IsNullOrEmpty(u.CitizenId) &&
+                        string.Equals(u.CitizenId, trimmed, StringComparison.OrdinalIgnoreCase) &&
+                        (!excludeUserId.HasValue || u.UserId != excludeUserId.Value));
                 }
             }
         }
@@ -481,12 +718,16 @@ namespace GamingCenterManagementSystem.DAL
 
             string username = entity.Username?.Trim() ?? string.Empty;
             string fullName = entity.FullName?.Trim() ?? string.Empty;
+            string citizenId = entity.CitizenId?.Trim() ?? string.Empty;
+
             if (string.IsNullOrWhiteSpace(username) || username.Length > 50 || username.Any(char.IsWhiteSpace))
                 throw new ArgumentException("Tên đăng nhập không hợp lệ.", nameof(entity));
             if (string.IsNullOrWhiteSpace(fullName) || fullName.Length > 100)
                 throw new ArgumentException("Họ và tên không hợp lệ.", nameof(entity));
             if (entity.Balance < 0 || decimal.Round(entity.Balance, 2) != entity.Balance)
                 throw new ArgumentException("Số dư tài khoản không hợp lệ.", nameof(entity));
+            if (!string.IsNullOrEmpty(citizenId) && !IsValidCitizenId(citizenId))
+                throw new ArgumentException("Số CCCD/CMND không đúng định dạng (phải gồm 12 số CCCD hoặc 9 số CMND cũ).", nameof(entity));
 
             string role = NormalizeRole(entity.Role);
             if (string.IsNullOrEmpty(role))
@@ -505,13 +746,25 @@ namespace GamingCenterManagementSystem.DAL
                 conn.Open();
                 opened = true;
                 bool hasIsActive = HasIsActiveColumn(conn);
-                string sql = hasIsActive
-                    ? @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive)
-                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE(), @IsActive)"
-                    : @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
-                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                bool hasCitizenId = HasCitizenIdColumn(conn);
+
+                string colList = "Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt";
+                string valList = "@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE()";
+                if (hasIsActive)
+                {
+                    colList += ", IsActive";
+                    valList += ", @IsActive";
+                }
+                if (hasCitizenId)
+                {
+                    colList += ", CitizenId";
+                    valList += ", @CitizenId";
+                }
+
+                string sql = $@"INSERT INTO AppUser ({colList})
+                                OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                                VALUES ({valList})";
+
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = username;
                 cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
@@ -521,6 +774,8 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = tier;
                 if (hasIsActive)
                     cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = entity.IsActive;
+                if (hasCitizenId)
+                    cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = string.IsNullOrEmpty(citizenId) ? DBNull.Value : citizenId;
 
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
@@ -532,12 +787,15 @@ namespace GamingCenterManagementSystem.DAL
                     entity.Role = role;
                     entity.MemberTier = tier;
                     entity.PasswordHash = passwordHash;
+                    entity.CitizenId = string.IsNullOrEmpty(citizenId) ? null : citizenId;
                     return true;
                 }
                 return false;
             }
             catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
             {
+                if (ex.Message.Contains("CitizenId", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Số CCCD/CMND đã tồn tại trong hệ thống.", ex);
                 throw new InvalidOperationException("Tên đăng nhập đã tồn tại trong hệ thống.", ex);
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
@@ -547,6 +805,9 @@ namespace GamingCenterManagementSystem.DAL
                     if (_fallbackUsers.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
                         throw new InvalidOperationException("Tên đăng nhập đã tồn tại trong hệ thống.", ex);
 
+                    if (!string.IsNullOrEmpty(citizenId) && _fallbackUsers.Any(u => !string.IsNullOrEmpty(u.CitizenId) && u.CitizenId.Equals(citizenId, StringComparison.OrdinalIgnoreCase)))
+                        throw new InvalidOperationException("Số CCCD/CMND đã tồn tại trong hệ thống.", ex);
+
                     entity.UserId = _fallbackUsers.Count > 0 ? _fallbackUsers.Max(u => u.UserId) + 1 : 1;
                     entity.CreatedAt = DateTime.Now;
                     entity.Username = username;
@@ -554,6 +815,7 @@ namespace GamingCenterManagementSystem.DAL
                     entity.Role = role;
                     entity.MemberTier = tier;
                     entity.PasswordHash = passwordHash;
+                    entity.CitizenId = string.IsNullOrEmpty(citizenId) ? null : citizenId;
                     _fallbackUsers.Add(CloneUser(entity));
                     return true;
                 }
@@ -570,25 +832,43 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = @"UPDATE AppUser
-                                     SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier
-                                     WHERE UserId = @UserId";
+                bool hasCitizenId = HasCitizenIdColumn(conn);
+                string sql = hasCitizenId
+                    ? @"UPDATE AppUser
+                         SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier, CitizenId = @CitizenId
+                         WHERE UserId = @UserId"
+                    : @"UPDATE AppUser
+                         SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier
+                         WHERE UserId = @UserId";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = username;
                 cmd.Parameters.Add("@FullName", SqlDbType.NVarChar, 100).Value = fullName;
                 cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = role;
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = tier;
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = entity.UserId;
+                if (hasCitizenId)
+                    cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = string.IsNullOrWhiteSpace(entity.CitizenId) ? DBNull.Value : entity.CitizenId.Trim();
 
-                return cmd.ExecuteNonQuery() > 0;
+                bool ok = cmd.ExecuteNonQuery() > 0;
+                if (ok)
+                {
+                    entity.Username = username;
+                    entity.FullName = fullName;
+                    entity.Role = role;
+                    entity.MemberTier = tier;
+                    entity.CitizenId = string.IsNullOrWhiteSpace(entity.CitizenId) ? null : entity.CitizenId.Trim();
+                }
+                return ok;
             }
             catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
             {
+                if (ex.Message.Contains("CitizenId", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Số CCCD/CMND mới đã thuộc về một tài khoản khác.", ex);
                 throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", ex);
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
             {
-                return UpdateFallback(entity.UserId, username, fullName, role, tier, ex);
+                return UpdateFallback(entity, username, fullName, role, tier, ex);
             }
         }
 
@@ -602,25 +882,61 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
                 opened = true;
-                const string sql = @"UPDATE AppUser
-                                     SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier
-                                     WHERE UserId = @UserId";
+                bool hasCitizenId = await HasCitizenIdColumnAsync(conn).ConfigureAwait(false);
+                string sql = hasCitizenId
+                    ? @"UPDATE AppUser
+                         SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier, CitizenId = @CitizenId
+                         WHERE UserId = @UserId"
+                    : @"UPDATE AppUser
+                         SET Username = @Username, FullName = @FullName, Role = @Role, MemberTier = @MemberTier
+                         WHERE UserId = @UserId";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = username;
                 cmd.Parameters.Add("@FullName", SqlDbType.NVarChar, 100).Value = fullName;
                 cmd.Parameters.Add("@Role", SqlDbType.NVarChar, 20).Value = role;
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = tier;
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = entity.UserId;
+                if (hasCitizenId)
+                    cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = string.IsNullOrWhiteSpace(entity.CitizenId) ? DBNull.Value : entity.CitizenId.Trim();
 
-                return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+                bool ok = await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+                if (ok)
+                {
+                    entity.Username = username;
+                    entity.FullName = fullName;
+                    entity.Role = role;
+                    entity.MemberTier = tier;
+                    entity.CitizenId = string.IsNullOrWhiteSpace(entity.CitizenId) ? null : entity.CitizenId.Trim();
+                }
+                return ok;
             }
             catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
             {
+                if (ex.Message.Contains("CitizenId", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Số CCCD/CMND mới đã thuộc về một tài khoản khác.", ex);
                 throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", ex);
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
             {
-                return UpdateFallback(entity.UserId, username, fullName, role, tier, ex);
+                return UpdateFallback(entity, username, fullName, role, tier, ex);
+            }
+        }
+
+        public bool UpdateUser(AppUser entity) => Update(entity);
+        public Task<bool> UpdateUserAsync(AppUser entity) => UpdateAsync(entity);
+        public bool UpdateUser(AppUser entity, out string errorMessage)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+            try
+            {
+                bool ok = Update(entity);
+                errorMessage = ok ? string.Empty : "Không tìm thấy người dùng để cập nhật.";
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
             }
         }
 
@@ -640,6 +956,13 @@ namespace GamingCenterManagementSystem.DAL
             if (string.IsNullOrWhiteSpace(fullName) || fullName.Length > 100)
                 throw new ArgumentException("Họ và tên không hợp lệ.", nameof(entity));
 
+            if (!string.IsNullOrWhiteSpace(entity.CitizenId))
+            {
+                string cleanCccd = entity.CitizenId.Trim();
+                if (!IsValidCitizenId(cleanCccd))
+                    throw new ArgumentException("Số CCCD/CMND không đúng định dạng (phải gồm 12 số CCCD hoặc 9 số CMND cũ).", nameof(entity));
+            }
+
             role = NormalizeRole(entity.Role);
             if (string.IsNullOrEmpty(role))
                 throw new ArgumentException("Vai trò tài khoản không hợp lệ.", nameof(entity));
@@ -649,7 +972,7 @@ namespace GamingCenterManagementSystem.DAL
         }
 
         private static bool UpdateFallback(
-            int userId,
+            AppUser entity,
             string username,
             string fullName,
             string role,
@@ -658,8 +981,13 @@ namespace GamingCenterManagementSystem.DAL
         {
             lock (_fallbackLock)
             {
+                int userId = entity.UserId;
                 if (_fallbackUsers.Any(u => u.UserId != userId && u.Username.Equals(username, StringComparison.OrdinalIgnoreCase)))
                     throw new InvalidOperationException("Tên đăng nhập mới đã thuộc về một tài khoản khác.", inner);
+
+                string? cleanCccd = string.IsNullOrWhiteSpace(entity.CitizenId) ? null : entity.CitizenId.Trim();
+                if (cleanCccd != null && _fallbackUsers.Any(u => u.UserId != userId && !string.IsNullOrEmpty(u.CitizenId) && u.CitizenId.Equals(cleanCccd, StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException("Số CCCD/CMND mới đã thuộc về một tài khoản khác.", inner);
 
                 var idx = _fallbackUsers.FindIndex(u => u.UserId == userId);
                 if (idx >= 0)
@@ -668,6 +996,7 @@ namespace GamingCenterManagementSystem.DAL
                     _fallbackUsers[idx].FullName = fullName;
                     _fallbackUsers[idx].Role = role;
                     _fallbackUsers[idx].MemberTier = tier;
+                    _fallbackUsers[idx].CitizenId = cleanCccd;
                     return true;
                 }
                 return false;
@@ -948,7 +1277,8 @@ namespace GamingCenterManagementSystem.DAL
                     u.Username.Contains(trimmedKeyword, StringComparison.OrdinalIgnoreCase) ||
                     u.FullName.Contains(trimmedKeyword, StringComparison.OrdinalIgnoreCase) ||
                     u.Role.Contains(trimmedKeyword, StringComparison.OrdinalIgnoreCase) ||
-                    u.MemberTier.Contains(trimmedKeyword, StringComparison.OrdinalIgnoreCase));
+                    u.MemberTier.Contains(trimmedKeyword, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(u.CitizenId) && u.CitizenId.Contains(trimmedKeyword, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (!string.IsNullOrWhiteSpace(roleFilter) &&
@@ -967,6 +1297,18 @@ namespace GamingCenterManagementSystem.DAL
             return query.OrderBy(u => u.UserId).ToList();
         }
 
+        public List<AppUser> SearchUsers(string? keyword, string? roleFilter = null, string? tierFilter = null)
+        {
+            var all = GetAll();
+            return SearchUsers(all, keyword, roleFilter, tierFilter);
+        }
+
+        public async Task<List<AppUser>> SearchUsersAsync(string? keyword, string? roleFilter = null, string? tierFilter = null)
+        {
+            var all = await GetAllAsync().ConfigureAwait(false);
+            return SearchUsers(all, keyword, roleFilter, tierFilter);
+        }
+
         // ==========================================
         // LOGIC 3: REGISTRATION VALIDATION & CREATION
         // ==========================================
@@ -977,7 +1319,18 @@ namespace GamingCenterManagementSystem.DAL
             string? password,
             decimal initialBalance,
             string? role,
-            out string errorMessage)
+            out string errorMessage) =>
+            ValidateMemberInput(username, fullName, password, initialBalance, role, citizenId: null, out errorMessage, requireCitizenId: false);
+
+        public static bool ValidateMemberInput(
+            string? username,
+            string? fullName,
+            string? password,
+            decimal initialBalance,
+            string? role,
+            string? citizenId,
+            out string errorMessage,
+            bool requireCitizenId = true)
         {
             errorMessage = string.Empty;
 
@@ -1030,6 +1383,26 @@ namespace GamingCenterManagementSystem.DAL
             if (string.IsNullOrEmpty(normalizedRole))
             {
                 errorMessage = "Vai trò tài khoản phải là Member, Staff hoặc Admin.";
+                return false;
+            }
+
+            if (requireCitizenId)
+            {
+                if (string.IsNullOrWhiteSpace(citizenId))
+                {
+                    errorMessage = "Số CCCD/CMND không được để trống theo quy định Nghị định 72/2013/NĐ-CP.";
+                    return false;
+                }
+
+                if (!IsValidCitizenId(citizenId))
+                {
+                    errorMessage = "Số CCCD/CMND không đúng định dạng (phải gồm 12 số CCCD hoặc 9 số CMND cũ).";
+                    return false;
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(citizenId) && !IsValidCitizenId(citizenId))
+            {
+                errorMessage = "Số CCCD/CMND không đúng định dạng (phải gồm 12 số CCCD hoặc 9 số CMND cũ).";
                 return false;
             }
 
@@ -1103,14 +1476,22 @@ namespace GamingCenterManagementSystem.DAL
             string password,
             decimal initialBalance,
             out string errorMessage,
-            string role = "Member")
+            string role = "Member",
+            string? citizenId = null,
+            bool requireCitizenId = false)
         {
-            if (!ValidateMemberInput(username, fullName, password, initialBalance, role, out errorMessage))
+            if (!ValidateMemberInput(username, fullName, password, initialBalance, role, citizenId, out errorMessage, requireCitizenId))
                 return false;
 
             if (IsUsernameExists(username.Trim()))
             {
                 errorMessage = "Tên đăng nhập đã tồn tại trong hệ thống.";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(citizenId) && IsCitizenIdExists(citizenId.Trim()))
+            {
+                errorMessage = "Số CCCD/CMND đã tồn tại trong hệ thống.";
                 return false;
             }
 
@@ -1124,9 +1505,10 @@ namespace GamingCenterManagementSystem.DAL
             decimal initialBalance,
             out string errorMessage,
             string role = "Member",
-            string? requestedTier = null)
+            string? requestedTier = null,
+            string? citizenId = null)
         {
-            if (!ValidateMemberInput(username, fullName, password, initialBalance, role, out errorMessage))
+            if (!ValidateMemberInput(username, fullName, password, initialBalance, role, citizenId, out errorMessage, requireCitizenId: false))
                 return false;
 
             if (!TryNormalizeTier(requestedTier, out string normalizedTier))
@@ -1139,6 +1521,7 @@ namespace GamingCenterManagementSystem.DAL
             {
                 Username = username.Trim(),
                 FullName = fullName.Trim(),
+                CitizenId = string.IsNullOrWhiteSpace(citizenId) ? null : citizenId.Trim(),
                 Role = NormalizeRole(role),
                 MemberTier = normalizedTier,
                 Balance = initialBalance
@@ -1157,6 +1540,22 @@ namespace GamingCenterManagementSystem.DAL
                 return false;
             }
 
+            string? cleanCccd = string.IsNullOrWhiteSpace(entity.CitizenId) ? null : entity.CitizenId.Trim();
+            if (cleanCccd != null)
+            {
+                if (!IsValidCitizenId(cleanCccd))
+                {
+                    errorMessage = "Số CCCD/CMND không đúng định dạng (phải gồm 12 số CCCD hoặc 9 số CMND cũ).";
+                    return false;
+                }
+
+                if (IsCitizenIdExists(cleanCccd))
+                {
+                    errorMessage = "Số CCCD/CMND đã tồn tại trong hệ thống.";
+                    return false;
+                }
+            }
+
             bool opened = false;
             try
             {
@@ -1171,13 +1570,25 @@ namespace GamingCenterManagementSystem.DAL
                 }
 
                 bool hasIsActive = HasIsActiveColumn(conn);
-                string sql = hasIsActive
-                    ? @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive)
-                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE(), @IsActive)"
-                    : @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
-                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                bool hasCitizenId = HasCitizenIdColumn(conn);
+
+                string colList = "Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt";
+                string valList = "@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE()";
+                if (hasIsActive)
+                {
+                    colList += ", IsActive";
+                    valList += ", @IsActive";
+                }
+                if (hasCitizenId)
+                {
+                    colList += ", CitizenId";
+                    valList += ", @CitizenId";
+                }
+
+                string sql = $@"INSERT INTO AppUser ({colList})
+                                OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                                VALUES ({valList})";
+
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
                 cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
@@ -1187,6 +1598,8 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = resolvedTier;
                 if (hasIsActive)
                     cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = entity.IsActive;
+                if (hasCitizenId)
+                    cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = (object?)cleanCccd ?? DBNull.Value;
 
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
@@ -1198,6 +1611,7 @@ namespace GamingCenterManagementSystem.DAL
                     entity.Role = normalizedRole;
                     entity.MemberTier = resolvedTier;
                     entity.PasswordHash = passwordHash;
+                    entity.CitizenId = cleanCccd;
                     return true;
                 }
 
@@ -1206,12 +1620,15 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
             {
-                errorMessage = "Tên đăng nhập đã tồn tại trong hệ thống.";
+                if (ex.Message.Contains("CitizenId", StringComparison.OrdinalIgnoreCase))
+                    errorMessage = "Số CCCD/CMND đã tồn tại trong hệ thống.";
+                else
+                    errorMessage = "Tên đăng nhập đã tồn tại trong hệ thống.";
                 return false;
             }
             catch when (!opened)
             {
-                return CreateMemberFallback(entity, trimmedUsername, trimmedFullName, normalizedRole, resolvedTier, passwordHash, out errorMessage);
+                return CreateMemberFallback(entity, trimmedUsername, trimmedFullName, normalizedRole, resolvedTier, passwordHash, cleanCccd, out errorMessage);
             }
         }
 
@@ -1227,6 +1644,20 @@ namespace GamingCenterManagementSystem.DAL
                 return (false, errorMessage);
             }
 
+            string? cleanCccd = string.IsNullOrWhiteSpace(entity.CitizenId) ? null : entity.CitizenId.Trim();
+            if (cleanCccd != null)
+            {
+                if (!IsValidCitizenId(cleanCccd))
+                {
+                    return (false, "Số CCCD/CMND không đúng định dạng (phải gồm 12 số CCCD hoặc 9 số CMND cũ).");
+                }
+
+                if (await IsCitizenIdExistsAsync(cleanCccd).ConfigureAwait(false))
+                {
+                    return (false, "Số CCCD/CMND đã tồn tại trong hệ thống.");
+                }
+            }
+
             bool opened = false;
             try
             {
@@ -1240,13 +1671,25 @@ namespace GamingCenterManagementSystem.DAL
                 }
 
                 bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
-                string sql = hasIsActive
-                    ? @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt, IsActive)
-                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE(), @IsActive)"
-                    : @"INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt)
-                        OUTPUT INSERTED.UserId, INSERTED.CreatedAt
-                        VALUES (@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE())";
+                bool hasCitizenId = await HasCitizenIdColumnAsync(conn).ConfigureAwait(false);
+
+                string colList = "Username, PasswordHash, FullName, Role, Balance, MemberTier, CreatedAt";
+                string valList = "@Username, @PasswordHash, @FullName, @Role, @Balance, @MemberTier, GETDATE()";
+                if (hasIsActive)
+                {
+                    colList += ", IsActive";
+                    valList += ", @IsActive";
+                }
+                if (hasCitizenId)
+                {
+                    colList += ", CitizenId";
+                    valList += ", @CitizenId";
+                }
+
+                string sql = $@"INSERT INTO AppUser ({colList})
+                                OUTPUT INSERTED.UserId, INSERTED.CreatedAt
+                                VALUES ({valList})";
+
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
                 cmd.Parameters.Add("@PasswordHash", SqlDbType.NVarChar, 255).Value = passwordHash;
@@ -1256,6 +1699,8 @@ namespace GamingCenterManagementSystem.DAL
                 cmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = resolvedTier;
                 if (hasIsActive)
                     cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = entity.IsActive;
+                if (hasCitizenId)
+                    cmd.Parameters.Add("@CitizenId", SqlDbType.VarChar, 12).Value = (object?)cleanCccd ?? DBNull.Value;
 
                 using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
                 if (await reader.ReadAsync().ConfigureAwait(false))
@@ -1267,6 +1712,7 @@ namespace GamingCenterManagementSystem.DAL
                     entity.Role = normalizedRole;
                     entity.MemberTier = resolvedTier;
                     entity.PasswordHash = passwordHash;
+                    entity.CitizenId = cleanCccd;
                     return (true, string.Empty);
                 }
 
@@ -1274,14 +1720,43 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
             {
+                if (ex.Message.Contains("CitizenId", StringComparison.OrdinalIgnoreCase))
+                    return (false, "Số CCCD/CMND đã tồn tại trong hệ thống.");
                 return (false, "Tên đăng nhập đã tồn tại trong hệ thống.");
             }
             catch when (!opened)
             {
-                bool ok = CreateMemberFallback(entity, trimmedUsername, trimmedFullName, normalizedRole, resolvedTier, passwordHash, out string err);
+                bool ok = CreateMemberFallback(entity, trimmedUsername, trimmedFullName, normalizedRole, resolvedTier, passwordHash, cleanCccd, out string err);
                 return (ok, err);
             }
         }
+
+        public bool RegisterUser(AppUser entity, string rawPassword, out string errorMessage)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+            if (string.IsNullOrWhiteSpace(entity.CitizenId))
+            {
+                errorMessage = "Số CCCD/CMND không được để trống theo quy định Nghị định 72/2013/NĐ-CP.";
+                return false;
+            }
+            return CreateMember(entity, rawPassword, out errorMessage);
+        }
+
+        public async Task<(bool Success, string ErrorMessage)> RegisterUserAsync(AppUser entity, string rawPassword)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+            if (string.IsNullOrWhiteSpace(entity.CitizenId))
+            {
+                return (false, "Số CCCD/CMND không được để trống theo quy định Nghị định 72/2013/NĐ-CP.");
+            }
+            return await CreateMemberAsync(entity, rawPassword).ConfigureAwait(false);
+        }
+
+        public bool CreateUser(AppUser entity, string rawPassword, out string errorMessage) =>
+            RegisterUser(entity, rawPassword, out errorMessage);
+
+        public Task<(bool Success, string ErrorMessage)> CreateUserAsync(AppUser entity, string rawPassword) =>
+            RegisterUserAsync(entity, rawPassword);
 
         private static bool TryPrepareNewMember(
             AppUser entity,
@@ -1299,7 +1774,7 @@ namespace GamingCenterManagementSystem.DAL
             resolvedTier = string.Empty;
             passwordHash = string.Empty;
 
-            if (!ValidateMemberInput(entity.Username, entity.FullName, rawPassword, entity.Balance, entity.Role, out errorMessage))
+            if (!ValidateMemberInput(entity.Username, entity.FullName, rawPassword, entity.Balance, entity.Role, entity.CitizenId, out errorMessage, requireCitizenId: false))
                 return false;
 
             if (!TryNormalizeTier(entity.MemberTier, out string normalizedTier))
@@ -1341,6 +1816,7 @@ namespace GamingCenterManagementSystem.DAL
             string normalizedRole,
             string resolvedTier,
             string passwordHash,
+            string? cleanCccd,
             out string errorMessage)
         {
             errorMessage = string.Empty;
@@ -1352,6 +1828,12 @@ namespace GamingCenterManagementSystem.DAL
                     return false;
                 }
 
+                if (cleanCccd != null && _fallbackUsers.Any(u => !string.IsNullOrEmpty(u.CitizenId) && u.CitizenId.Equals(cleanCccd, StringComparison.OrdinalIgnoreCase)))
+                {
+                    errorMessage = "Số CCCD/CMND đã tồn tại trong hệ thống.";
+                    return false;
+                }
+
                 entity.UserId = _fallbackUsers.Count > 0 ? _fallbackUsers.Max(u => u.UserId) + 1 : 1;
                 entity.CreatedAt = DateTime.Now;
                 entity.Username = trimmedUsername;
@@ -1359,6 +1841,7 @@ namespace GamingCenterManagementSystem.DAL
                 entity.Role = normalizedRole;
                 entity.MemberTier = resolvedTier;
                 entity.PasswordHash = passwordHash;
+                entity.CitizenId = cleanCccd;
                 _fallbackUsers.Add(CloneUser(entity));
                 return true;
             }
@@ -1697,6 +2180,7 @@ namespace GamingCenterManagementSystem.DAL
                 Role = source.Role,
                 Balance = source.Balance,
                 MemberTier = source.MemberTier,
+                CitizenId = source.CitizenId,
                 CreatedAt = source.CreatedAt,
                 IsActive = source.IsActive
             };

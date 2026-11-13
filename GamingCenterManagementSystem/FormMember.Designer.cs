@@ -55,6 +55,8 @@ namespace GamingCenterManagementSystem
             lblRole = new Label();
             cboMemberTier = new ComboBox();
             lblMemberTier = new Label();
+            txtCccd = new TextBox();
+            lblCccd = new Label();
             txtFullName = new TextBox();
             lblFullName = new Label();
             txtPassword = new TextBox();
@@ -184,7 +186,7 @@ namespace GamingCenterManagementSystem
             grpDoiMatKhau.Controls.Add(lblDoiMatKhauUser);
             grpDoiMatKhau.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             grpDoiMatKhau.ForeColor = Color.FromArgb(24, 30, 54);
-            grpDoiMatKhau.Location = new Point(10, 580);
+            grpDoiMatKhau.Location = new Point(10, 555);
             grpDoiMatKhau.Name = "grpDoiMatKhau";
             grpDoiMatKhau.Size = new Size(330, 170);
             grpDoiMatKhau.TabIndex = 2;
@@ -278,7 +280,7 @@ namespace GamingCenterManagementSystem
             grpNapTien.Controls.Add(lblDangChon);
             grpNapTien.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             grpNapTien.ForeColor = Color.FromArgb(0, 51, 102);
-            grpNapTien.Location = new Point(10, 360);
+            grpNapTien.Location = new Point(10, 335);
             grpNapTien.Name = "grpNapTien";
             grpNapTien.Size = new Size(330, 210);
             grpNapTien.TabIndex = 1;
@@ -414,6 +416,8 @@ namespace GamingCenterManagementSystem
             grpThongTinHoiVien.Controls.Add(lblRole);
             grpThongTinHoiVien.Controls.Add(cboMemberTier);
             grpThongTinHoiVien.Controls.Add(lblMemberTier);
+            grpThongTinHoiVien.Controls.Add(txtCccd);
+            grpThongTinHoiVien.Controls.Add(lblCccd);
             grpThongTinHoiVien.Controls.Add(txtFullName);
             grpThongTinHoiVien.Controls.Add(lblFullName);
             grpThongTinHoiVien.Controls.Add(txtPassword);
@@ -425,7 +429,7 @@ namespace GamingCenterManagementSystem
             grpThongTinHoiVien.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             grpThongTinHoiVien.Location = new Point(10, 10);
             grpThongTinHoiVien.Name = "grpThongTinHoiVien";
-            grpThongTinHoiVien.Size = new Size(330, 340);
+            grpThongTinHoiVien.Size = new Size(330, 318);
             grpThongTinHoiVien.TabIndex = 0;
             grpThongTinHoiVien.TabStop = false;
             grpThongTinHoiVien.Text = "Thông Tin Hội Viên";
@@ -436,10 +440,10 @@ namespace GamingCenterManagementSystem
             btnLamMoi.FlatStyle = FlatStyle.Flat;
             btnLamMoi.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             btnLamMoi.ForeColor = Color.White;
-            btnLamMoi.Location = new Point(170, 295);
+            btnLamMoi.Location = new Point(170, 274);
             btnLamMoi.Name = "btnLamMoi";
             btnLamMoi.Size = new Size(140, 30);
-            btnLamMoi.TabIndex = 17;
+            btnLamMoi.TabIndex = 19;
             btnLamMoi.Text = "🔄 Làm Mới";
             btnLamMoi.UseVisualStyleBackColor = false;
             // 
@@ -449,10 +453,10 @@ namespace GamingCenterManagementSystem
             btnXoaHoiVien.FlatStyle = FlatStyle.Flat;
             btnXoaHoiVien.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             btnXoaHoiVien.ForeColor = Color.White;
-            btnXoaHoiVien.Location = new Point(15, 295);
+            btnXoaHoiVien.Location = new Point(15, 274);
             btnXoaHoiVien.Name = "btnXoaHoiVien";
             btnXoaHoiVien.Size = new Size(140, 30);
-            btnXoaHoiVien.TabIndex = 16;
+            btnXoaHoiVien.TabIndex = 18;
             btnXoaHoiVien.Text = "🗑️ Khóa/Xóa";
             btnXoaHoiVien.UseVisualStyleBackColor = false;
             // 
@@ -462,10 +466,10 @@ namespace GamingCenterManagementSystem
             btnSuaHoiVien.FlatStyle = FlatStyle.Flat;
             btnSuaHoiVien.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             btnSuaHoiVien.ForeColor = Color.White;
-            btnSuaHoiVien.Location = new Point(170, 255);
+            btnSuaHoiVien.Location = new Point(170, 236);
             btnSuaHoiVien.Name = "btnSuaHoiVien";
             btnSuaHoiVien.Size = new Size(140, 30);
-            btnSuaHoiVien.TabIndex = 15;
+            btnSuaHoiVien.TabIndex = 17;
             btnSuaHoiVien.Text = "✏️ Cập Nhật";
             btnSuaHoiVien.UseVisualStyleBackColor = false;
             // 
@@ -475,10 +479,10 @@ namespace GamingCenterManagementSystem
             btnThemHoiVien.FlatStyle = FlatStyle.Flat;
             btnThemHoiVien.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             btnThemHoiVien.ForeColor = Color.White;
-            btnThemHoiVien.Location = new Point(15, 255);
+            btnThemHoiVien.Location = new Point(15, 236);
             btnThemHoiVien.Name = "btnThemHoiVien";
             btnThemHoiVien.Size = new Size(140, 30);
-            btnThemHoiVien.TabIndex = 14;
+            btnThemHoiVien.TabIndex = 16;
             btnThemHoiVien.Text = "➕ Thêm Mới";
             btnThemHoiVien.UseVisualStyleBackColor = false;
             // 
@@ -486,20 +490,20 @@ namespace GamingCenterManagementSystem
             // 
             txtBalance.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
             txtBalance.ForeColor = Color.FromArgb(0, 100, 0);
-            txtBalance.Location = new Point(110, 218);
+            txtBalance.Location = new Point(110, 201);
             txtBalance.Name = "txtBalance";
             txtBalance.PlaceholderText = "Tối thiểu 10000 (Member)";
             txtBalance.Size = new Size(200, 23);
-            txtBalance.TabIndex = 13;
+            txtBalance.TabIndex = 15;
             // 
             // lblBalance
             // 
             lblBalance.AutoSize = true;
             lblBalance.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblBalance.Location = new Point(15, 222);
+            lblBalance.Location = new Point(15, 204);
             lblBalance.Name = "lblBalance";
             lblBalance.Size = new Size(56, 15);
-            lblBalance.TabIndex = 12;
+            lblBalance.TabIndex = 14;
             lblBalance.Text = "Số dư ví:";
             // 
             // cboRole
@@ -508,19 +512,19 @@ namespace GamingCenterManagementSystem
             cboRole.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             cboRole.FormattingEnabled = true;
             cboRole.Items.AddRange(new object[] { "Member", "Staff", "Admin" });
-            cboRole.Location = new Point(110, 186);
+            cboRole.Location = new Point(110, 175);
             cboRole.Name = "cboRole";
             cboRole.Size = new Size(200, 23);
-            cboRole.TabIndex = 11;
+            cboRole.TabIndex = 13;
             // 
             // lblRole
             // 
             lblRole.AutoSize = true;
             lblRole.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblRole.Location = new Point(15, 190);
+            lblRole.Location = new Point(15, 178);
             lblRole.Name = "lblRole";
             lblRole.Size = new Size(43, 15);
-            lblRole.TabIndex = 10;
+            lblRole.TabIndex = 12;
             lblRole.Text = "Vai trò:";
             // 
             // cboMemberTier
@@ -529,25 +533,45 @@ namespace GamingCenterManagementSystem
             cboMemberTier.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
             cboMemberTier.FormattingEnabled = true;
             cboMemberTier.Items.AddRange(new object[] { "Standard", "Silver", "Gold" });
-            cboMemberTier.Location = new Point(110, 154);
+            cboMemberTier.Location = new Point(110, 149);
             cboMemberTier.Name = "cboMemberTier";
             cboMemberTier.Size = new Size(200, 23);
-            cboMemberTier.TabIndex = 9;
+            cboMemberTier.TabIndex = 11;
             // 
             // lblMemberTier
             // 
             lblMemberTier.AutoSize = true;
             lblMemberTier.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblMemberTier.Location = new Point(15, 158);
+            lblMemberTier.Location = new Point(15, 152);
             lblMemberTier.Name = "lblMemberTier";
             lblMemberTier.Size = new Size(54, 15);
-            lblMemberTier.TabIndex = 8;
+            lblMemberTier.TabIndex = 10;
             lblMemberTier.Text = "Hạng thẻ:";
+            // 
+            // txtCccd
+            // 
+            txtCccd.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            txtCccd.Location = new Point(110, 123);
+            txtCccd.MaxLength = 12;
+            txtCccd.Name = "txtCccd";
+            txtCccd.PlaceholderText = "12 số CCCD / 9 số CMND";
+            txtCccd.Size = new Size(200, 23);
+            txtCccd.TabIndex = 9;
+            // 
+            // lblCccd
+            // 
+            lblCccd.AutoSize = true;
+            lblCccd.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            lblCccd.Location = new Point(15, 126);
+            lblCccd.Name = "lblCccd";
+            lblCccd.Size = new Size(92, 15);
+            lblCccd.TabIndex = 8;
+            lblCccd.Text = "Số CCCD/CMND:";
             // 
             // txtFullName
             // 
             txtFullName.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            txtFullName.Location = new Point(110, 122);
+            txtFullName.Location = new Point(110, 97);
             txtFullName.Name = "txtFullName";
             txtFullName.Size = new Size(200, 23);
             txtFullName.TabIndex = 7;
@@ -556,7 +580,7 @@ namespace GamingCenterManagementSystem
             // 
             lblFullName.AutoSize = true;
             lblFullName.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblFullName.Location = new Point(15, 126);
+            lblFullName.Location = new Point(15, 100);
             lblFullName.Name = "lblFullName";
             lblFullName.Size = new Size(61, 15);
             lblFullName.TabIndex = 6;
@@ -565,7 +589,7 @@ namespace GamingCenterManagementSystem
             // txtPassword
             // 
             txtPassword.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            txtPassword.Location = new Point(110, 90);
+            txtPassword.Location = new Point(110, 71);
             txtPassword.Name = "txtPassword";
             txtPassword.PlaceholderText = "Tối thiểu 6 ký tự";
             txtPassword.Size = new Size(200, 23);
@@ -576,7 +600,7 @@ namespace GamingCenterManagementSystem
             // 
             lblPassword.AutoSize = true;
             lblPassword.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblPassword.Location = new Point(15, 94);
+            lblPassword.Location = new Point(15, 74);
             lblPassword.Name = "lblPassword";
             lblPassword.Size = new Size(60, 15);
             lblPassword.TabIndex = 4;
@@ -585,7 +609,7 @@ namespace GamingCenterManagementSystem
             // txtUsername
             // 
             txtUsername.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            txtUsername.Location = new Point(110, 58);
+            txtUsername.Location = new Point(110, 45);
             txtUsername.Name = "txtUsername";
             txtUsername.Size = new Size(200, 23);
             txtUsername.TabIndex = 3;
@@ -594,7 +618,7 @@ namespace GamingCenterManagementSystem
             // 
             lblUsername.AutoSize = true;
             lblUsername.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblUsername.Location = new Point(15, 62);
+            lblUsername.Location = new Point(15, 48);
             lblUsername.Name = "lblUsername";
             lblUsername.Size = new Size(88, 15);
             lblUsername.TabIndex = 2;
@@ -603,7 +627,7 @@ namespace GamingCenterManagementSystem
             // txtUserId
             // 
             txtUserId.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            txtUserId.Location = new Point(110, 26);
+            txtUserId.Location = new Point(110, 19);
             txtUserId.Name = "txtUserId";
             txtUserId.ReadOnly = true;
             txtUserId.Size = new Size(200, 23);
@@ -613,7 +637,7 @@ namespace GamingCenterManagementSystem
             // 
             lblUserId.AutoSize = true;
             lblUserId.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblUserId.Location = new Point(15, 30);
+            lblUserId.Location = new Point(15, 22);
             lblUserId.Name = "lblUserId";
             lblUserId.Size = new Size(47, 15);
             lblUserId.TabIndex = 0;
@@ -776,6 +800,8 @@ namespace GamingCenterManagementSystem
         private Label lblPassword;
         private TextBox txtFullName;
         private Label lblFullName;
+        private TextBox txtCccd;
+        private Label lblCccd;
         private ComboBox cboMemberTier;
         private Label lblMemberTier;
         private ComboBox cboRole;

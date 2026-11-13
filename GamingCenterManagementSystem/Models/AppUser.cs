@@ -24,6 +24,7 @@ namespace GamingCenterManagementSystem.Models
         }
 
         public string MemberTier { get; set; } = "Standard"; // Standard, Silver, Gold
+        public string? CitizenId { get; set; } // Khai báo CCCD 12 số (hoặc CMND 9 số) theo Nghị định 72/2013/NĐ-CP & 27/2018/NĐ-CP
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public bool IsActive { get; set; } = true;
 

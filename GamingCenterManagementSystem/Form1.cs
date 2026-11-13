@@ -146,6 +146,7 @@ namespace GamingCenterManagementSystem
         private void SetupStationControls()
         {
             btnMoMay.Click += BtnMoMay_Click;
+            btnGoiMon.Click += BtnGoiMon_Click;
             btnDongMay.Click += BtnDongMay_Click;
             btnBaoTri.Click += BtnBaoTri_Click;
             cboGoiCuoc.SelectedIndex = 0;
@@ -229,6 +230,7 @@ namespace GamingCenterManagementSystem
                 btnNavBilling.Enabled = false;
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
                 btnMoMay.Enabled = false;
+                btnGoiMon.Enabled = false;
                 btnDongMay.Enabled = false;
                 btnBaoTri.Enabled = false;
                 cboKhachHang.Enabled = false;
@@ -501,6 +503,7 @@ namespace GamingCenterManagementSystem
                 case "InUse":
                     lblTrangThaiMay.ForeColor = Color.OrangeRed;
                     btnMoMay.Enabled = false;
+                    btnGoiMon.Enabled = canOperateStations;
                     btnDongMay.Enabled = canOperateStations;
                     btnBaoTri.Enabled = false;
 
@@ -526,6 +529,7 @@ namespace GamingCenterManagementSystem
                 case "Maintenance":
                     lblTrangThaiMay.ForeColor = Color.Crimson;
                     btnMoMay.Enabled = false;
+                    btnGoiMon.Enabled = false;
                     btnDongMay.Enabled = false;
                     btnBaoTri.Enabled = canOperateStations;
                     btnBaoTri.Text = "🟢 MỞ LẠI SẴN SÀNG";
@@ -535,6 +539,7 @@ namespace GamingCenterManagementSystem
                 case "TournamentLocked":
                     lblTrangThaiMay.ForeColor = Color.DarkGoldenrod;
                     btnMoMay.Enabled = false;
+                    btnGoiMon.Enabled = false;
                     btnDongMay.Enabled = false;
                     btnBaoTri.Enabled = false;
                     lblKetQuaTinhTien.Text = $"Máy {station.StationName} đang KHÓA phục vụ giải đấu LAN Party.";
@@ -544,6 +549,7 @@ namespace GamingCenterManagementSystem
                 default:
                     lblTrangThaiMay.ForeColor = Color.Green;
                     btnMoMay.Enabled = canOperateStations;
+                    btnGoiMon.Enabled = false;
                     btnDongMay.Enabled = false;
                     btnBaoTri.Enabled = canOperateStations;
                     btnBaoTri.Text = "🛠️ CHUYỂN BẢO TRÌ";
@@ -765,6 +771,91 @@ namespace GamingCenterManagementSystem
             catch (Exception ex)
             {
                 ShowNotification($"Lỗi cập nhật trạng thái bảo trì: {ex.Message}", "Lỗi CSDL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private Func<DBBilling, int, string, DialogResult>? _orderDialogLauncher;
+        internal void SetOrderDialogLauncher(Func<DBBilling, int, string, DialogResult>? launcher)
+        {
+            _orderDialogLauncher = launcher;
+        }
+
+        public Button GetBtnGoiMon() => btnGoiMon;
+        public Label GetLblKetQuaTinhTien() => lblKetQuaTinhTien;
+        public ComputerStation? GetSelectedStation() => _selectedStation;
+        public string GetBillingResultText() => lblKetQuaTinhTien.Text;
+
+        public void SelectStationById(int stationId)
+        {
+            var st = _stations.FirstOrDefault(s => s.StationId == stationId);
+            if (st != null)
+            {
+                SelectStation(st);
+            }
+        }
+
+        public GamingSession? GetActiveSession(int stationId)
+        {
+            return _activeSessions.TryGetValue(stationId, out var session) ? session : null;
+        }
+
+        public bool OrderFoodForStation(int stationId, int serviceId, int quantity, string? note = null)
+        {
+            if (!_activeSessions.TryGetValue(stationId, out var session))
+            {
+                throw new InvalidOperationException($"Máy {stationId} hiện không có phiên chơi đang hoạt động để gọi món.");
+            }
+
+            bool result = _dbBilling.OrderServiceForSession(session.SessionId, serviceId, quantity, note);
+            if (result)
+            {
+                LoadDashboardData();
+                var reloaded = _stations.FirstOrDefault(s => s.StationId == stationId);
+                if (reloaded != null && _selectedStation?.StationId == stationId)
+                {
+                    SelectStation(reloaded);
+                }
+            }
+            return result;
+        }
+
+        public void PerformGoiMonClick() => BtnGoiMon_Click(btnGoiMon, EventArgs.Empty);
+
+        private void BtnGoiMon_Click(object? sender, EventArgs e)
+        {
+            if (_selectedStation == null) return;
+            if (!EnsureStaffOrAdminAccess("Gọi món F&B cho máy")) return;
+
+            if (!_activeSessions.TryGetValue(_selectedStation.StationId, out var session))
+            {
+                ShowNotification(
+                    $"Máy {_selectedStation.StationName} chưa có phiên chơi đang hoạt động để gọi món!",
+                    "Chưa mở máy",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            DialogResult res;
+            if (_orderDialogLauncher != null)
+            {
+                res = _orderDialogLauncher(_dbBilling, session.SessionId, _selectedStation.StationName);
+            }
+            else
+            {
+                using var dlg = new FormOrderServiceDialog(_dbBilling, session.SessionId, _selectedStation.StationName);
+                res = dlg.ShowDialog(this);
+            }
+
+            if (res == DialogResult.OK)
+            {
+                int stationId = _selectedStation.StationId;
+                LoadDashboardData();
+                var reloaded = _stations.FirstOrDefault(s => s.StationId == stationId);
+                if (reloaded != null)
+                {
+                    SelectStation(reloaded);
+                }
             }
         }
     }

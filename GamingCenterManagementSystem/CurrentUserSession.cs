@@ -54,10 +54,37 @@ namespace GamingCenterManagementSystem
             get { lock (_syncLock) { return _currentUser?.Balance ?? 0m; } }
         }
 
+        public static string? CitizenId
+        {
+            get { lock (_syncLock) { return _currentUser?.CitizenId; } }
+        }
+
         public static bool IsAdmin => string.Equals(Role, "Admin", StringComparison.OrdinalIgnoreCase);
         public static bool IsStaff => string.Equals(Role, "Staff", StringComparison.OrdinalIgnoreCase);
         public static bool IsMember => string.Equals(Role, "Member", StringComparison.OrdinalIgnoreCase);
         public static bool CanManageOperations => IsAdmin || IsStaff;
+
+        public static void SetSession(
+            int userId,
+            string username,
+            string role,
+            string fullName = "",
+            decimal balance = 0m,
+            string tier = "Standard",
+            string? citizenId = null)
+        {
+            SetUser(new AppUser
+            {
+                UserId = userId,
+                Username = username,
+                Role = role,
+                FullName = string.IsNullOrWhiteSpace(fullName) ? username : fullName,
+                Balance = balance,
+                MemberTier = tier,
+                CitizenId = citizenId,
+                IsActive = true
+            });
+        }
 
         public static void SetUser(AppUser user)
         {
@@ -74,6 +101,7 @@ namespace GamingCenterManagementSystem
                     Role = user.Role,
                     Balance = user.Balance,
                     MemberTier = user.MemberTier,
+                    CitizenId = user.CitizenId,
                     CreatedAt = user.CreatedAt,
                     IsActive = user.IsActive
                 };
@@ -94,6 +122,7 @@ namespace GamingCenterManagementSystem
                     _currentUser.Role = user.Role;
                     _currentUser.Balance = user.Balance;
                     _currentUser.MemberTier = user.MemberTier;
+                    _currentUser.CitizenId = user.CitizenId;
                     _currentUser.IsActive = user.IsActive;
                 }
             }

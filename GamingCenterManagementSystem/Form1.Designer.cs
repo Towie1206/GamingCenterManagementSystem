@@ -44,6 +44,7 @@ namespace GamingCenterManagementSystem
             lblKetQuaTinhTien = new Label();
             btnBaoTri = new Button();
             btnDongMay = new Button();
+            btnGoiMon = new Button();
             btnMoMay = new Button();
             cboGoiCuoc = new ComboBox();
             lblGoiCuoc = new Label();
@@ -313,6 +314,7 @@ namespace GamingCenterManagementSystem
             grpDieuKhienPhien.Controls.Add(lblKetQuaTinhTien);
             grpDieuKhienPhien.Controls.Add(btnBaoTri);
             grpDieuKhienPhien.Controls.Add(btnDongMay);
+            grpDieuKhienPhien.Controls.Add(btnGoiMon);
             grpDieuKhienPhien.Controls.Add(btnMoMay);
             grpDieuKhienPhien.Controls.Add(cboGoiCuoc);
             grpDieuKhienPhien.Controls.Add(lblGoiCuoc);
@@ -341,11 +343,11 @@ namespace GamingCenterManagementSystem
             lblKetQuaTinhTien.BorderStyle = BorderStyle.FixedSingle;
             lblKetQuaTinhTien.Font = new Font("Segoe UI", 9F);
             lblKetQuaTinhTien.ForeColor = Color.FromArgb(0, 51, 102);
-            lblKetQuaTinhTien.Location = new Point(17, 464);
+            lblKetQuaTinhTien.Location = new Point(17, 455);
             lblKetQuaTinhTien.Name = "lblKetQuaTinhTien";
             lblKetQuaTinhTien.Padding = new Padding(7, 8, 7, 8);
-            lblKetQuaTinhTien.Size = new Size(343, 240);
-            lblKetQuaTinhTien.TabIndex = 11;
+            lblKetQuaTinhTien.Size = new Size(343, 255);
+            lblKetQuaTinhTien.TabIndex = 12;
             lblKetQuaTinhTien.Text = "Thông tin thanh toán phiên chơi sẽ hiển thị tại đây sau khi chốt phiên tính cước đa hình.";
             // 
             // btnBaoTri
@@ -354,11 +356,11 @@ namespace GamingCenterManagementSystem
             btnBaoTri.FlatStyle = FlatStyle.Flat;
             btnBaoTri.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnBaoTri.ForeColor = Color.White;
-            btnBaoTri.Location = new Point(17, 406);
+            btnBaoTri.Location = new Point(17, 411);
             btnBaoTri.Margin = new Padding(3, 4, 3, 4);
             btnBaoTri.Name = "btnBaoTri";
-            btnBaoTri.Size = new Size(343, 44);
-            btnBaoTri.TabIndex = 10;
+            btnBaoTri.Size = new Size(343, 36);
+            btnBaoTri.TabIndex = 11;
             btnBaoTri.Text = "🛠️ CHUYỂN BẢO TRÌ / MỞ LẠI";
             btnBaoTri.UseVisualStyleBackColor = false;
             // 
@@ -368,13 +370,27 @@ namespace GamingCenterManagementSystem
             btnDongMay.FlatStyle = FlatStyle.Flat;
             btnDongMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnDongMay.ForeColor = Color.White;
-            btnDongMay.Location = new Point(17, 352);
+            btnDongMay.Location = new Point(17, 369);
             btnDongMay.Margin = new Padding(3, 4, 3, 4);
             btnDongMay.Name = "btnDongMay";
-            btnDongMay.Size = new Size(343, 44);
-            btnDongMay.TabIndex = 9;
+            btnDongMay.Size = new Size(343, 36);
+            btnDongMay.TabIndex = 10;
             btnDongMay.Text = "🔴 ĐÓNG MÁY & TÍNH TIỀN (Đa Hình)";
             btnDongMay.UseVisualStyleBackColor = false;
+            // 
+            // btnGoiMon
+            // 
+            btnGoiMon.BackColor = Color.FromArgb(230, 126, 34);
+            btnGoiMon.FlatStyle = FlatStyle.Flat;
+            btnGoiMon.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            btnGoiMon.ForeColor = Color.White;
+            btnGoiMon.Location = new Point(17, 327);
+            btnGoiMon.Margin = new Padding(3, 4, 3, 4);
+            btnGoiMon.Name = "btnGoiMon";
+            btnGoiMon.Size = new Size(343, 36);
+            btnGoiMon.TabIndex = 9;
+            btnGoiMon.Text = "🛒 GỌI MÓN F&B CHO MÁY";
+            btnGoiMon.UseVisualStyleBackColor = false;
             // 
             // btnMoMay
             // 
@@ -382,10 +398,10 @@ namespace GamingCenterManagementSystem
             btnMoMay.FlatStyle = FlatStyle.Flat;
             btnMoMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
             btnMoMay.ForeColor = Color.White;
-            btnMoMay.Location = new Point(17, 298);
+            btnMoMay.Location = new Point(17, 285);
             btnMoMay.Margin = new Padding(3, 4, 3, 4);
             btnMoMay.Name = "btnMoMay";
-            btnMoMay.Size = new Size(343, 44);
+            btnMoMay.Size = new Size(343, 36);
             btnMoMay.TabIndex = 8;
             btnMoMay.Text = "\U0001f7e2 MỞ MÁY CHO KHÁCH";
             btnMoMay.UseVisualStyleBackColor = false;
@@ -559,6 +575,7 @@ namespace GamingCenterManagementSystem
         private Label lblGoiCuoc;
         private ComboBox cboGoiCuoc;
         private Button btnMoMay;
+        private Button btnGoiMon;
         private Button btnDongMay;
         private Button btnBaoTri;
         private Label lblKetQuaTinhTien;
