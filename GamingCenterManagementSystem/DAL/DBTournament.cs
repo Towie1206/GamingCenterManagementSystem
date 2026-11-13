@@ -10,6 +10,17 @@ using GamingCenterManagementSystem.OOP;
 
 namespace GamingCenterManagementSystem.DAL
 {
+    public sealed class AdvanceRoundResult
+    {
+        public int TournamentId { get; init; }
+        public int CompletedRound { get; init; }
+        public int NextRound { get; init; }
+        public bool IsTournamentFinished { get; init; }
+        public string? ChampionTeamName { get; init; }
+        public string? ByeTeamName { get; init; }
+        public List<TournamentMatch> CreatedMatches { get; init; } = new();
+    }
+
     public class DBTournament : IRepository<Tournament>
     {
         public const decimal MaximumPrizePool = 9999999999999999.99m;
@@ -777,6 +788,212 @@ namespace GamingCenterManagementSystem.DAL
                 match.AssignedStationIds = string.Join(",", ids);
                 tourney.Status = "Ongoing";
             }
+        }
+
+        /// <summary>Pairs the latest round's winners, or finishes the tournament after its final.</summary>
+        public AdvanceRoundResult AutoAdvanceRound(int tournamentId)
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                using var trans = conn.BeginTransaction();
+
+                string status;
+                string formatType;
+                using (var tournamentCmd = new SqlCommand("""
+                    SELECT Status, FormatType FROM dbo.Tournament WITH (UPDLOCK, HOLDLOCK)
+                    WHERE TournamentId = @TournamentId;
+                    """, conn, trans))
+                {
+                    tournamentCmd.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+                    using var reader = tournamentCmd.ExecuteReader();
+                    if (!reader.Read())
+                        throw new InvalidOperationException("Không tìm thấy giải đấu đã chọn. Vui lòng tải lại danh sách.");
+                    status = reader.IsDBNull(0) ? string.Empty : reader.GetString(0);
+                    formatType = reader.IsDBNull(1) ? string.Empty : reader.GetString(1);
+                }
+                ValidateAdvanceRoundTournament(status, formatType);
+
+                var allMatches = new List<TournamentMatch>();
+                using (var matchesCmd = new SqlCommand("""
+                    SELECT MatchId, TournamentId, RoundNumber, Team1Name, Team2Name,
+                           WinnerTeamName, Score, AssignedStationIds, Status
+                    FROM dbo.TournamentMatch WITH (UPDLOCK, HOLDLOCK)
+                    WHERE TournamentId = @TournamentId ORDER BY RoundNumber, MatchId;
+                    """, conn, trans))
+                {
+                    matchesCmd.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+                    using var reader = matchesCmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        allMatches.Add(new TournamentMatch
+                        {
+                            MatchId = reader.GetInt32(0),
+                            TournamentId = reader.GetInt32(1),
+                            RoundNumber = reader.GetInt32(2),
+                            Team1Name = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
+                            Team2Name = reader.IsDBNull(4) ? string.Empty : reader.GetString(4),
+                            WinnerTeamName = reader.IsDBNull(5) ? null : reader.GetString(5),
+                            Score = reader.IsDBNull(6) ? null : reader.GetString(6),
+                            AssignedStationIds = reader.IsDBNull(7) ? null : reader.GetString(7),
+                            Status = reader.IsDBNull(8) ? string.Empty : reader.GetString(8)
+                        });
+                    }
+                }
+
+                var result = BuildAdvanceRoundResult(tournamentId, allMatches);
+                foreach (var match in result.CreatedMatches)
+                {
+                    using var insertCmd = new SqlCommand("""
+                        INSERT INTO dbo.TournamentMatch
+                            (TournamentId, RoundNumber, Team1Name, Team2Name,
+                             WinnerTeamName, Score, AssignedStationIds, Status)
+                        OUTPUT INSERTED.MatchId
+                        VALUES (@TournamentId, @RoundNumber, @Team1Name, @Team2Name,
+                                @WinnerTeamName, @Score, @AssignedStationIds, @Status);
+                        """, conn, trans);
+                    insertCmd.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+                    insertCmd.Parameters.Add("@RoundNumber", SqlDbType.Int).Value = match.RoundNumber;
+                    insertCmd.Parameters.Add("@Team1Name", SqlDbType.NVarChar, 100).Value = match.Team1Name;
+                    insertCmd.Parameters.Add("@Team2Name", SqlDbType.NVarChar, 100).Value = match.Team2Name;
+                    insertCmd.Parameters.Add("@WinnerTeamName", SqlDbType.NVarChar, 100).Value =
+                        (object?)match.WinnerTeamName ?? DBNull.Value;
+                    insertCmd.Parameters.Add("@Score", SqlDbType.NVarChar, 20).Value = match.Score!;
+                    insertCmd.Parameters.Add("@AssignedStationIds", SqlDbType.NVarChar, 100).Value = DBNull.Value;
+                    insertCmd.Parameters.Add("@Status", SqlDbType.NVarChar, 20).Value = match.Status;
+                    match.MatchId = Convert.ToInt32(insertCmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+                }
+
+                using (var updateCmd = new SqlCommand(result.IsTournamentFinished
+                    ? "UPDATE dbo.Tournament SET Status = N'Finished' WHERE TournamentId = @TournamentId;"
+                    : "UPDATE dbo.Tournament SET Status = N'Ongoing' WHERE TournamentId = @TournamentId AND Status = N'Upcoming';",
+                    conn, trans))
+                {
+                    updateCmd.Parameters.Add("@TournamentId", SqlDbType.Int).Value = tournamentId;
+                    updateCmd.ExecuteNonQuery();
+                }
+                trans.Commit();
+                return result;
+            }
+            catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
+            {
+                // Validate and build the entire round before changing any offline state.
+                lock (_fallbackTournaments)
+                {
+                    var tournament = _fallbackTournaments.Find(t => t.TournamentId == tournamentId)
+                        ?? throw new InvalidOperationException("Không tìm thấy giải đấu đã chọn. Vui lòng tải lại danh sách.");
+                    ValidateAdvanceRoundTournament(tournament.Status, tournament.FormatType);
+                    var result = BuildAdvanceRoundResult(tournamentId,
+                        _fallbackMatches.Where(m => m.TournamentId == tournamentId).ToList());
+                    int lastMatchId = _fallbackMatches.Count == 0 ? 0 : _fallbackMatches.Max(m => m.MatchId);
+                    if ((long)lastMatchId + result.CreatedMatches.Count > int.MaxValue)
+                        throw new InvalidOperationException("Không thể tạo thêm mã trận đấu. Vui lòng kiểm tra dữ liệu.");
+                    foreach (var match in result.CreatedMatches)
+                        match.MatchId = ++lastMatchId;
+                    _fallbackMatches.AddRange(result.CreatedMatches);
+                    if (result.IsTournamentFinished)
+                        tournament.Status = "Finished";
+                    else if (tournament.Status == "Upcoming")
+                        tournament.Status = "Ongoing";
+                    return result;
+                }
+            }
+        }
+
+        private static void ValidateAdvanceRoundTournament(string status, string formatType)
+        {
+            if (string.Equals(status, "Finished", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Giải đấu đã kết thúc, không thể tạo thêm vòng đấu mới.");
+            if (string.Equals(formatType, "RoundRobin", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Tính năng tự động tạo vòng sau chỉ áp dụng cho thể thức đấu loại (SingleElimination / DoubleElimination).");
+        }
+
+        private static AdvanceRoundResult BuildAdvanceRoundResult(int tournamentId, List<TournamentMatch> allMatches)
+        {
+            const string byeOpponent = "BYE (Miễn đấu)";
+            if (allMatches.Count == 0)
+                throw new InvalidOperationException("Giải đấu chưa có trận đấu nào. Vui lòng xếp cặp Vòng 1 trước.");
+
+            int currentRound = allMatches.Max(m => m.RoundNumber);
+            var currentRoundMatches = allMatches.Where(m => m.RoundNumber == currentRound)
+                .OrderBy(m => m.MatchId).ToList();
+            int unfinishedCount = currentRoundMatches.Count(m => !string.Equals(m.Status, "Finished", StringComparison.OrdinalIgnoreCase));
+            if (unfinishedCount > 0)
+                throw new InvalidOperationException($"Vòng {currentRound} vẫn còn {unfinishedCount} trận chưa kết thúc. Vui lòng cập nhật đủ kết quả trước khi tạo Vòng {(long)currentRound + 1}.");
+            foreach (var match in currentRoundMatches)
+            {
+                if (string.IsNullOrWhiteSpace(match.WinnerTeamName))
+                    throw new InvalidOperationException($"Trận #{match.MatchId} ở Vòng {currentRound} chưa có đội thắng.");
+            }
+
+            var winners = currentRoundMatches.Select(m => m.WinnerTeamName!.Trim()).ToList();
+            if (winners.Distinct(StringComparer.OrdinalIgnoreCase).Count() != winners.Count)
+                throw new InvalidOperationException($"Vòng {currentRound} có đội thắng bị trùng. Vui lòng kiểm tra lại kết quả trước khi tạo vòng sau.");
+            if (winners.Count == 1)
+            {
+                return new AdvanceRoundResult
+                {
+                    TournamentId = tournamentId,
+                    CompletedRound = currentRound,
+                    NextRound = currentRound,
+                    IsTournamentFinished = true,
+                    ChampionTeamName = winners[0]
+                };
+            }
+            if (currentRound == int.MaxValue)
+                throw new InvalidOperationException("Số vòng đấu đã đạt giới hạn, không thể tạo thêm vòng mới.");
+
+            int nextRound = currentRound + 1;
+            string? byeTeam = null;
+            if (winners.Count % 2 != 0)
+            {
+                var previousByeTeams = allMatches
+                    .Where(m => string.Equals(m.Team2Name.Trim(), byeOpponent, StringComparison.OrdinalIgnoreCase))
+                    .Select(m => m.Team1Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                byeTeam = winners.LastOrDefault(w => !previousByeTeams.Contains(w)) ?? winners[^1];
+                winners.Remove(byeTeam);
+            }
+
+            var createdMatches = new List<TournamentMatch>();
+            for (int i = 0; i < winners.Count; i += 2)
+            {
+                createdMatches.Add(new TournamentMatch
+                {
+                    TournamentId = tournamentId,
+                    RoundNumber = nextRound,
+                    Team1Name = winners[i],
+                    Team2Name = winners[i + 1],
+                    WinnerTeamName = null,
+                    Score = "0 - 0",
+                    AssignedStationIds = null,
+                    Status = "Pending"
+                });
+            }
+            if (byeTeam != null)
+            {
+                createdMatches.Add(new TournamentMatch
+                {
+                    TournamentId = tournamentId,
+                    RoundNumber = nextRound,
+                    Team1Name = byeTeam,
+                    Team2Name = byeOpponent,
+                    WinnerTeamName = byeTeam,
+                    Score = "1-0",
+                    AssignedStationIds = null,
+                    Status = "Finished"
+                });
+            }
+            return new AdvanceRoundResult
+            {
+                TournamentId = tournamentId,
+                CompletedRound = currentRound,
+                NextRound = nextRound,
+                ByeTeamName = byeTeam,
+                CreatedMatches = createdMatches
+            };
         }
 
         private static void RequireTournament(SqlConnection connection, SqlTransaction transaction, int tournamentId)

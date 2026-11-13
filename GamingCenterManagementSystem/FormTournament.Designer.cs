@@ -28,7 +28,8 @@ namespace GamingCenterManagementSystem
             grpDieuPhoiMay = new GroupBox();
             btnMoKhoaMay = new Button();
             btnKhoaMayGiaiDau = new Button();
-            cboChonDanMay = new ComboBox();
+            clbDanMay = new CheckedListBox();
+            lblSoMayDaChon = new Label();
             lblChonDanMay = new Label();
             grpGiaiDau = new GroupBox();
             btnLamMoi = new Button();
@@ -56,6 +57,7 @@ namespace GamingCenterManagementSystem
             grpQuanLyTran = new GroupBox();
             dgvTranDau = new DataGridView();
             pnlTranDauControl = new Panel();
+            btnTaoVongSau = new Button();
             btnCapNhatKetQua = new Button();
             btnThemTranDau = new Button();
             cboMatchStatus = new ComboBox();
@@ -181,13 +183,14 @@ namespace GamingCenterManagementSystem
             grpDieuPhoiMay.BackColor = Color.FromArgb(255, 250, 240);
             grpDieuPhoiMay.Controls.Add(btnMoKhoaMay);
             grpDieuPhoiMay.Controls.Add(btnKhoaMayGiaiDau);
-            grpDieuPhoiMay.Controls.Add(cboChonDanMay);
+            grpDieuPhoiMay.Controls.Add(clbDanMay);
+            grpDieuPhoiMay.Controls.Add(lblSoMayDaChon);
             grpDieuPhoiMay.Controls.Add(lblChonDanMay);
             grpDieuPhoiMay.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             grpDieuPhoiMay.ForeColor = Color.FromArgb(139, 69, 19);
             grpDieuPhoiMay.Location = new Point(10, 395);
             grpDieuPhoiMay.Name = "grpDieuPhoiMay";
-            grpDieuPhoiMay.Size = new Size(340, 180);
+            grpDieuPhoiMay.Size = new Size(340, 295);
             grpDieuPhoiMay.TabIndex = 1;
             grpDieuPhoiMay.TabStop = false;
             grpDieuPhoiMay.Text = "Điều Phối Dàn Máy Thi Đấu";
@@ -198,10 +201,10 @@ namespace GamingCenterManagementSystem
             btnMoKhoaMay.FlatStyle = FlatStyle.Flat;
             btnMoKhoaMay.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
             btnMoKhoaMay.ForeColor = Color.White;
-            btnMoKhoaMay.Location = new Point(15, 125);
+            btnMoKhoaMay.Location = new Point(15, 246);
             btnMoKhoaMay.Name = "btnMoKhoaMay";
             btnMoKhoaMay.Size = new Size(305, 34);
-            btnMoKhoaMay.TabIndex = 3;
+            btnMoKhoaMay.TabIndex = 4;
             btnMoKhoaMay.Text = "🔓 GIẢI PHÓNG DÀN MÁY (Available)";
             btnMoKhoaMay.UseVisualStyleBackColor = false;
             // 
@@ -211,33 +214,42 @@ namespace GamingCenterManagementSystem
             btnKhoaMayGiaiDau.FlatStyle = FlatStyle.Flat;
             btnKhoaMayGiaiDau.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
             btnKhoaMayGiaiDau.ForeColor = Color.Black;
-            btnKhoaMayGiaiDau.Location = new Point(15, 80);
+            btnKhoaMayGiaiDau.Location = new Point(15, 205);
             btnKhoaMayGiaiDau.Name = "btnKhoaMayGiaiDau";
             btnKhoaMayGiaiDau.Size = new Size(305, 34);
-            btnKhoaMayGiaiDau.TabIndex = 2;
+            btnKhoaMayGiaiDau.TabIndex = 3;
             btnKhoaMayGiaiDau.Text = "🔒 KHÓA DÀN MÁY THI ĐẤU";
             btnKhoaMayGiaiDau.UseVisualStyleBackColor = false;
             // 
-            // cboChonDanMay
-            // 
-            cboChonDanMay.DropDownStyle = ComboBoxStyle.DropDownList;
-            cboChonDanMay.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            cboChonDanMay.FormattingEnabled = true;
-            cboChonDanMay.Items.AddRange(new object[] { "PC-06 -> PC-10 (Dàn Đấu Trường LAN - 5 máy)", "PC-01 -> PC-10 (Toàn bộ 10 máy phòng)" });
-            cboChonDanMay.Location = new Point(15, 45);
-            cboChonDanMay.Name = "cboChonDanMay";
-            cboChonDanMay.Size = new Size(305, 23);
-            cboChonDanMay.TabIndex = 1;
+            // clbDanMay
+            //
+            clbDanMay.CheckOnClick = true;
+            clbDanMay.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            clbDanMay.FormattingEnabled = true;
+            clbDanMay.Location = new Point(15, 46);
+            clbDanMay.Name = "clbDanMay";
+            clbDanMay.Size = new Size(305, 128);
+            clbDanMay.TabIndex = 1;
+            //
+            // lblSoMayDaChon
+            //
+            lblSoMayDaChon.AutoSize = true;
+            lblSoMayDaChon.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblSoMayDaChon.Location = new Point(15, 180);
+            lblSoMayDaChon.Name = "lblSoMayDaChon";
+            lblSoMayDaChon.Size = new Size(268, 15);
+            lblSoMayDaChon.TabIndex = 2;
+            lblSoMayDaChon.Text = "Đã chọn: 0/5 máy (Sẵn sàng khóa: 0/5)";
             // 
             // lblChonDanMay
             // 
             lblChonDanMay.AutoSize = true;
             lblChonDanMay.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblChonDanMay.Location = new Point(15, 25);
+            lblChonDanMay.Location = new Point(15, 24);
             lblChonDanMay.Name = "lblChonDanMay";
-            lblChonDanMay.Size = new Size(130, 15);
+            lblChonDanMay.Size = new Size(250, 15);
             lblChonDanMay.TabIndex = 0;
-            lblChonDanMay.Text = "Chọn cụm máy thi đấu:";
+            lblChonDanMay.Text = "Chọn đúng 5 máy Available cho trận:";
             // 
             // grpGiaiDau
             // 
@@ -534,19 +546,20 @@ namespace GamingCenterManagementSystem
             dgvTranDau.BackgroundColor = Color.WhiteSmoke;
             dgvTranDau.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgvTranDau.Dock = DockStyle.Fill;
-            dgvTranDau.Location = new Point(3, 115);
+            dgvTranDau.Location = new Point(3, 152);
             dgvTranDau.MultiSelect = false;
             dgvTranDau.Name = "dgvTranDau";
             dgvTranDau.ReadOnly = true;
             dgvTranDau.RowHeadersVisible = false;
             dgvTranDau.RowTemplate.Height = 28;
             dgvTranDau.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgvTranDau.Size = new Size(748, 239);
+            dgvTranDau.Size = new Size(748, 202);
             dgvTranDau.TabIndex = 1;
             // 
             // pnlTranDauControl
             // 
             pnlTranDauControl.Controls.Add(btnCapNhatKetQua);
+            pnlTranDauControl.Controls.Add(btnTaoVongSau);
             pnlTranDauControl.Controls.Add(btnThemTranDau);
             pnlTranDauControl.Controls.Add(cboMatchStatus);
             pnlTranDauControl.Controls.Add(lblMatchStatus);
@@ -563,8 +576,21 @@ namespace GamingCenterManagementSystem
             pnlTranDauControl.Dock = DockStyle.Top;
             pnlTranDauControl.Location = new Point(3, 20);
             pnlTranDauControl.Name = "pnlTranDauControl";
-            pnlTranDauControl.Size = new Size(748, 95);
+            pnlTranDauControl.Size = new Size(748, 132);
             pnlTranDauControl.TabIndex = 0;
+            //
+            // btnTaoVongSau
+            //
+            btnTaoVongSau.BackColor = Color.FromArgb(138, 43, 226);
+            btnTaoVongSau.FlatStyle = FlatStyle.Flat;
+            btnTaoVongSau.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            btnTaoVongSau.ForeColor = Color.White;
+            btnTaoVongSau.Location = new Point(10, 90);
+            btnTaoVongSau.Name = "btnTaoVongSau";
+            btnTaoVongSau.Size = new Size(255, 32);
+            btnTaoVongSau.TabIndex = 14;
+            btnTaoVongSau.Text = "⚡ Tạo cặp đấu vòng sau";
+            btnTaoVongSau.UseVisualStyleBackColor = false;
             // 
             // btnCapNhatKetQua
             // 
@@ -775,7 +801,8 @@ namespace GamingCenterManagementSystem
         private Button btnLamMoi;
         private GroupBox grpDieuPhoiMay;
         private Label lblChonDanMay;
-        private ComboBox cboChonDanMay;
+        private CheckedListBox clbDanMay;
+        private Label lblSoMayDaChon;
         private Button btnKhoaMayGiaiDau;
         private Button btnMoKhoaMay;
         private Panel pnlMain;
@@ -784,6 +811,7 @@ namespace GamingCenterManagementSystem
         private DataGridView dgvGiaiDau;
         private GroupBox grpQuanLyTran;
         private Panel pnlTranDauControl;
+        private Button btnTaoVongSau;
         private Label lblRoundNumber;
         private TextBox txtRoundNumber;
         private Label lblTeam1;
