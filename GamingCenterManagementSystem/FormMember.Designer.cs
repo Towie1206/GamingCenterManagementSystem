@@ -457,7 +457,7 @@ namespace GamingCenterManagementSystem
             btnXoaHoiVien.Name = "btnXoaHoiVien";
             btnXoaHoiVien.Size = new Size(140, 30);
             btnXoaHoiVien.TabIndex = 18;
-            btnXoaHoiVien.Text = "🗑️ Khóa/Xóa";
+            btnXoaHoiVien.Text = "🔒 Khóa / Mở khóa";
             btnXoaHoiVien.UseVisualStyleBackColor = false;
             // 
             // btnSuaHoiVien
@@ -682,7 +682,7 @@ namespace GamingCenterManagementSystem
             pnlSearch.Dock = DockStyle.Top;
             pnlSearch.Location = new Point(10, 10);
             pnlSearch.Name = "pnlSearch";
-            pnlSearch.Size = new Size(770, 45);
+            pnlSearch.Size = new Size(770, 78);
             pnlSearch.TabIndex = 0;
             // 
             // cboLocHangThe
@@ -831,5 +831,27 @@ namespace GamingCenterManagementSystem
         private Button btnTimKiem;
         private Button btnDatLaiTimKiem;
         private DataGridView dgvHoiVien;
+        private ComboBox cboLocVaiTro;
+        private Label lblLocVaiTro;
+        private Label lblLocHangThe;
+        private TabControl tabMain;
+        private TabPage tabDanhSach;
+        private TabPage tabLichSuVi;
+        private TabPage tabTopHoiVien;
+        private DataGridView dgvLichSuVi;
+        private Panel pnlWalletHeader;
+        private Label lblLichSuUser;
+        private Button btnTaiLaiLichSu;
+        private Label lblTopSummary;
+        private SplitContainer splTopHoiVien;
+        private GroupBox grpTopSoDu;
+        private GroupBox grpTopNapTien;
+        private DataGridView dgvTopSoDu;
+        private DataGridView dgvTopNapTien;
+        private ComboBox cboLocRole;
+        private TabPage tabLichSuNap;
+        private Button btnTopHoiVien;
+        private Button btnKhoaThe;
+        private Button btnMoThe;
     }
 }

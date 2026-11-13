@@ -396,6 +396,7 @@ namespace GamingCenterManagementSystem.Tests
                     stationId = CreateTemporaryStation("TST-LEADER-DASH");
 
                     var dbBilling = new DBBilling();
+                    dbBilling.RestockServiceItem(1, 20);
                     var session = dbBilling.OpenStationSession(stationId, userId: null, tariffType: "Hourly");
                     sessionId = session.SessionId;
 
@@ -530,6 +531,7 @@ namespace GamingCenterManagementSystem.Tests
                     stationId = CreateTemporaryStation("TST-LAUNCHER");
 
                     var dbBilling = new DBBilling();
+                    dbBilling.RestockServiceItem(1, 20);
                     var session = dbBilling.OpenStationSession(stationId, userId: null, tariffType: "Hourly");
                     sessionId = session.SessionId;
 

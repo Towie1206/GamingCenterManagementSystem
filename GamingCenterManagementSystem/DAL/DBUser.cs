@@ -13,6 +13,17 @@ using Microsoft.Data.SqlClient;
 
 namespace GamingCenterManagementSystem.DAL
 {
+    public sealed class MemberTopUpSummary
+    {
+        public int UserId { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string MemberTier { get; set; } = "Standard";
+        public int TopUpCount { get; set; }
+        public decimal TotalTopUpAmount { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
     public class DBUser : IRepository<AppUser>
     {
         public const decimal MinimumMemberInitialBalance = 10000m;
@@ -43,6 +54,24 @@ namespace GamingCenterManagementSystem.DAL
                 return false;
             return CitizenIdRegex.IsMatch(citizenId.Trim());
         }
+
+        private static readonly List<WalletTransaction> _fallbackWalletTransactions = new()
+        {
+            new WalletTransaction
+            {
+                TransactionId = 1,
+                UserId = 2,
+                SessionId = null,
+                TransactionType = "TopUp",
+                Amount = 50000m,
+                BalanceBefore = 0m,
+                BalanceAfter = 50000m,
+                PaymentMethod = "Tiền mặt tại quầy",
+                Description = "Nạp khởi tạo tài khoản hội viên",
+                CreatedByUserId = 1,
+                CreatedAt = DateTime.Now.AddDays(-20)
+            }
+        };
 
         public DBUser() : this(Database.GetConnection)
         {
@@ -683,6 +712,9 @@ namespace GamingCenterManagementSystem.DAL
 
         public bool SetUserActiveStatus(int userId, bool isActive)
         {
+            if (userId <= 0)
+                return false;
+
             bool opened = false;
             try
             {
@@ -709,6 +741,407 @@ namespace GamingCenterManagementSystem.DAL
                     found.IsActive = isActive;
                     return true;
                 }
+            }
+        }
+
+        public async Task<bool> SetUserActiveStatusAsync(int userId, bool isActive)
+        {
+            if (userId <= 0)
+                return false;
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                if (!await HasIsActiveColumnAsync(conn).ConfigureAwait(false))
+                    return false;
+
+                const string sql = "UPDATE dbo.AppUser SET IsActive = @IsActive WHERE UserId = @UserId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@IsActive", SqlDbType.Bit).Value = isActive;
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    var found = _fallbackUsers.Find(u => u.UserId == userId);
+                    if (found == null)
+                        return false;
+                    found.IsActive = isActive;
+                    return true;
+                }
+            }
+        }
+
+        private static WalletTransaction MapWalletTransaction(SqlDataReader reader)
+        {
+            return new WalletTransaction
+            {
+                TransactionId = reader.GetInt32(0),
+                UserId = reader.GetInt32(1),
+                SessionId = reader.IsDBNull(2) ? null : reader.GetInt32(2),
+                TransactionType = reader.IsDBNull(3) ? "TopUp" : reader.GetString(3),
+                Amount = reader.IsDBNull(4) ? 0m : reader.GetDecimal(4),
+                BalanceBefore = reader.IsDBNull(5) ? 0m : reader.GetDecimal(5),
+                BalanceAfter = reader.IsDBNull(6) ? 0m : reader.GetDecimal(6),
+                PaymentMethod = reader.IsDBNull(7) ? null : reader.GetString(7),
+                Description = reader.IsDBNull(8) ? null : reader.GetString(8),
+                CreatedByUserId = reader.IsDBNull(9) ? null : reader.GetInt32(9),
+                CreatedAt = reader.IsDBNull(10) ? DateTime.Now : reader.GetDateTime(10)
+            };
+        }
+
+        private static WalletTransaction CloneWalletTransaction(WalletTransaction transaction) =>
+            new()
+            {
+                TransactionId = transaction.TransactionId,
+                UserId = transaction.UserId,
+                SessionId = transaction.SessionId,
+                TransactionType = transaction.TransactionType,
+                Amount = transaction.Amount,
+                BalanceBefore = transaction.BalanceBefore,
+                BalanceAfter = transaction.BalanceAfter,
+                PaymentMethod = transaction.PaymentMethod,
+                Description = transaction.Description,
+                CreatedByUserId = transaction.CreatedByUserId,
+                CreatedAt = transaction.CreatedAt
+            };
+
+        public List<WalletTransaction> GetWalletTransactionsByUserId(int userId)
+        {
+            if (userId <= 0)
+                return new List<WalletTransaction>();
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        SELECT TransactionId, UserId, SessionId, TransactionType, Amount,
+                               BalanceBefore, BalanceAfter, PaymentMethod, Description,
+                               CreatedByUserId, CreatedAt
+                        FROM dbo.WalletTransaction
+                        WHERE UserId = @UserId
+                        ORDER BY CreatedAt DESC, TransactionId DESC;";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                using var reader = cmd.ExecuteReader();
+                var result = new List<WalletTransaction>();
+                while (reader.Read())
+                    result.Add(MapWalletTransaction(reader));
+                return result;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackWalletTransactions
+                        .Where(t => t.UserId == userId)
+                        .OrderByDescending(t => t.CreatedAt)
+                        .ThenByDescending(t => t.TransactionId)
+                        .Select(CloneWalletTransaction)
+                        .ToList();
+                }
+            }
+        }
+
+        public async Task<List<WalletTransaction>> GetWalletTransactionsByUserIdAsync(int userId)
+        {
+            if (userId <= 0)
+                return new List<WalletTransaction>();
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        SELECT TransactionId, UserId, SessionId, TransactionType, Amount,
+                               BalanceBefore, BalanceAfter, PaymentMethod, Description,
+                               CreatedByUserId, CreatedAt
+                        FROM dbo.WalletTransaction
+                        WHERE UserId = @UserId
+                        ORDER BY CreatedAt DESC, TransactionId DESC;";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                var result = new List<WalletTransaction>();
+                while (await reader.ReadAsync().ConfigureAwait(false))
+                    result.Add(MapWalletTransaction(reader));
+                return result;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackWalletTransactions
+                        .Where(t => t.UserId == userId)
+                        .OrderByDescending(t => t.CreatedAt)
+                        .ThenByDescending(t => t.TransactionId)
+                        .Select(CloneWalletTransaction)
+                        .ToList();
+                }
+            }
+        }
+
+        public List<WalletTransaction> GetWalletTransactions(int userId) =>
+            GetWalletTransactionsByUserId(userId);
+
+        public Task<List<WalletTransaction>> GetWalletTransactionsAsync(int userId) =>
+            GetWalletTransactionsByUserIdAsync(userId);
+
+        public List<WalletTransaction> GetWalletTransactions()
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        SELECT TransactionId, UserId, SessionId, TransactionType, Amount,
+                               BalanceBefore, BalanceAfter, PaymentMethod, Description,
+                               CreatedByUserId, CreatedAt
+                        FROM dbo.WalletTransaction
+                        ORDER BY CreatedAt DESC, TransactionId DESC;";
+                using var cmd = new SqlCommand(sql, conn);
+                using var reader = cmd.ExecuteReader();
+                var result = new List<WalletTransaction>();
+                while (reader.Read())
+                    result.Add(MapWalletTransaction(reader));
+                return result;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackWalletTransactions
+                        .OrderByDescending(t => t.CreatedAt)
+                        .ThenByDescending(t => t.TransactionId)
+                        .Select(CloneWalletTransaction)
+                        .ToList();
+                }
+            }
+        }
+
+        public async Task<List<WalletTransaction>> GetWalletTransactionsAsync()
+        {
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        SELECT TransactionId, UserId, SessionId, TransactionType, Amount,
+                               BalanceBefore, BalanceAfter, PaymentMethod, Description,
+                               CreatedByUserId, CreatedAt
+                        FROM dbo.WalletTransaction
+                        ORDER BY CreatedAt DESC, TransactionId DESC;";
+                using var cmd = new SqlCommand(sql, conn);
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                var result = new List<WalletTransaction>();
+                while (await reader.ReadAsync().ConfigureAwait(false))
+                    result.Add(MapWalletTransaction(reader));
+                return result;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return _fallbackWalletTransactions
+                        .OrderByDescending(t => t.CreatedAt)
+                        .ThenByDescending(t => t.TransactionId)
+                        .Select(CloneWalletTransaction)
+                        .ToList();
+                }
+            }
+        }
+
+        public static List<AppUser> GetTopMembersByBalance(IEnumerable<AppUser> users, int topCount = 5)
+        {
+            ArgumentNullException.ThrowIfNull(users);
+            if (topCount <= 0)
+                return new List<AppUser>();
+
+            return users
+                .Where(u => string.Equals(u.Role, "Member", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(u => u.Balance)
+                .ThenBy(u => u.UserId)
+                .Take(topCount)
+                .ToList();
+        }
+
+        public static List<MemberTopUpSummary> BuildTopMembersByTopUp(
+            IEnumerable<AppUser> users,
+            IEnumerable<WalletTransaction> transactions,
+            int topCount = 5)
+        {
+            ArgumentNullException.ThrowIfNull(users);
+            ArgumentNullException.ThrowIfNull(transactions);
+            if (topCount <= 0)
+                return new List<MemberTopUpSummary>();
+
+            var memberLookup = users
+                .Where(u => string.Equals(u.Role, "Member", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(u => u.UserId);
+
+            return transactions
+                .Where(t => string.Equals(t.TransactionType, "TopUp", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(t => t.UserId)
+                .Where(g => memberLookup.ContainsKey(g.Key))
+                .Select(g =>
+                {
+                    var user = memberLookup[g.Key];
+                    return new MemberTopUpSummary
+                    {
+                        UserId = user.UserId,
+                        Username = user.Username,
+                        FullName = user.FullName,
+                        MemberTier = user.MemberTier,
+                        IsActive = user.IsActive,
+                        TopUpCount = g.Count(),
+                        TotalTopUpAmount = g.Sum(x => x.Amount)
+                    };
+                })
+                .OrderByDescending(x => x.TotalTopUpAmount)
+                .ThenByDescending(x => x.TopUpCount)
+                .ThenBy(x => x.UserId)
+                .Take(topCount)
+                .ToList();
+        }
+
+        public async Task<List<MemberTopUpSummary>> GetTopMembersByTopUpAsync(
+            IEnumerable<AppUser> cachedUsers, int topCount = 5)
+        {
+            ArgumentNullException.ThrowIfNull(cachedUsers);
+            if (topCount <= 0)
+                return new List<MemberTopUpSummary>();
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        SELECT UserId, COUNT(1) AS TopUpCount, SUM(Amount) AS TotalTopUp
+                        FROM dbo.WalletTransaction
+                        WHERE TransactionType = N'TopUp'
+                        GROUP BY UserId;";
+                var totals = new Dictionary<int, (int Count, decimal Amount)>();
+                using (var cmd = new SqlCommand(sql, conn))
+                using (var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false))
+                {
+                    while (await reader.ReadAsync().ConfigureAwait(false))
+                    {
+                        int userId = reader.GetInt32(0);
+                        int count = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
+                        decimal amount = reader.IsDBNull(2) ? 0m : reader.GetDecimal(2);
+                        totals[userId] = (count, amount);
+                    }
+                }
+
+                return cachedUsers
+                    .Where(u => string.Equals(u.Role, "Member", StringComparison.OrdinalIgnoreCase)
+                        && totals.ContainsKey(u.UserId))
+                    .Select(u => new MemberTopUpSummary
+                    {
+                        UserId = u.UserId,
+                        Username = u.Username,
+                        FullName = u.FullName,
+                        MemberTier = u.MemberTier,
+                        IsActive = u.IsActive,
+                        TopUpCount = totals[u.UserId].Count,
+                        TotalTopUpAmount = totals[u.UserId].Amount
+                    })
+                    .OrderByDescending(x => x.TotalTopUpAmount)
+                    .ThenByDescending(x => x.TopUpCount)
+                    .ThenBy(x => x.UserId)
+                    .Take(topCount)
+                    .ToList();
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                    return BuildTopMembersByTopUp(cachedUsers, _fallbackWalletTransactions, topCount);
+            }
+        }
+
+        public async Task<List<MemberTopUpSummary>> GetTopMembersByTopUpAsync(int topCount = 5)
+        {
+            var users = await GetAllAsync().ConfigureAwait(false);
+            return await GetTopMembersByTopUpAsync(users, topCount).ConfigureAwait(false);
+        }
+
+        public List<MemberTopUpSummary> GetTopMembersByTopUp(IEnumerable<AppUser>? cachedUsers = null, int topCount = 5)
+        {
+            if (topCount <= 0)
+                return new List<MemberTopUpSummary>();
+
+            cachedUsers ??= GetAll();
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        SELECT UserId, COUNT(1) AS TopUpCount, SUM(Amount) AS TotalTopUp
+                        FROM dbo.WalletTransaction
+                        WHERE TransactionType = N'TopUp'
+                        GROUP BY UserId;";
+                var totals = new Dictionary<int, (int Count, decimal Amount)>();
+                using (var cmd = new SqlCommand(sql, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        int userId = reader.GetInt32(0);
+                        int count = reader.IsDBNull(1) ? 0 : reader.GetInt32(1);
+                        decimal amount = reader.IsDBNull(2) ? 0m : reader.GetDecimal(2);
+                        totals[userId] = (count, amount);
+                    }
+                }
+
+                return cachedUsers
+                    .Where(u => string.Equals(u.Role, "Member", StringComparison.OrdinalIgnoreCase)
+                        && totals.ContainsKey(u.UserId))
+                    .Select(u => new MemberTopUpSummary
+                    {
+                        UserId = u.UserId,
+                        Username = u.Username,
+                        FullName = u.FullName,
+                        MemberTier = u.MemberTier,
+                        IsActive = u.IsActive,
+                        TopUpCount = totals[u.UserId].Count,
+                        TotalTopUpAmount = totals[u.UserId].Amount
+                    })
+                    .OrderByDescending(x => x.TotalTopUpAmount)
+                    .ThenByDescending(x => x.TopUpCount)
+                    .ThenBy(x => x.UserId)
+                    .Take(topCount)
+                    .ToList();
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                    return BuildTopMembersByTopUp(cachedUsers, _fallbackWalletTransactions, topCount);
             }
         }
 
@@ -1011,7 +1444,10 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 conn.Open();
                 opened = true;
-                const string sql = "DELETE FROM AppUser WHERE UserId = @UserId";
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        DELETE FROM dbo.WalletTransaction WHERE UserId = @UserId;
+                    DELETE FROM dbo.AppUser WHERE UserId = @UserId;";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
                 return cmd.ExecuteNonQuery() > 0;
@@ -1024,6 +1460,7 @@ namespace GamingCenterManagementSystem.DAL
             {
                 lock (_fallbackLock)
                 {
+                    _fallbackWalletTransactions.RemoveAll(t => t.UserId == id);
                     return _fallbackUsers.RemoveAll(u => u.UserId == id) > 0;
                 }
             }
@@ -1037,7 +1474,10 @@ namespace GamingCenterManagementSystem.DAL
                 using var conn = _connectionFactory();
                 await conn.OpenAsync().ConfigureAwait(false);
                 opened = true;
-                const string sql = "DELETE FROM AppUser WHERE UserId = @UserId";
+                const string sql = @"
+                    IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                        DELETE FROM dbo.WalletTransaction WHERE UserId = @UserId;
+                    DELETE FROM dbo.AppUser WHERE UserId = @UserId;";
                 using var cmd = new SqlCommand(sql, conn);
                 cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = id;
                 return await cmd.ExecuteNonQueryAsync().ConfigureAwait(false) > 0;
@@ -1050,6 +1490,7 @@ namespace GamingCenterManagementSystem.DAL
             {
                 lock (_fallbackLock)
                 {
+                    _fallbackWalletTransactions.RemoveAll(t => t.UserId == id);
                     return _fallbackUsers.RemoveAll(u => u.UserId == id) > 0;
                 }
             }
@@ -1913,7 +2354,7 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return TopUpFallback(userId, amount);
+                return TopUpFallback(userId, amount, paymentMethod);
             }
         }
 
@@ -1979,11 +2420,11 @@ namespace GamingCenterManagementSystem.DAL
             }
             catch when (!opened)
             {
-                return TopUpFallback(userId, amount);
+                return TopUpFallback(userId, amount, paymentMethod);
             }
         }
 
-        private static bool TopUpFallback(int userId, decimal amount)
+        private static bool TopUpFallback(int userId, decimal amount, string? paymentMethod = "Tiền mặt tại quầy")
         {
             lock (_fallbackLock)
             {
@@ -1991,8 +2432,25 @@ namespace GamingCenterManagementSystem.DAL
                 if (user == null)
                     return false;
 
-                user.Balance += amount;
+                decimal balanceBefore = user.Balance;
+                decimal balanceAfter = balanceBefore + amount;
+                user.Balance = balanceAfter;
                 user.MemberTier = AppUser.ResolveUpgradedTier(user.MemberTier, user.Balance);
+
+                _fallbackWalletTransactions.Add(new WalletTransaction
+                {
+                    TransactionId = _fallbackWalletTransactions.Count > 0
+                        ? _fallbackWalletTransactions.Max(t => t.TransactionId) + 1 : 1,
+                    UserId = userId,
+                    TransactionType = "TopUp",
+                    Amount = amount,
+                    BalanceBefore = balanceBefore,
+                    BalanceAfter = balanceAfter,
+                    PaymentMethod = string.IsNullOrWhiteSpace(paymentMethod) ? "Tiền mặt tại quầy" : paymentMethod.Trim(),
+                    Description = $"Nạp tiền vào ví (+{amount:N0} VNĐ)",
+                    CreatedByUserId = CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null,
+                    CreatedAt = DateTime.Now
+                });
                 return true;
             }
         }
@@ -2063,7 +2521,23 @@ namespace GamingCenterManagementSystem.DAL
                     if (user == null || user.Balance < amount)
                         return false;
 
-                    user.Balance -= amount;
+                    decimal balanceBefore = user.Balance;
+                    decimal balanceAfter = balanceBefore - amount;
+                    user.Balance = balanceAfter;
+                    _fallbackWalletTransactions.Add(new WalletTransaction
+                    {
+                        TransactionId = _fallbackWalletTransactions.Count > 0
+                            ? _fallbackWalletTransactions.Max(t => t.TransactionId) + 1 : 1,
+                        UserId = userId,
+                        TransactionType = "Adjustment",
+                        Amount = amount,
+                        BalanceBefore = balanceBefore,
+                        BalanceAfter = balanceAfter,
+                        PaymentMethod = "Ví hội viên",
+                        Description = $"Trừ số dư ví (-{amount:N0} VNĐ)",
+                        CreatedByUserId = CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null,
+                        CreatedAt = DateTime.Now
+                    });
                     return true;
                 }
             }

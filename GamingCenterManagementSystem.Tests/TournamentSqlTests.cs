@@ -155,7 +155,7 @@ public sealed class TournamentSqlTests : IClassFixture<TournamentSqlTests.SqlDat
             using var template = GamingCenterManagementSystem.Database.GetConnection();
             var builder = new SqlConnectionStringBuilder(template.ConnectionString)
             {
-                InitialCatalog = "master", ConnectTimeout = 5, Pooling = false
+                InitialCatalog = "master", ConnectTimeout = 30, Pooling = false
             };
             masterConnectionString = builder.ConnectionString;
             builder.InitialCatalog = databaseName;

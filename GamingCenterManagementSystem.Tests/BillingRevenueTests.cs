@@ -7,6 +7,7 @@ using Xunit;
 
 namespace GamingCenterManagementSystem.Tests
 {
+    [Collection("GamingCenterSequential")]
     public class BillingRevenueTests
     {
         [Fact]

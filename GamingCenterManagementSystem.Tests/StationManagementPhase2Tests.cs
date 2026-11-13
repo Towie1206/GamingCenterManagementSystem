@@ -7,6 +7,7 @@ using Xunit;
 
 namespace GamingCenterManagementSystem.Tests
 {
+    [Collection("GamingCenterSequential")]
     public class StationManagementPhase2Tests
     {
         private static readonly Regex Ipv4Regex = new(

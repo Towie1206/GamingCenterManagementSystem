@@ -43,36 +43,43 @@ namespace GamingCenterManagementSystem.Tests
             using var conn = Database.GetConnection();
             conn.Open();
             using var trans = conn.BeginTransaction();
-
-            const string sql = @"IF @SessionId > 0
-                                 BEGIN
-                                     IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
-                                         DELETE FROM dbo.SessionService WHERE SessionId = @SessionId;
-                                     IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
-                                         DELETE FROM dbo.WalletTransaction WHERE SessionId = @SessionId;
-                                     DELETE FROM dbo.GamingSession WHERE SessionId = @SessionId;
-                                 END
-                                 IF @StationId > 0
-                                 BEGIN
-                                     IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
-                                         DELETE ss FROM dbo.SessionService ss INNER JOIN dbo.GamingSession gs ON ss.SessionId = gs.SessionId WHERE gs.StationId = @StationId;
-                                     IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
-                                         DELETE wt FROM dbo.WalletTransaction wt INNER JOIN dbo.GamingSession gs ON wt.SessionId = gs.SessionId WHERE gs.StationId = @StationId;
-                                     DELETE FROM dbo.GamingSession WHERE StationId = @StationId;
-                                     DELETE FROM dbo.ComputerStation WHERE StationId = @StationId;
-                                 END
-                                 IF @UserId > 0
-                                 BEGIN
-                                     IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
-                                         DELETE FROM dbo.WalletTransaction WHERE UserId = @UserId OR CreatedByUserId = @UserId;
-                                     DELETE FROM dbo.AppUser WHERE UserId = @UserId;
-                                 END";
-            using var cmd = new SqlCommand(sql, conn, trans);
-            cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
-            cmd.Parameters.Add("@StationId", SqlDbType.Int).Value = stationId;
-            cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
-            cmd.ExecuteNonQuery();
-            trans.Commit();
+            try
+            {
+                const string sql = @"IF @SessionId > 0
+                                     BEGIN
+                                         IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
+                                             DELETE FROM dbo.SessionService WHERE SessionId = @SessionId;
+                                         IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                                             DELETE FROM dbo.WalletTransaction WHERE SessionId = @SessionId;
+                                         DELETE FROM dbo.GamingSession WHERE SessionId = @SessionId;
+                                     END
+                                     IF @StationId > 0
+                                     BEGIN
+                                         IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
+                                             DELETE ss FROM dbo.SessionService ss INNER JOIN dbo.GamingSession gs ON ss.SessionId = gs.SessionId WHERE gs.StationId = @StationId;
+                                         IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                                             DELETE wt FROM dbo.WalletTransaction wt INNER JOIN dbo.GamingSession gs ON wt.SessionId = gs.SessionId WHERE gs.StationId = @StationId;
+                                         DELETE FROM dbo.GamingSession WHERE StationId = @StationId;
+                                         DELETE FROM dbo.ComputerStation WHERE StationId = @StationId;
+                                     END
+                                     IF @UserId > 0
+                                     BEGIN
+                                         IF OBJECT_ID('dbo.WalletTransaction', 'U') IS NOT NULL
+                                             DELETE FROM dbo.WalletTransaction WHERE UserId = @UserId OR CreatedByUserId = @UserId;
+                                         DELETE FROM dbo.AppUser WHERE UserId = @UserId;
+                                     END";
+                using var cmd = new SqlCommand(sql, conn, trans);
+                cmd.Parameters.Add("@SessionId", SqlDbType.Int).Value = sessionId;
+                cmd.Parameters.Add("@StationId", SqlDbType.Int).Value = stationId;
+                cmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                cmd.ExecuteNonQuery();
+                trans.Commit();
+            }
+            catch
+            {
+                try { trans.Rollback(); } catch { }
+                throw;
+            }
         }
 
         // ==========================================

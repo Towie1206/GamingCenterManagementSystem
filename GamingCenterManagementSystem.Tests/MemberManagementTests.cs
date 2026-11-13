@@ -431,5 +431,318 @@ namespace GamingCenterManagementSystem.Tests
 
             Assert.Null(threadException);
         }
+
+        [Fact]
+        public void DBUser_GetTopMembersByBalance_And_BuildTopMembersByTopUp_RankProperlyUsingLINQ()
+        {
+            var users = new List<AppUser>
+            {
+                new() { UserId = 1, Username = "admin", Role = "Admin", Balance = 1000000m },
+                new() { UserId = 2, Username = "gamer01", FullName = "A", Role = "Member", Balance = 50000m, MemberTier = "Standard" },
+                new() { UserId = 3, Username = "gamer02", FullName = "B", Role = "Member", Balance = 120000m, MemberTier = "Silver" },
+                new() { UserId = 4, Username = "gamer03", FullName = "C", Role = "Member", Balance = 300000m, MemberTier = "Gold" },
+                new() { UserId = 5, Username = "staff01", Role = "Staff", Balance = 500000m },
+                new() { UserId = 6, Username = "gamer04", FullName = "D", Role = "Member", Balance = 120000m, MemberTier = "Silver" }
+            };
+
+            // 1. Top by balance (excludes non-members, sorts descending, then by UserId)
+            var topBalance = DBUser.GetTopMembersByBalance(users, 2);
+            Assert.Equal(2, topBalance.Count);
+            Assert.Equal("gamer03", topBalance[0].Username); // 300,000
+            Assert.Equal("gamer02", topBalance[1].Username); // 120,000 (UserId 3 before UserId 6)
+
+            // 2. Build top by top-up using LINQ aggregation
+            var transactions = new List<WalletTransaction>
+            {
+                new() { TransactionId = 1, UserId = 2, TransactionType = "TopUp", Amount = 50000m },
+                new() { TransactionId = 2, UserId = 2, TransactionType = "TopUp", Amount = 100000m },
+                new() { TransactionId = 3, UserId = 3, TransactionType = "TopUp", Amount = 200000m },
+                new() { TransactionId = 4, UserId = 3, TransactionType = "SessionPayment", Amount = 50000m },
+                new() { TransactionId = 5, UserId = 4, TransactionType = "TopUp", Amount = 500000m },
+                new() { TransactionId = 6, UserId = 5, TransactionType = "TopUp", Amount = 999999m } // Staff excluded
+            };
+
+            var topTopUp = DBUser.BuildTopMembersByTopUp(users, transactions, 2);
+            Assert.Equal(2, topTopUp.Count);
+            Assert.Equal("gamer03", topTopUp[0].Username); // 500,000
+            Assert.Equal(500000m, topTopUp[0].TotalTopUpAmount);
+            Assert.Equal(1, topTopUp[0].TopUpCount);
+
+            Assert.Equal("gamer02", topTopUp[1].Username); // 200,000
+            Assert.Equal(200000m, topTopUp[1].TotalTopUpAmount);
+            Assert.Equal(1, topTopUp[1].TopUpCount);
+        }
+
+        [Fact]
+        public async Task DBUser_OfflineWalletTransactions_And_LockStatusToggle_WorksCorrectly()
+        {
+            var offlineDb = CreateOfflineDb();
+
+            // 1. Lock and unlock toggle in offline mode
+            bool locked = await offlineDb.SetUserActiveStatusAsync(2, false);
+            Assert.True(locked);
+            var user = offlineDb.GetById(2);
+            Assert.NotNull(user);
+            Assert.False(user.IsActive);
+
+            bool unlocked = await offlineDb.SetUserActiveStatusAsync(2, true);
+            Assert.True(unlocked);
+            user = offlineDb.GetById(2);
+            Assert.NotNull(user);
+            Assert.True(user.IsActive);
+
+            // 2. Invalid userId returns false
+            Assert.False(await offlineDb.SetUserActiveStatusAsync(0, false));
+            Assert.False(await offlineDb.SetUserActiveStatusAsync(999999, false));
+
+            // 3. Top-up & safe deduct append to wallet transaction history
+            decimal balanceBefore = user.Balance;
+            bool topUpOk = await offlineDb.TopUpBalanceAsync(2, 50000m, "Tiền mặt tại quầy");
+            Assert.True(topUpOk);
+
+            var transactions = await offlineDb.GetWalletTransactionsByUserIdAsync(2);
+            Assert.NotEmpty(transactions);
+            var latest = transactions[0];
+            Assert.Equal(2, latest.UserId);
+            Assert.Equal("TopUp", latest.TransactionType);
+            Assert.Equal(50000m, latest.Amount);
+            Assert.Equal(balanceBefore, latest.BalanceBefore);
+            Assert.Equal(balanceBefore + 50000m, latest.BalanceAfter);
+        }
+
+        [Fact]
+        public void FormMember_Phase2TabsAndControls_InitializedProperlyOnSTAThread()
+        {
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
+            {
+                try
+                {
+                    using var form = new FormMember
+                    {
+                        ShowInTaskbar = false,
+                        WindowState = FormWindowState.Minimized
+                    };
+                    form.Show();
+                    Application.DoEvents();
+
+                    var tabMain = typeof(FormMember).GetField("tabMain", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TabControl;
+                    var cboLocVaiTro = typeof(FormMember).GetField("cboLocVaiTro", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as ComboBox;
+                    var dgvLichSuVi = typeof(FormMember).GetField("dgvLichSuVi", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as DataGridView;
+                    var dgvTopSoDu = typeof(FormMember).GetField("dgvTopSoDu", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as DataGridView;
+                    var dgvTopNapTien = typeof(FormMember).GetField("dgvTopNapTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as DataGridView;
+                    var btnLock = typeof(FormMember).GetField("btnXoaHoiVien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+
+                    Assert.NotNull(tabMain);
+                    Assert.Equal(3, tabMain!.TabPages.Count);
+                    Assert.Contains("Danh Sách", tabMain.TabPages[0].Text);
+                    Assert.Contains("Lịch Sử", tabMain.TabPages[1].Text);
+                    Assert.Contains("Top 5", tabMain.TabPages[2].Text);
+
+                    Assert.NotNull(cboLocVaiTro);
+                    Assert.Contains("Tất cả", cboLocVaiTro!.Items.Cast<object>().Select(x => x.ToString()));
+                    Assert.Contains("Member", cboLocVaiTro.Items.Cast<object>().Select(x => x.ToString()));
+
+                    Assert.NotNull(dgvLichSuVi);
+                    Assert.NotNull(dgvTopSoDu);
+                    Assert.NotNull(dgvTopNapTien);
+
+                    Assert.NotNull(btnLock);
+                    Assert.Contains("Khóa", btnLock!.Text);
+
+                    form.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+            });
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+            staThread.Join();
+
+            Assert.Null(threadException);
+        }
+
+        [Fact]
+        public async Task DBUser_GetWalletTransactions_And_GetTopMembersByTopUp_AllOverloadsWork()
+        {
+            var offlineDb = CreateOfflineDb();
+
+            // Synchronous and asynchronous GetWalletTransactions(int userId)
+            var userTransSync = offlineDb.GetWalletTransactions(2);
+            var userTransAsync = await offlineDb.GetWalletTransactionsAsync(2);
+            Assert.NotEmpty(userTransSync);
+            Assert.Equal(userTransSync.Count, userTransAsync.Count);
+            Assert.Equal(2, userTransSync[0].UserId);
+
+            // Parameterless GetWalletTransactions()
+            var allTransSync = offlineDb.GetWalletTransactions();
+            var allTransAsync = await offlineDb.GetWalletTransactionsAsync();
+            Assert.NotEmpty(allTransSync);
+            Assert.Equal(allTransSync.Count, allTransAsync.Count);
+
+            // DeductBalance records Adjustment transaction
+            decimal deductAmount = 10000m;
+            bool deducted = offlineDb.DeductBalance(2, deductAmount);
+            Assert.True(deducted);
+            var transAfterDeduct = offlineDb.GetWalletTransactions(2);
+            var adjustTrans = transAfterDeduct.FirstOrDefault(t => t.TransactionType == "Adjustment");
+            Assert.NotNull(adjustTrans);
+            Assert.Equal(deductAmount, adjustTrans!.Amount);
+
+            // Synchronous GetTopMembersByTopUp and async parameterless
+            var topSync = offlineDb.GetTopMembersByTopUp(topCount: 5);
+            var topAsync = await offlineDb.GetTopMembersByTopUpAsync(topCount: 5);
+            Assert.NotNull(topSync);
+            Assert.NotNull(topAsync);
+            Assert.Equal(topSync.Count, topAsync.Count);
+        }
+
+        [Fact]
+        public void FormMember_AliasesAndControls_FullyExposedAndWired()
+        {
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
+            {
+                try
+                {
+                    using var form = new FormMember
+                    {
+                        ShowInTaskbar = false,
+                        WindowState = FormWindowState.Minimized
+                    };
+                    form.Show();
+                    Application.DoEvents();
+
+                    // Check both original and alias control fields via reflection
+                    var tabMain = typeof(FormMember).GetField("tabMain", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TabControl;
+                    var tabLichSuVi = typeof(FormMember).GetField("tabLichSuVi", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TabPage;
+                    var tabLichSuNap = typeof(FormMember).GetField("tabLichSuNap", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TabPage;
+                    var cboLocVaiTro = typeof(FormMember).GetField("cboLocVaiTro", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as ComboBox;
+                    var cboLocRole = typeof(FormMember).GetField("cboLocRole", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as ComboBox;
+                    var btnTopHoiVien = typeof(FormMember).GetField("btnTopHoiVien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnKhoaThe = typeof(FormMember).GetField("btnKhoaThe", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnMoThe = typeof(FormMember).GetField("btnMoThe", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnLock = typeof(FormMember).GetField("btnXoaHoiVien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+
+                    Assert.NotNull(tabMain);
+                    Assert.NotNull(tabLichSuVi);
+                    Assert.NotNull(tabLichSuNap);
+                    Assert.Same(tabLichSuVi, tabLichSuNap);
+
+                    Assert.NotNull(cboLocVaiTro);
+                    Assert.NotNull(cboLocRole);
+                    Assert.Same(cboLocVaiTro, cboLocRole);
+
+                    Assert.NotNull(btnTopHoiVien);
+                    Assert.NotNull(btnKhoaThe);
+                    Assert.NotNull(btnMoThe);
+                    Assert.Same(btnLock, btnKhoaThe);
+                    Assert.Same(btnLock, btnMoThe);
+
+                    // Test btnTopHoiVien switches to tabTopHoiVien
+                    btnTopHoiVien!.PerformClick();
+                    Application.DoEvents();
+                    var tabTop = typeof(FormMember).GetField("tabTopHoiVien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TabPage;
+                    Assert.Equal(tabTop, tabMain!.SelectedTab);
+
+                    form.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+            });
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+            staThread.Join();
+
+            Assert.Null(threadException);
+        }
+
+        [Fact]
+        public void FormMember_HeadlessLockUnlockAndTopUpFlow_RunsWithoutHanging()
+        {
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
+            {
+                try
+                {
+                    using var form = new FormMember
+                    {
+                        ShowInTaskbar = false,
+                        WindowState = FormWindowState.Minimized
+                    };
+
+                    var promptMessages = new List<string>();
+                    form.SetPromptHandler((text, caption, buttons, icon) =>
+                    {
+                        promptMessages.Add(text);
+                        return DialogResult.Yes;
+                    });
+
+                    form.Show();
+                    Application.DoEvents();
+
+                    var dgv = typeof(FormMember).GetField("dgvHoiVien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as DataGridView;
+                    var btnLock = typeof(FormMember).GetField("btnXoaHoiVien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnNapTien = typeof(FormMember).GetField("btnNapTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var txtSoTienNap = typeof(FormMember).GetField("txtSoTienNap", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TextBox;
+
+                    Assert.NotNull(dgv);
+                    Assert.NotNull(btnLock);
+                    Assert.NotNull(btnNapTien);
+                    Assert.NotNull(txtSoTienNap);
+
+                    // Ensure gamer01 is active before starting UI flow
+                    new DBUser().SetUserActiveStatus(2, true);
+
+                    // Select member row (gamer01, UserId 2)
+                    if (dgv!.Rows.Count > 1)
+                    {
+                        dgv.CurrentCell = dgv.Rows[1].Cells[0];
+                        dgv.Rows[1].Selected = true;
+                        typeof(FormMember).GetMethod("DgvHoiVien_SelectionChanged", BindingFlags.NonPublic | BindingFlags.Instance)
+                            ?.Invoke(form, new object[] { dgv, EventArgs.Empty });
+                        Application.DoEvents();
+
+                        // Lock the member
+                        var lockMethod = typeof(FormMember).GetMethod("BtnKhoaMoKhoa_ClickAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+                        (lockMethod?.Invoke(form, null) as Task)?.GetAwaiter().GetResult();
+                        Application.DoEvents();
+
+                        // Attempt to top-up locked member
+                        txtSoTienNap!.Text = "50000";
+                        var napMethod = typeof(FormMember).GetMethod("BtnNapTien_ClickAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+                        (napMethod?.Invoke(form, null) as Task)?.GetAwaiter().GetResult();
+                        Application.DoEvents();
+
+                        Assert.Contains(promptMessages, m => m.Contains("bị khóa", StringComparison.OrdinalIgnoreCase));
+
+                        // Unlock the member
+                        (lockMethod?.Invoke(form, null) as Task)?.GetAwaiter().GetResult();
+                        Application.DoEvents();
+                    }
+
+                    form.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+            });
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+            staThread.Join();
+
+            Assert.Null(threadException);
+        }
     }
 }

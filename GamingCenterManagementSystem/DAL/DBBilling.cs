@@ -849,6 +849,8 @@ namespace GamingCenterManagementSystem.DAL
                 conn.Open();
                 opened = true;
                 using var trans = conn.BeginTransaction();
+                try
+                {
 
                 const string sessionSql = @"SELECT Status FROM dbo.GamingSession WITH (UPDLOCK, HOLDLOCK)
                                             WHERE SessionId = @SessionId";
@@ -940,8 +942,14 @@ namespace GamingCenterManagementSystem.DAL
                         throw new InvalidOperationException("Không cập nhật được tiền dịch vụ của phiên chơi.");
                 }
 
-                trans.Commit();
-                return true;
+                    trans.Commit();
+                    return true;
+                }
+                catch
+                {
+                    try { trans.Rollback(); } catch { }
+                    throw;
+                }
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException))
             {
@@ -1025,6 +1033,8 @@ namespace GamingCenterManagementSystem.DAL
                 conn.Open();
                 opened = true;
                 using var trans = conn.BeginTransaction();
+                try
+                {
 
                 const string cleanupSql = @"IF OBJECT_ID('dbo.SessionService', 'U') IS NOT NULL
                                                 DELETE FROM dbo.SessionService WHERE SessionId = @SessionId;
@@ -1036,6 +1046,12 @@ namespace GamingCenterManagementSystem.DAL
                 int affected = cmd.ExecuteNonQuery();
                 trans.Commit();
                 return affected > 0;
+            }
+            catch
+            {
+                try { trans.Rollback(); } catch { }
+                throw;
+            }
             }
             catch when (!opened)
             {
@@ -1233,6 +1249,8 @@ namespace GamingCenterManagementSystem.DAL
                 conn.Open();
                 opened = true;
                 using var trans = conn.BeginTransaction();
+                try
+                {
 
                 string stationName;
                 string stationStatus;
@@ -1345,6 +1363,12 @@ namespace GamingCenterManagementSystem.DAL
                     Status = "Active"
                 };
             }
+            catch
+            {
+                try { trans.Rollback(); } catch { }
+                throw;
+            }
+            }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException or StationInUseException or InsufficientBalanceException))
             {
                 lock (_fallbackLock)
@@ -1394,6 +1418,8 @@ namespace GamingCenterManagementSystem.DAL
                 conn.Open();
                 opened = true;
                 using var trans = conn.BeginTransaction();
+                try
+                {
 
                 string stationName;
                 string stationStatus;
@@ -1623,6 +1649,12 @@ namespace GamingCenterManagementSystem.DAL
                     RemainingBalance = balanceAfter
                 };
             }
+            catch
+            {
+                try { trans.Rollback(); } catch { }
+                throw;
+            }
+            }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException or StationInUseException or InsufficientBalanceException))
             {
                 lock (_fallbackLock)
@@ -1679,6 +1711,8 @@ namespace GamingCenterManagementSystem.DAL
                 conn.Open();
                 opened = true;
                 using var trans = conn.BeginTransaction();
+                try
+                {
 
                 string stationName;
                 string currentStatus;
@@ -1731,6 +1765,12 @@ namespace GamingCenterManagementSystem.DAL
 
                 trans.Commit();
                 return targetStatus;
+            }
+            catch
+            {
+                try { trans.Rollback(); } catch { }
+                throw;
+            }
             }
             catch (Exception ex) when (!opened && ex is not (ArgumentException or InvalidOperationException or StationInUseException))
             {
