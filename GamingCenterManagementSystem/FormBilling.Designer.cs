@@ -686,9 +686,291 @@ namespace GamingCenterManagementSystem
             pnlGoiCuocInputs.ResumeLayout(false);
             pnlGoiCuocInputs.PerformLayout();
             ResumeLayout(false);
+            InitializeBillingPhase2Layout();
         }
 
         #endregion
+
+
+        // Phase 2: Keep the original WinForms controls and theme while placing
+        // billing, tariff plans and F&B on separate tabs. Controls fit 580px wide.
+        private TabControl tabControlBilling = null!;
+        private TabPage tabBaoCaoDoanhThu = null!;
+        private TabPage tabGoiCuoc = null!;
+        private TabPage tabDichVuFnB = null!;
+        private SplitContainer splRevenue = null!;
+        private SplitContainer splFnB = null!;
+        private DataGridView dgvDoanhThuTheoMay = null!;
+        private DataGridView dgvDoanhThuTheoNgay = null!;
+        private DataGridView dgvDoanhThuTheoGoiCuoc = null!;
+        private GroupBox grpThongKeMay = null!;
+        private GroupBox grpThongKeNgay = null!;
+        private GroupBox grpThongKeGoiCuoc = null!;
+        private GroupBox grpDanhMucFnB = null!;
+        private GroupBox grpGoiMonPhien = null!;
+        private DataGridView dgvDanhMucDichVu = null!;
+        private TextBox txtServiceName = null!;
+        private ComboBox cboServiceCategory = null!;
+        private TextBox txtServicePrice = null!;
+        private TextBox txtServiceStock = null!;
+        private CheckBox chkServiceActive = null!;
+        private NumericUpDown nudRestockQty = null!;
+        private Button btnThemMon = null!;
+        private Button btnCapNhatMon = null!;
+        private Button btnBatTatMon = null!;
+        private Button btnNhapKho = null!;
+        private Button btnLamMoiMon = null!;
+        private ComboBox cboPhienDangChoi = null!;
+        private ComboBox cboMonGoi = null!;
+        private NumericUpDown nudSoLuongGoi = null!;
+        private TextBox txtGhiChuGoiMon = null!;
+        private Button btnGoiMonVaoPhien = null!;
+        private Label lblTongDichVuPhien = null!;
+        private DataGridView dgvDichVuTheoPhien = null!;
+        private CheckBox chkApDungKhungGio = null!;
+        private NumericUpDown nudStartHour = null!;
+        private NumericUpDown nudEndHour = null!;
+        private Label lblStartHour = null!;
+        private Label lblEndHour = null!;
+        private Button btnXoaGoiCuoc = null!;
+
+        private static DataGridView CreateBillingGrid(string name)
+        {
+            return new DataGridView
+            {
+                Name = name,
+                Dock = DockStyle.Fill,
+                BackgroundColor = Color.WhiteSmoke,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                RowHeadersVisible = false,
+                ReadOnly = true,
+                MultiSelect = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+        }
+
+        private static GroupBox CreateBillingGroup(string title)
+        {
+            return new GroupBox
+            {
+                Text = title,
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                BackColor = Color.FromArgb(245, 247, 250)
+            };
+        }
+
+        private static Label CreateBillingLabel(string text, int x, int y)
+        {
+            return new Label
+            {
+                Text = text, Location = new Point(x, y),
+                AutoSize = true, Font = new Font("Segoe UI", 8.5F)
+            };
+        }
+
+        private static Button CreateBillingButton(string name, string text, int x, int y, int width, Color color)
+        {
+            return new Button
+            {
+                Name = name, Text = text,
+                Location = new Point(x, y), Size = new Size(width, 28),
+                FlatStyle = FlatStyle.Flat, ForeColor = Color.White,
+                BackColor = color, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold)
+            };
+        }
+
+        private static TextBox CreateBillingTextBox(string name, int x, int y, int width, int maxLength = 32767)
+        {
+            return new TextBox
+            {
+                Name = name, Location = new Point(x, y), Width = width,
+                MaxLength = maxLength, Font = new Font("Segoe UI", 9F)
+            };
+        }
+
+        private void InitializeBillingPhase2Layout()
+        {
+            pnlMain.Controls.Remove(splMain);
+            splMain.Panel1.Controls.Remove(grpBaoCaoPhienChoi);
+            splMain.Panel2.Controls.Remove(grpGoiCuoc);
+            splMain.Dispose();
+
+            tabControlBilling = new TabControl
+            {
+                Name = "tabControlBilling", Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            };
+            tabBaoCaoDoanhThu = new TabPage("📊 Báo Cáo Doanh Thu") { Name = "tabBaoCaoDoanhThu" };
+            tabGoiCuoc = new TabPage("⚙️ Quản Lý Gói Cước") { Name = "tabGoiCuoc", AutoScroll = true };
+            tabDichVuFnB = new TabPage("🍔 Dịch Vụ F&B & Gọi Món") { Name = "tabDichVuFnB", AutoScroll = true };
+            tabControlBilling.TabPages.AddRange(new[] { tabBaoCaoDoanhThu, tabGoiCuoc, tabDichVuFnB });
+            pnlMain.Controls.Add(tabControlBilling);
+
+            splRevenue = new SplitContainer
+            {
+                Name = "splRevenue", Dock = DockStyle.Fill,
+                Orientation = Orientation.Horizontal, Size = new Size(620, 530),
+                SplitterDistance = 280
+            };
+            tabBaoCaoDoanhThu.Controls.Add(splRevenue);
+            splRevenue.Panel1.Controls.Add(grpBaoCaoPhienChoi);
+            var summaries = new TableLayoutPanel
+            {
+                Name = "tblRevenueSummaries", Dock = DockStyle.Fill,
+                ColumnCount = 3, RowCount = 1, Padding = new Padding(1)
+            };
+            summaries.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+            summaries.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+            summaries.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34F));
+            summaries.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            grpThongKeMay = CreateBillingGroup("Theo máy");
+            grpThongKeNgay = CreateBillingGroup("Theo ngày");
+            grpThongKeGoiCuoc = CreateBillingGroup("Theo gói cước");
+            dgvDoanhThuTheoMay = CreateBillingGrid("dgvDoanhThuTheoMay");
+            dgvDoanhThuTheoNgay = CreateBillingGrid("dgvDoanhThuTheoNgay");
+            dgvDoanhThuTheoGoiCuoc = CreateBillingGrid("dgvDoanhThuTheoGoiCuoc");
+            grpThongKeMay.Controls.Add(dgvDoanhThuTheoMay);
+            grpThongKeNgay.Controls.Add(dgvDoanhThuTheoNgay);
+            grpThongKeGoiCuoc.Controls.Add(dgvDoanhThuTheoGoiCuoc);
+            summaries.Controls.Add(grpThongKeMay, 0, 0);
+            summaries.Controls.Add(grpThongKeNgay, 1, 0);
+            summaries.Controls.Add(grpThongKeGoiCuoc, 2, 0);
+            splRevenue.Panel2.Controls.Add(summaries);
+
+            // Reuse all tariff controls rather than replacing names or handlers.
+            tabGoiCuoc.Controls.Add(grpGoiCuoc);
+            pnlGoiCuocInputs.Height = 98;
+            pnlGoiCuocInputs.AutoScroll = true;
+            txtPlanName.MaxLength = 100;
+            lblPlanName.Location = new Point(5, 12);
+            txtPlanName.Location = new Point(56, 8); txtPlanName.Width = 105;
+            lblTariffType.Location = new Point(165, 12);
+            cboTariffType.Location = new Point(221, 8); cboTariffType.Width = 103;
+            lblFixedPrice.Location = new Point(329, 12);
+            txtFixedPrice.Location = new Point(378, 8); txtFixedPrice.Width = 73;
+            lblDiscountRate.Location = new Point(457, 12);
+            txtDiscountRate.Location = new Point(522, 8); txtDiscountRate.Width = 55;
+
+            chkApDungKhungGio = new CheckBox
+            {
+                Name = "chkApDungKhungGio", Text = "Áp dụng khung giờ",
+                Location = new Point(5, 53), AutoSize = true
+            };
+            lblStartHour = CreateBillingLabel("Từ giờ:", 145, 55);
+            nudStartHour = new NumericUpDown
+            {
+                Name = "nudStartHour", Minimum = 0, Maximum = 23, Value = 22,
+                Location = new Point(189, 50), Width = 42
+            };
+            lblEndHour = CreateBillingLabel("Đến giờ:", 237, 55);
+            nudEndHour = new NumericUpDown
+            {
+                Name = "nudEndHour", Minimum = 0, Maximum = 23, Value = 6,
+                Location = new Point(291, 50), Width = 42
+            };
+            btnThemGoiCuoc.Location = new Point(338, 48);
+            btnThemGoiCuoc.Size = new Size(77, 28);
+            btnCapNhatGoiCuoc.Location = new Point(419, 48);
+            btnCapNhatGoiCuoc.Size = new Size(77, 28);
+            btnXoaGoiCuoc = CreateBillingButton(
+                "btnXoaGoiCuoc", "🗑️ Xóa Gói", 500, 48, 77, Color.FromArgb(178, 34, 34));
+            pnlGoiCuocInputs.Controls.AddRange(new Control[]
+            {
+                chkApDungKhungGio, lblStartHour, nudStartHour,
+                lblEndHour, nudEndHour, btnXoaGoiCuoc
+            });
+
+            // F&B upper pane: item catalog and stock actions.
+            splFnB = new SplitContainer
+            {
+                Name = "splFnB", Dock = DockStyle.Fill,
+                Orientation = Orientation.Horizontal, Size = new Size(620, 530),
+                SplitterDistance = 275
+            };
+            tabDichVuFnB.Controls.Add(splFnB);
+            grpDanhMucFnB = CreateBillingGroup("Danh mục món F&B và tồn kho");
+            splFnB.Panel1.Controls.Add(grpDanhMucFnB);
+            dgvDanhMucDichVu = CreateBillingGrid("dgvDanhMucDichVu");
+            var itemPanel = new Panel { Dock = DockStyle.Top, Height = 112, AutoScroll = true };
+            grpDanhMucFnB.Controls.Add(dgvDanhMucDichVu);
+            grpDanhMucFnB.Controls.Add(itemPanel);
+            txtServiceName = CreateBillingTextBox("txtServiceName", 62, 8, 167, 100);
+            cboServiceCategory = new ComboBox
+            {
+                Name = "cboServiceCategory", Location = new Point(272, 8),
+                Width = 112, DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboServiceCategory.Items.AddRange(new object[] { "Đồ uống", "Đồ ăn", "Phụ kiện" });
+            txtServicePrice = CreateBillingTextBox("txtServicePrice", 418, 8, 73);
+            txtServiceStock = CreateBillingTextBox("txtServiceStock", 530, 8, 46);
+            chkServiceActive = new CheckBox
+            {
+                Name = "chkServiceActive", Text = "Đang kinh doanh",
+                Location = new Point(8, 45), AutoSize = true, Checked = true
+            };
+            nudRestockQty = new NumericUpDown
+            {
+                Name = "nudRestockQty", Minimum = 1, Maximum = 1000,
+                Value = 10, Location = new Point(193, 42), Width = 60
+            };
+            btnThemMon = CreateBillingButton("btnThemMon", "➕ Thêm Món", 8, 78, 100, Color.FromArgb(46, 139, 87));
+            btnCapNhatMon = CreateBillingButton("btnCapNhatMon", "✏️ Sửa Món", 114, 78, 101, Color.FromArgb(30, 144, 255));
+            btnBatTatMon = CreateBillingButton("btnBatTatMon", "🔄 Đổi Trạng Thái", 221, 78, 113, Color.FromArgb(204, 102, 0));
+            btnNhapKho = CreateBillingButton("btnNhapKho", "📦 Nhập Kho", 340, 78, 101, Color.FromArgb(106, 90, 205));
+            btnLamMoiMon = CreateBillingButton("btnLamMoiMon", "Làm mới", 447, 78, 101, Color.FromArgb(70, 80, 95));
+            itemPanel.Controls.AddRange(new Control[]
+            {
+                CreateBillingLabel("Tên món:", 7, 11), txtServiceName,
+                CreateBillingLabel("Loại:", 239, 11), cboServiceCategory,
+                CreateBillingLabel("Giá:", 392, 11), txtServicePrice,
+                CreateBillingLabel("Kho:", 499, 11), txtServiceStock,
+                chkServiceActive, CreateBillingLabel("Nhập thêm:", 132, 45), nudRestockQty,
+                btnThemMon, btnCapNhatMon, btnBatTatMon, btnNhapKho, btnLamMoiMon
+            });
+
+            // F&B lower pane: active session order form and order history.
+            grpGoiMonPhien = CreateBillingGroup("Gọi món vào phiên đang chơi");
+            splFnB.Panel2.Controls.Add(grpGoiMonPhien);
+            dgvDichVuTheoPhien = CreateBillingGrid("dgvDichVuTheoPhien");
+            var orderPanel = new Panel { Dock = DockStyle.Top, Height = 112, AutoScroll = true };
+            grpGoiMonPhien.Controls.Add(dgvDichVuTheoPhien);
+            grpGoiMonPhien.Controls.Add(orderPanel);
+            cboPhienDangChoi = new ComboBox
+            {
+                Name = "cboPhienDangChoi", Location = new Point(66, 7), Width = 501,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            cboMonGoi = new ComboBox
+            {
+                Name = "cboMonGoi", Location = new Point(62, 41), Width = 246,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            nudSoLuongGoi = new NumericUpDown
+            {
+                Name = "nudSoLuongGoi", Minimum = 1, Maximum = 100,
+                Value = 1, Location = new Point(337, 40), Width = 48
+            };
+            txtGhiChuGoiMon = CreateBillingTextBox("txtGhiChuGoiMon", 448, 40, 120, 255);
+            btnGoiMonVaoPhien = CreateBillingButton(
+                "btnGoiMonVaoPhien", "🛒 Gọi Món Vào Phiên", 8, 78, 175, Color.FromArgb(34, 139, 34));
+            lblTongDichVuPhien = new Label
+            {
+                Name = "lblTongDichVuPhien", Text = "Chưa có máy nào đang chơi",
+                Location = new Point(191, 83), AutoSize = true,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            };
+            orderPanel.Controls.AddRange(new Control[]
+            {
+                CreateBillingLabel("Phiên:", 8, 10), cboPhienDangChoi,
+                CreateBillingLabel("Món:", 8, 44), cboMonGoi,
+                CreateBillingLabel("SL:", 315, 44), nudSoLuongGoi,
+                CreateBillingLabel("Ghi chú:", 392, 44), txtGhiChuGoiMon,
+                btnGoiMonVaoPhien, lblTongDichVuPhien
+            });
+        }
 
         private Panel pnlHeader;
         private Label lblSubtitle;

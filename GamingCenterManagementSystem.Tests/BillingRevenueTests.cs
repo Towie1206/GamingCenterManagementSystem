@@ -72,5 +72,72 @@ namespace GamingCenterManagementSystem.Tests
                 DBBilling.FilterCompletedRevenueSessions(
                     Array.Empty<GamingSession>(), new DateTime(2026, 11, 2), new DateTime(2026, 11, 1)));
         }
+        [Fact]
+        public void GroupRevenueByDay_UsesEndDate_AndIgnoresActiveSessions()
+        {
+            var day1 = new DateTime(2026, 11, 10);
+            var day2 = new DateTime(2026, 11, 11);
+            GamingSession[] sessions =
+            {
+                new() { SessionId = 1, EndTime = day1.AddHours(23), Status = "Completed", PlayCost = 10000, ServiceCost = 5000, TotalCost = 15000 },
+                new() { SessionId = 2, EndTime = day1.AddHours(2), Status = "Completed", PlayCost = 12000, ServiceCost = 8000, TotalCost = 20000 },
+                new() { SessionId = 3, EndTime = day2, Status = "Completed", PlayCost = 25000, ServiceCost = 0, TotalCost = 25000 },
+                new() { SessionId = 4, EndTime = day2, Status = "Active", PlayCost = 99999, ServiceCost = 0, TotalCost = 99999 }
+            };
+
+            var result = DBBilling.GroupRevenueByDay(sessions);
+
+            Assert.Equal(2, result.Count);
+            Assert.Equal(day2, result[0].Date);
+            Assert.Equal(day1, result[1].Date);
+            Assert.Equal(2, result[1].SessionCount);
+            Assert.Equal(22000m, result[1].PlayRevenue);
+            Assert.Equal(13000m, result[1].ServiceRevenue);
+            Assert.Equal(35000m, result[1].Revenue);
+        }
+
+        [Fact]
+        public void GroupRevenueByTariffType_IsCaseInsensitive_AndSortsRevenue()
+        {
+            var day = new DateTime(2026, 11, 11);
+            GamingSession[] sessions =
+            {
+                new() { EndTime = day, Status = "Completed", TariffType = "Hourly", PlayCost = 10000, TotalCost = 10000 },
+                new() { EndTime = day, Status = "Completed", TariffType = "hourly", PlayCost = 20000, TotalCost = 20000 },
+                new() { EndTime = day, Status = "Completed", TariffType = "NightCombo", PlayCost = 45000, TotalCost = 45000 },
+                new() { EndTime = day, Status = "Active", TariffType = "MemberTier", TotalCost = 99999 }
+            };
+
+            var result = DBBilling.GroupRevenueByTariffType(sessions);
+
+            Assert.Equal(2, result.Count);
+            Assert.Equal("NightCombo", result[0].TariffType);
+            Assert.Equal(45000m, result[0].Revenue);
+            Assert.Equal(2, result[1].SessionCount);
+            Assert.Equal(30000m, result[1].Revenue);
+        }
+
+        [Fact]
+        public void RevenueTxt_KeepsOriginalSections_AndAddsDailyAndTariffSummaries()
+        {
+            var day = new DateTime(2026, 11, 11);
+            var sessions = new[]
+            {
+                new GamingSession { SessionId = 12, StationId = 7,
+                    StartTime = day.AddHours(9), EndTime = day.AddHours(10),
+                    Status = "Completed", TariffType = "Hourly",
+                    PlayCost = 10000m, ServiceCost = 5000m, TotalCost = 15000m }
+            };
+
+            string report = DBBilling.BuildRevenueShiftReport(sessions, day, day);
+
+            Assert.Contains("THỐNG KÊ DOANH THU THEO MÁY", report);
+            Assert.Contains("THỐNG KÊ DOANH THU THEO NGÀY", report);
+            Assert.Contains("THỐNG KÊ DOANH THU THEO GÓI CƯỚC", report);
+            Assert.Contains("TỔNG DOANH THU: 15.000 VNĐ", report);
+            Assert.Contains("PC-07", report);
+            Assert.Contains("Hourly", report);
+        }
+
     }
 }
