@@ -27,6 +27,15 @@
     <Compile Update="FormBilling.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Update="FormClientDashboard.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormChangePasswordDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="FormOrderServiceDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

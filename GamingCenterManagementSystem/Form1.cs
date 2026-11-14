@@ -103,6 +103,27 @@ namespace GamingCenterManagementSystem
 
             btnLamMoiSoDo.Click += (s, e) => LoadDashboardData();
 
+            btnClientMode.Click += (s, e) =>
+            {
+                int stationId = _selectedStation?.StationId ?? 1;
+                using var clientForm = new FormClientDashboard(_dbStation, _dbBilling, _dbUser, stationId);
+                clientForm.ShowDialog(this);
+                LoadDashboardData();
+            };
+
+            StaffCallQueue.OnCallReceived += call =>
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                try
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        lblRealtimeSummary.Text = $"🔔 Máy {call.StationName} gọi quầy: {call.Reason} ({call.Timestamp:HH:mm:ss})";
+                    }));
+                }
+                catch { }
+            };
+
             btnDangXuat.Click += (s, e) =>
             {
                 var confirm = ShowNotification(
@@ -205,6 +226,7 @@ namespace GamingCenterManagementSystem
                 btnNavTournament.Enabled = true;
                 btnNavBilling.Enabled = true;
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
+                btnClientMode.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
             }
@@ -217,6 +239,7 @@ namespace GamingCenterManagementSystem
                 btnNavTournament.Enabled = true;
                 btnNavBilling.Enabled = false;
                 btnNavBilling.Text = "🔒 Doanh Thu (Chỉ Admin)";
+                btnClientMode.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
             }
@@ -229,6 +252,7 @@ namespace GamingCenterManagementSystem
                 btnNavTournament.Enabled = false;
                 btnNavBilling.Enabled = false;
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
+                btnClientMode.Enabled = true;
                 btnMoMay.Enabled = false;
                 btnGoiMon.Enabled = false;
                 btnDongMay.Enabled = false;

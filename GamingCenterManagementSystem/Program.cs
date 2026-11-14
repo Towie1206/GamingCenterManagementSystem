@@ -19,10 +19,21 @@ namespace GamingCenterManagementSystem
                     break;
                 }
 
-                using var mainForm = new Form1();
-                Application.Run(mainForm);
+                bool isLogoutRequested = false;
+                if (CurrentUserSession.IsMember)
+                {
+                    using var clientForm = new FormClientDashboard();
+                    Application.Run(clientForm);
+                    isLogoutRequested = clientForm.IsLogoutRequested;
+                }
+                else
+                {
+                    using var adminForm = new Form1();
+                    Application.Run(adminForm);
+                    isLogoutRequested = adminForm.IsLogoutRequested;
+                }
 
-                if (!mainForm.IsLogoutRequested)
+                if (!isLogoutRequested)
                 {
                     CurrentUserSession.Clear();
                     break;

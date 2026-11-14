@@ -28,6 +28,7 @@ namespace GamingCenterManagementSystem
             lblMainTitle = new Label();
             pnlNav = new Panel();
             btnLamMoiSoDo = new Button();
+            btnClientMode = new Button();
             btnNavBilling = new Button();
             btnNavTournament = new Button();
             btnNavMember = new Button();
@@ -132,6 +133,7 @@ namespace GamingCenterManagementSystem
             // 
             pnlNav.BackColor = Color.FromArgb(30, 36, 60);
             pnlNav.Controls.Add(btnLamMoiSoDo);
+            pnlNav.Controls.Add(btnClientMode);
             pnlNav.Controls.Add(btnNavBilling);
             pnlNav.Controls.Add(btnNavTournament);
             pnlNav.Controls.Add(btnNavMember);
@@ -155,9 +157,23 @@ namespace GamingCenterManagementSystem
             btnLamMoiSoDo.Margin = new Padding(3, 4, 3, 4);
             btnLamMoiSoDo.Name = "btnLamMoiSoDo";
             btnLamMoiSoDo.Size = new Size(160, 45);
-            btnLamMoiSoDo.TabIndex = 4;
+            btnLamMoiSoDo.TabIndex = 5;
             btnLamMoiSoDo.Text = "🔄 Làm Mới Sơ Đồ";
             btnLamMoiSoDo.UseVisualStyleBackColor = false;
+            // 
+            // btnClientMode
+            // 
+            btnClientMode.BackColor = Color.FromArgb(0, 180, 136);
+            btnClientMode.FlatStyle = FlatStyle.Flat;
+            btnClientMode.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnClientMode.ForeColor = Color.White;
+            btnClientMode.Location = new Point(882, 11);
+            btnClientMode.Margin = new Padding(3, 4, 3, 4);
+            btnClientMode.Name = "btnClientMode";
+            btnClientMode.Size = new Size(220, 45);
+            btnClientMode.TabIndex = 4;
+            btnClientMode.Text = "🖥️ Máy Trạm (Client Mode)";
+            btnClientMode.UseVisualStyleBackColor = false;
             // 
             // btnNavBilling
             // 
@@ -165,10 +181,10 @@ namespace GamingCenterManagementSystem
             btnNavBilling.FlatStyle = FlatStyle.Flat;
             btnNavBilling.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnNavBilling.ForeColor = Color.White;
-            btnNavBilling.Location = new Point(728, 11);
+            btnNavBilling.Location = new Point(662, 11);
             btnNavBilling.Margin = new Padding(3, 4, 3, 4);
             btnNavBilling.Name = "btnNavBilling";
-            btnNavBilling.Size = new Size(235, 45);
+            btnNavBilling.Size = new Size(210, 45);
             btnNavBilling.TabIndex = 3;
             btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
             btnNavBilling.UseVisualStyleBackColor = false;
@@ -179,10 +195,10 @@ namespace GamingCenterManagementSystem
             btnNavTournament.FlatStyle = FlatStyle.Flat;
             btnNavTournament.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnNavTournament.ForeColor = Color.White;
-            btnNavTournament.Location = new Point(491, 11);
+            btnNavTournament.Location = new Point(447, 11);
             btnNavTournament.Margin = new Padding(3, 4, 3, 4);
             btnNavTournament.Name = "btnNavTournament";
-            btnNavTournament.Size = new Size(225, 45);
+            btnNavTournament.Size = new Size(205, 45);
             btnNavTournament.TabIndex = 2;
             btnNavTournament.Text = "🏆 Giải Đấu LAN";
             btnNavTournament.UseVisualStyleBackColor = false;
@@ -193,10 +209,10 @@ namespace GamingCenterManagementSystem
             btnNavMember.FlatStyle = FlatStyle.Flat;
             btnNavMember.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnNavMember.ForeColor = Color.White;
-            btnNavMember.Location = new Point(254, 11);
+            btnNavMember.Location = new Point(232, 11);
             btnNavMember.Margin = new Padding(3, 4, 3, 4);
             btnNavMember.Name = "btnNavMember";
-            btnNavMember.Size = new Size(225, 45);
+            btnNavMember.Size = new Size(205, 45);
             btnNavMember.TabIndex = 1;
             btnNavMember.Text = "👤 Hội Viên & Nạp Ví";
             btnNavMember.UseVisualStyleBackColor = false;
@@ -210,7 +226,7 @@ namespace GamingCenterManagementSystem
             btnNavStation.Location = new Point(17, 11);
             btnNavStation.Margin = new Padding(3, 4, 3, 4);
             btnNavStation.Name = "btnNavStation";
-            btnNavStation.Size = new Size(225, 45);
+            btnNavStation.Size = new Size(205, 45);
             btnNavStation.TabIndex = 0;
             btnNavStation.Text = "🖥️ Máy Trạm & Khu Vực";
             btnNavStation.UseVisualStyleBackColor = false;
@@ -556,6 +572,7 @@ namespace GamingCenterManagementSystem
         private Button btnNavMember;
         private Button btnNavTournament;
         private Button btnNavBilling;
+        private Button btnClientMode;
         private Button btnLamMoiSoDo;
         private Panel pnlLegend;
         private Label lblLegendTitle;
