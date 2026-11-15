@@ -33,6 +33,9 @@ namespace GamingCenterManagementSystem.DAL
             new ComputerStation { StationId = 10, StationName = "PC-10", ZoneId = 3, IpAddress = "192.168.1.110", Status = "Available" }
         };
 
+        /// <summary>
+        /// Lấy toàn bộ danh sách máy trạm trong phòng máy, có hỗ trợ cơ chế Fallback Offline.
+        /// </summary>
         public List<ComputerStation> GetAll()
         {
             List<ComputerStation> list = new List<ComputerStation>();
@@ -67,6 +70,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Lấy danh mục các khu vực phòng máy (Thường, VIP, Thi Đấu) kèm bảng giá giờ chơi.
+        /// </summary>
         public List<StationZone> GetAllZones()
         {
             List<StationZone> list = new List<StationZone>();
@@ -164,6 +170,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Thêm mới một máy trạm vào CSDL với trạng thái mặc định Available.
+        /// </summary>
         public bool Add(ComputerStation entity)
         {
             bool opened = false;
@@ -589,7 +598,10 @@ namespace GamingCenterManagementSystem.DAL
         // =========================================================================
         // NHIỆM VỤ 3: CHUYỂN MÁY ĐANG CHƠI AN TOÀN VỚI SQL TRANSACTION
         // =========================================================================
-        public bool TransferStation(int sourceStationId, int targetStationId, out string errorMessage)
+        /// <summary>
+        /// Thực hiện chuyển máy trạm an toàn trong SqlTransaction khi khách đang chơi.
+        /// </summary>
+        public bool TransferStation(int sourceStationId, int targetStationId, out string errorMessage)        
         {
             errorMessage = string.Empty;
 
