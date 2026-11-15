@@ -54,6 +54,13 @@ namespace GamingCenterManagementSystem
             btnXoaZone.Click += BtnXoaZone_Click;
             btnLamMoiZone.Click += BtnLamMoiZone_Click;
             dgvKhuVuc.SelectionChanged += DgvKhuVuc_SelectionChanged;
+
+            // Cấu hình ToolTip hướng dẫn thao tác người dùng
+            ToolTip tip = new ToolTip();
+            tip.SetToolTip(btnChuyenMay, "Chuyển khách đang chơi từ máy nguồn sang máy đích khả dụng");
+            tip.SetToolTip(btnBaoTri, "Chuyển máy sang trạng thái bảo trì kỹ thuật");
+            tip.SetToolTip(btnMoMay, "Khôi phục máy bảo trì về trạng thái sẵn sàng (Available)");
+            tip.SetToolTip(btnThemZone, "Thêm khu vực phòng máy mới kèm đơn giá cấu hình");
         }
 
         private void LoadData()
