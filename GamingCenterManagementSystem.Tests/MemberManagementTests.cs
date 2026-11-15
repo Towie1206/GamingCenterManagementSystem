@@ -431,5 +431,32 @@ namespace GamingCenterManagementSystem.Tests
 
             Assert.Null(threadException);
         }
+
+        [Fact]
+        public async Task DBUser_TopUp_NegativeAmount_ReturnsFalse()
+        {
+            var dbUser = CreateOfflineDb();
+            bool result = await dbUser.TopUpBalanceAsync(1, -50000m);
+            Assert.False(result);
+        }
+
+        [Fact]
+        public void AppUser_InitialStatus_DefaultsToActive()
+        {
+            var user = new AppUser { Username = "newuser", FullName = "Hội viên mới" };
+            Assert.True(user.IsActive);
+        }
+
+        [Fact]
+        public void DBUser_SearchUsers_EmptyKeyword_ReturnsFullList()
+        {
+            var users = new List<AppUser>
+            {
+                new AppUser { UserId = 1, Username = "gamer01", FullName = "Nguyễn Văn A" },
+                new AppUser { UserId = 2, Username = "gamer02", FullName = "Trần Thị B" }
+            };
+            var result = DBUser.SearchUsers(users, "");
+            Assert.Equal(2, result.Count);
+        }
     }
 }

@@ -13,6 +13,7 @@ namespace GamingCenterManagementSystem
     public partial class FormMember : Form
     {
         private readonly DBUser _dbUser = new();
+        private readonly ToolTip _memberToolTip = new();
         private List<AppUser> _userList = new();
         private AppUser? _selectedUser = null;
         private bool _skipInitialLoadEvent = false;
@@ -43,6 +44,60 @@ namespace GamingCenterManagementSystem
 
         private void SetupEvents()
         {
+            // Hướng dẫn nhanh cho các thao tác quản lý hội viên.
+            _memberToolTip.SetToolTip(txtTimKiem, "Tìm hội viên theo tên đăng nhập, họ tên, vai trò hoặc hạng thẻ");
+            _memberToolTip.SetToolTip(btnNapTien, "Nạp tiền vào ví hội viên và ghi nhận giao dịch");
+            _memberToolTip.SetToolTip(btnXoaHoiVien, "Khóa hoặc mở khóa tài khoản hội viên đang chọn");
+            _memberToolTip.SetToolTip(btnThemHoiVien, "Tạo tài khoản hội viên mới");
+            _memberToolTip.SetToolTip(tabTopHoiVien, "Xem xếp hạng hội viên theo tổng số tiền đã nạp");
+            _memberToolTip.SetToolTip(btnTimKiem, "Lọc danh sách theo nội dung tìm kiếm và bộ lọc hiện tại");
+            _memberToolTip.SetToolTip(btnSuaHoiVien, "Cập nhật thông tin hội viên đang chọn");
+            _memberToolTip.SetToolTip(btnLamMoi, "Xóa bộ lọc, tải lại danh sách hội viên (Ctrl+R)");
+            _memberToolTip.SetToolTip(btnDatLaiTimKiem, "Đặt lại ô tìm kiếm và các bộ lọc về mặc định");
+            _memberToolTip.SetToolTip(btnDoiMatKhau, "Đổi mật khẩu cho tài khoản đang chọn");
+            _memberToolTip.SetToolTip(btnTaiLaiLichSu, "Tải lại lịch sử giao dịch ví của hội viên đang chọn");
+            _memberToolTip.SetToolTip(btnCong20k, "Nạp nhanh 20.000 VNĐ");
+            _memberToolTip.SetToolTip(btnCong50k, "Nạp nhanh 50.000 VNĐ");
+            _memberToolTip.SetToolTip(btnCong100k, "Nạp nhanh 100.000 VNĐ");
+            _memberToolTip.SetToolTip(btnCong200k, "Nạp nhanh 200.000 VNĐ");
+
+            // Phím tắt: Ctrl+F tìm kiếm, Ctrl+N tạo mới, Ctrl+R tải lại danh sách,
+            // Ctrl+H mở tab Lịch sử ví, Ctrl+T mở tab Top hội viên.
+            KeyPreview = true;
+            KeyDown += (s, e) =>
+            {
+                if (e.Control && e.KeyCode == Keys.F)
+                {
+                    txtTimKiem.Focus();
+                    txtTimKiem.SelectAll();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.Control && e.KeyCode == Keys.N)
+                {
+                    ResetEditorToCreateMode();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.Control && e.KeyCode == Keys.R)
+                {
+                    btnLamMoi.PerformClick();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.Control && e.KeyCode == Keys.H)
+                {
+                    tabMain.SelectedTab = tabLichSuVi;
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.Control && e.KeyCode == Keys.T)
+                {
+                    tabMain.SelectedTab = tabTopHoiVien;
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+            };
             Load += async (s, e) =>
             {
                 if (_skipInitialLoadEvent)

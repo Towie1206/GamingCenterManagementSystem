@@ -473,6 +473,10 @@ namespace GamingCenterManagementSystem.DAL
         public AppUser? Authenticate(string? username, string? password) =>
             TryAuthenticate(username, password, out AppUser? user, out _) ? user : null;
 
+        /// <summary>
+        /// Khóa hoặc kích hoạt lại tài khoản hội viên vi phạm quy định phòng máy (cập nhật cột IsActive).
+        /// Trả về false nếu DB chưa có cột IsActive hoặc không tìm thấy userId; khi mất kết nối SQL sẽ chuyển sang dữ liệu dự phòng.
+        /// </summary>
         public bool SetUserActiveStatus(int userId, bool isActive)
         {
             bool opened = false;
@@ -504,6 +508,10 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Phiên bản bất đồng bộ của <see cref="SetUserActiveStatus"/>: khóa hoặc kích hoạt lại tài khoản hội viên (IsActive).
+        /// Trả về false nếu userId không hợp lệ (&lt;= 0), DB chưa có cột IsActive hoặc không tìm thấy tài khoản.
+        /// </summary>
         public async Task<bool> SetUserActiveStatusAsync(int userId, bool isActive)
         {
             if (userId <= 0)
@@ -571,6 +579,10 @@ namespace GamingCenterManagementSystem.DAL
                 CreatedAt = transaction.CreatedAt
             };
 
+        /// <summary>
+        /// Truy vấn lịch sử giao dịch ví (Nạp tiền, Trừ cước, Hoàn tiền) của một hội viên, mới nhất xếp trước.
+        /// Trả về danh sách rỗng nếu userId không hợp lệ; khi mất kết nối SQL sẽ đọc từ dữ liệu dự phòng.
+        /// </summary>
         public List<WalletTransaction> GetWalletTransactionsByUserId(int userId)
         {
             if (userId <= 0)
@@ -612,6 +624,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Phiên bản bất đồng bộ của <see cref="GetWalletTransactionsByUserId"/>: lấy lịch sử giao dịch ví của hội viên, mới nhất xếp trước.
+        /// </summary>
         public async Task<List<WalletTransaction>> GetWalletTransactionsByUserIdAsync(int userId)
         {
             if (userId <= 0)
@@ -653,6 +668,10 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Xếp hạng các hội viên (Role = Member) có số dư ví cao nhất bằng LINQ.
+        /// Khi số dư bằng nhau thì xếp theo UserId tăng dần; topCount &lt;= 0 trả về danh sách rỗng.
+        /// </summary>
         public static List<AppUser> GetTopMembersByBalance(IEnumerable<AppUser> users, int topCount = 5)
         {
             ArgumentNullException.ThrowIfNull(users);
@@ -667,6 +686,10 @@ namespace GamingCenterManagementSystem.DAL
                 .ToList();
         }
 
+        /// <summary>
+        /// Xếp hạng hội viên nạp tiền nhiều nhất bằng LINQ (GroupBy theo UserId trên các giao dịch TopUp) phục vụ chính sách chăm sóc khách hàng.
+        /// Sắp xếp theo tổng tiền nạp giảm dần, rồi số lần nạp, rồi UserId; chỉ tính tài khoản có Role = Member.
+        /// </summary>
         public static List<MemberTopUpSummary> BuildTopMembersByTopUp(
             IEnumerable<AppUser> users,
             IEnumerable<WalletTransaction> transactions,
@@ -706,6 +729,10 @@ namespace GamingCenterManagementSystem.DAL
                 .ToList();
         }
 
+        /// <summary>
+        /// Lấy Top hội viên nạp tiền nhiều nhất: tổng hợp giao dịch TopUp từ bảng WalletTransaction rồi ghép với danh sách hội viên đã cache.
+        /// Khi mất kết nối SQL sẽ chuyển sang <see cref="BuildTopMembersByTopUp"/> trên dữ liệu dự phòng.
+        /// </summary>
         public async Task<List<MemberTopUpSummary>> GetTopMembersByTopUpAsync(
             IEnumerable<AppUser> cachedUsers, int topCount = 5)
         {
