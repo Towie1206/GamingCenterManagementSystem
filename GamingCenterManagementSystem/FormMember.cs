@@ -68,12 +68,13 @@ namespace GamingCenterManagementSystem
             _memberToolTip.SetToolTip(btnCong200k, "Nạp nhanh 200.000 VNĐ");
 
             // Phím tắt: Ctrl+F tìm kiếm, Ctrl+N tạo mới, Ctrl+R tải lại danh sách,
-            // Ctrl+H mở tab Lịch sử ví, Ctrl+T mở tab Top hội viên.
+            // Ctrl+D/Ctrl+M mở tab Danh sách hội viên, Ctrl+H mở tab Lịch sử ví, Ctrl+T mở tab Top hội viên.
             KeyPreview = true;
             KeyDown += (s, e) =>
             {
                 if (e.Control && e.KeyCode == Keys.F)
                 {
+                    tabMain.SelectedTab = tabDanhSach;
                     txtTimKiem.Focus();
                     txtTimKiem.SelectAll();
                     e.Handled = true;
@@ -81,6 +82,7 @@ namespace GamingCenterManagementSystem
                 }
                 else if (e.Control && e.KeyCode == Keys.N)
                 {
+                    tabMain.SelectedTab = tabDanhSach;
                     ResetEditorToCreateMode();
                     e.Handled = true;
                     e.SuppressKeyPress = true;
@@ -88,6 +90,12 @@ namespace GamingCenterManagementSystem
                 else if (e.Control && e.KeyCode == Keys.R)
                 {
                     btnLamMoi.PerformClick();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                }
+                else if (e.Control && (e.KeyCode == Keys.D || e.KeyCode == Keys.M))
+                {
+                    tabMain.SelectedTab = tabDanhSach;
                     e.Handled = true;
                     e.SuppressKeyPress = true;
                 }

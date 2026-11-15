@@ -771,5 +771,81 @@ namespace GamingCenterManagementSystem.Tests
             var result = DBUser.SearchUsers(users, "");
             Assert.Equal(2, result.Count);
         }
+
+        [Fact]
+        public void FormMember_KeyboardShortcuts_And_ToolTips_WorkProperlyOnSTAThread()
+        {
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
+            {
+                try
+                {
+                    using var form = new FormMember
+                    {
+                        ShowInTaskbar = false,
+                        WindowState = FormWindowState.Minimized
+                    };
+                    form.Show();
+                    Application.DoEvents();
+
+                    var toolTip = typeof(FormMember)
+                        .GetField("_memberToolTip", BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?.GetValue(form) as ToolTip;
+                    Assert.NotNull(toolTip);
+
+                    var txtTimKiem = typeof(FormMember).GetField("txtTimKiem", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TextBox;
+                    var btnNapTien = typeof(FormMember).GetField("btnNapTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var tabMain = typeof(FormMember).GetField("tabMain", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as TabControl;
+
+                    Assert.NotNull(txtTimKiem);
+                    Assert.NotNull(btnNapTien);
+                    Assert.NotNull(tabMain);
+
+                    Assert.False(string.IsNullOrEmpty(toolTip!.GetToolTip(txtTimKiem!)));
+                    Assert.False(string.IsNullOrEmpty(toolTip.GetToolTip(btnNapTien!)));
+
+                    var onKeyDown = typeof(FormMember).GetMethod("OnKeyDown", BindingFlags.NonPublic | BindingFlags.Instance);
+                    Assert.NotNull(onKeyDown);
+
+                    // Test Ctrl+T -> tabTopHoiVien (tab index 2)
+                    onKeyDown!.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.T) });
+                    Assert.Equal(2, tabMain!.SelectedIndex);
+
+                    // Test Ctrl+H -> tabLichSuVi (tab index 1)
+                    onKeyDown.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.H) });
+                    Assert.Equal(1, tabMain.SelectedIndex);
+
+                    // Test Ctrl+D -> tabDanhSach (tab index 0)
+                    onKeyDown.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.D) });
+                    Assert.Equal(0, tabMain.SelectedIndex);
+
+                    // Test Ctrl+T then Ctrl+F -> should switch to tabDanhSach (index 0)
+                    onKeyDown.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.T) });
+                    Assert.Equal(2, tabMain.SelectedIndex);
+                    onKeyDown.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.F) });
+                    Assert.Equal(0, tabMain.SelectedIndex);
+
+                    // Test Ctrl+H then Ctrl+N -> should switch to tabDanhSach (index 0)
+                    onKeyDown.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.H) });
+                    Assert.Equal(1, tabMain.SelectedIndex);
+                    onKeyDown.Invoke(form, new object[] { new KeyEventArgs(Keys.Control | Keys.N) });
+                    Assert.Equal(0, tabMain.SelectedIndex);
+
+                    form.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+            });
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+            bool completed = staThread.Join(TimeSpan.FromSeconds(10));
+
+            Assert.True(completed, "STA thread timed out");
+            Assert.Null(threadException);
+        }
     }
 }

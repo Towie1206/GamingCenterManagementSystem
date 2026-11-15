@@ -14,6 +14,7 @@ namespace GamingCenterManagementSystem
     public partial class FormStation : Form
     {
         private readonly DBStation _dbStation = new();
+        private readonly ToolTip _stationToolTip = new();
         private List<ComputerStation> _stationList = new();
         private List<StationZone> _zoneList = new();
 
@@ -56,11 +57,18 @@ namespace GamingCenterManagementSystem
             dgvKhuVuc.SelectionChanged += DgvKhuVuc_SelectionChanged;
 
             // Cấu hình ToolTip hướng dẫn thao tác người dùng
-            ToolTip tip = new ToolTip();
-            tip.SetToolTip(btnChuyenMay, "Chuyển khách đang chơi từ máy nguồn sang máy đích khả dụng");
-            tip.SetToolTip(btnBaoTri, "Chuyển máy sang trạng thái bảo trì kỹ thuật");
-            tip.SetToolTip(btnMoMay, "Khôi phục máy bảo trì về trạng thái sẵn sàng (Available)");
-            tip.SetToolTip(btnThemZone, "Thêm khu vực phòng máy mới kèm đơn giá cấu hình");
+            _stationToolTip.SetToolTip(btnThemMay, "Thêm máy trạm mới vào hệ thống");
+            _stationToolTip.SetToolTip(btnSuaMay, "Cập nhật thông tin máy trạm đang chọn");
+            _stationToolTip.SetToolTip(btnXoaMay, "Xóa máy trạm khỏi hệ thống (chỉ khi máy không đang sử dụng)");
+            _stationToolTip.SetToolTip(btnBaoTri, "Chuyển máy sang trạng thái bảo trì kỹ thuật");
+            _stationToolTip.SetToolTip(btnMoMay, "Khôi phục máy bảo trì về trạng thái sẵn sàng (Available)");
+            _stationToolTip.SetToolTip(btnLamMoi, "Làm mới danh sách máy trạm");
+            _stationToolTip.SetToolTip(btnApDungLoc, "Lọc máy trạm theo khu vực và trạng thái đã chọn");
+            _stationToolTip.SetToolTip(btnChuyenMay, "Chuyển khách đang chơi từ máy nguồn sang máy đích khả dụng");
+            _stationToolTip.SetToolTip(btnThemZone, "Thêm khu vực phòng máy mới kèm đơn giá cấu hình");
+            _stationToolTip.SetToolTip(btnSuaZone, "Cập nhật tên, đơn giá hoặc mô tả khu vực đang chọn");
+            _stationToolTip.SetToolTip(btnXoaZone, "Xóa khu vực đã chọn nếu không còn máy nào trực thuộc");
+            _stationToolTip.SetToolTip(btnLamMoiZone, "Làm mới danh mục khu vực phòng máy");
         }
 
         private void LoadData()

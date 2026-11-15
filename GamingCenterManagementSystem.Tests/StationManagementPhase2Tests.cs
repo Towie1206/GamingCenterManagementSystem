@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
 using Xunit;
@@ -60,9 +63,8 @@ namespace GamingCenterManagementSystem.Tests
         [Fact]
         public void ComputerStation_InvalidIpLength_Rejected()
         {
-            var ipv4Regex = new Regex(@"^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$");
             const string malformedIp = "192.168.1.999";
-            bool isValid = ipv4Regex.IsMatch(malformedIp);
+            bool isValid = Ipv4Regex.IsMatch(malformedIp);
             Assert.False(isValid);
         }
 
@@ -124,6 +126,62 @@ namespace GamingCenterManagementSystem.Tests
             Assert.Equal("Arena VIP", zone.ZoneName);
             Assert.Equal(25000m, zone.BasePricePerHour);
             Assert.Equal("RTX 4090, 360Hz", zone.Description);
+        }
+
+        [Fact]
+        public void FormStation_ToolTips_ConfiguredProperlyOnSTAThread()
+        {
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
+            {
+                try
+                {
+                    using var form = new FormStation
+                    {
+                        ShowInTaskbar = false,
+                        WindowState = FormWindowState.Minimized
+                    };
+                    form.Show();
+                    Application.DoEvents();
+
+                    var toolTip = typeof(FormStation)
+                        .GetField("_stationToolTip", BindingFlags.NonPublic | BindingFlags.Instance)
+                        ?.GetValue(form) as ToolTip;
+                    Assert.NotNull(toolTip);
+
+                    var btnChuyenMay = typeof(FormStation).GetField("btnChuyenMay", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnBaoTri = typeof(FormStation).GetField("btnBaoTri", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnMoMay = typeof(FormStation).GetField("btnMoMay", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnThemZone = typeof(FormStation).GetField("btnThemZone", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+                    var btnThemMay = typeof(FormStation).GetField("btnThemMay", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form) as Button;
+
+                    Assert.NotNull(btnChuyenMay);
+                    Assert.NotNull(btnBaoTri);
+                    Assert.NotNull(btnMoMay);
+                    Assert.NotNull(btnThemZone);
+                    Assert.NotNull(btnThemMay);
+
+                    Assert.False(string.IsNullOrEmpty(toolTip!.GetToolTip(btnChuyenMay!)));
+                    Assert.False(string.IsNullOrEmpty(toolTip.GetToolTip(btnBaoTri!)));
+                    Assert.False(string.IsNullOrEmpty(toolTip.GetToolTip(btnMoMay!)));
+                    Assert.False(string.IsNullOrEmpty(toolTip.GetToolTip(btnThemZone!)));
+                    Assert.False(string.IsNullOrEmpty(toolTip.GetToolTip(btnThemMay!)));
+
+                    form.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+            });
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+            bool completed = staThread.Join(TimeSpan.FromSeconds(10));
+
+            Assert.True(completed, "STA thread timed out");
+            Assert.Null(threadException);
         }
     }
 }
