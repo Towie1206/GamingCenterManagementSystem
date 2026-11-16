@@ -836,5 +836,153 @@ namespace GamingCenterManagementSystem.Tests
                 }
             });
         }
+
+        [Fact]
+        public void StaffCallQueue_ResolveCall_MarksStatusResolvedAndFiresEvent()
+        {
+            StaffCallQueue.Clear();
+            StaffCallNotification? resolvedCall = null;
+            Action<StaffCallNotification> resolvedHandler = c => resolvedCall = c;
+            StaffCallQueue.OnCallResolved += resolvedHandler;
+
+            try
+            {
+                var call = new StaffCallNotification
+                {
+                    StationId = 3,
+                    StationName = "PC-03",
+                    MemberUsername = "gamer02",
+                    MemberFullName = "Trần B",
+                    Reason = "Đổi chuột máy"
+                };
+
+                StaffCallQueue.Enqueue(call);
+                Assert.Equal("Pending", call.Status);
+
+                bool success = StaffCallQueue.ResolveCall(call.CallId, "staff01");
+                Assert.True(success);
+                Assert.Equal("Resolved", call.Status);
+                Assert.Equal("staff01", call.ResolvedBy);
+                Assert.NotNull(call.ResolvedAt);
+                Assert.NotNull(resolvedCall);
+                Assert.Equal(call.CallId, resolvedCall.CallId);
+            }
+            finally
+            {
+                StaffCallQueue.OnCallResolved -= resolvedHandler;
+                StaffCallQueue.Clear();
+            }
+        }
+
+        [Fact]
+        public void StaffCallQueue_GetPendingCalls_ReturnsOnlyUnresolvedCalls()
+        {
+            StaffCallQueue.Clear();
+            try
+            {
+                var call1 = new StaffCallNotification { StationId = 1, StationName = "PC-01", Reason = "Order đồ ăn" };
+                var call2 = new StaffCallNotification { StationId = 2, StationName = "PC-02", Reason = "Gọi nhân viên" };
+
+                StaffCallQueue.Enqueue(call1);
+                StaffCallQueue.Enqueue(call2);
+
+                Assert.Equal(2, StaffCallQueue.GetPendingCalls().Count);
+
+                StaffCallQueue.ResolveCall(call1.CallId, "staff01");
+
+                var pending = StaffCallQueue.GetPendingCalls();
+                Assert.Single(pending);
+                Assert.Equal(call2.CallId, pending[0].CallId);
+            }
+            finally
+            {
+                StaffCallQueue.Clear();
+            }
+        }
+
+        [Fact]
+        public void StaffCallQueue_ResolveCall_NonExistentOrAlreadyResolved_ReturnsFalse()
+        {
+            StaffCallQueue.Clear();
+            try
+            {
+                var call = new StaffCallNotification { StationId = 5, StationName = "PC-05", Reason = "Kẹt phím" };
+                StaffCallQueue.Enqueue(call);
+
+                bool fakeResolve = StaffCallQueue.ResolveCall(999999, "staff01");
+                Assert.False(fakeResolve);
+
+                bool firstResolve = StaffCallQueue.ResolveCall(call.CallId, "staff01");
+                Assert.True(firstResolve);
+
+                bool secondResolve = StaffCallQueue.ResolveCall(call.CallId, "staff01");
+                Assert.False(secondResolve);
+            }
+            finally
+            {
+                StaffCallQueue.Clear();
+            }
+        }
+
+        [Fact]
+        public void StaffCallNotification_MarkResolved_SetsResolvedPropertiesCorrectly()
+        {
+            var call = new StaffCallNotification
+            {
+                StationId = 1,
+                StationName = "PC-01",
+                Reason = "Báo lỗi game"
+            };
+
+            Assert.Equal("Pending", call.Status);
+            Assert.Null(call.ResolvedBy);
+            Assert.Null(call.ResolvedAt);
+
+            call.MarkResolved("admin");
+
+            Assert.Equal("Resolved", call.Status);
+            Assert.Equal("admin", call.ResolvedBy);
+            Assert.NotNull(call.ResolvedAt);
+        }
+
+        [Fact]
+        public void Form1_StaffCall_OnCallReceivedAndResolved_UpdatesRealtimeSummaryLabel()
+        {
+            RunOnSTA(() =>
+            {
+                StaffCallQueue.Clear();
+                CurrentUserSession.SetSession(1, "admin", "Admin", "Quản Trị Viên", 0, "Standard");
+
+                using var form1 = new Form1();
+                form1.Show();
+                Application.DoEvents();
+
+                var call = new StaffCallNotification
+                {
+                    StationId = 4,
+                    StationName = "PC-04",
+                    MemberUsername = "gamer03",
+                    Reason = "Nạp tiền ví 50k"
+                };
+
+                StaffCallQueue.Enqueue(call);
+                Application.DoEvents();
+
+                // Kiểm tra label có thông tin gọi máy
+                var lblSummary = form1.Controls.Find("lblRealtimeSummary", true).FirstOrDefault() as Label;
+                Assert.NotNull(lblSummary);
+                Assert.Contains("PC-04", lblSummary.Text);
+                Assert.Contains("Nạp tiền ví 50k", lblSummary.Text);
+
+                // Test giải quyết cuộc gọi
+                StaffCallQueue.ResolveCall(call.CallId, "admin");
+                Application.DoEvents();
+
+                Assert.Contains("Đã xử lý yêu cầu", lblSummary.Text);
+
+                CurrentUserSession.Clear();
+                StaffCallQueue.Clear();
+            });
+        }
     }
 }

@@ -329,5 +329,21 @@ BEGIN
         VALUES (2, NULL, 'TopUp', 50000, 0, 50000, N'Tiền mặt tại quầy', N'Nạp khởi tạo tài khoản hội viên', 1);
     END
 END
+
+-- Bảng nhật ký gọi nhân viên từ máy trạm (Hỗ trợ theo dõi chất lượng dịch vụ)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'StaffCallLog')
+BEGIN
+    CREATE TABLE dbo.StaffCallLog (
+        CallId INT IDENTITY(1,1) PRIMARY KEY,
+        StationId INT NOT NULL,
+        StationName NVARCHAR(50) NOT NULL,
+        MemberUsername NVARCHAR(50) NOT NULL,
+        Reason NVARCHAR(200) NOT NULL,
+        Status NVARCHAR(20) NOT NULL DEFAULT 'Pending',
+        CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+        ResolvedBy NVARCHAR(50) NULL,
+        ResolvedAt DATETIME NULL
+    );
+END
 GO
 

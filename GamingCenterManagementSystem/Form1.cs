@@ -118,10 +118,46 @@ namespace GamingCenterManagementSystem
                 {
                     BeginInvoke(new Action(() =>
                     {
-                        lblRealtimeSummary.Text = $"🔔 Máy {call.StationName} gọi quầy: {call.Reason} ({call.Timestamp:HH:mm:ss})";
+                        lblRealtimeSummary.Text = $"🔔 Máy {call.StationName} gọi quầy: {call.Reason} ({call.Timestamp:HH:mm:ss}) [Click để xử lý]";
                     }));
                 }
                 catch { }
+            };
+
+            StaffCallQueue.OnCallResolved += call =>
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                try
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        lblRealtimeSummary.Text = $"✅ Đã xử lý yêu cầu từ {call.StationName} ({call.ResolvedBy} lúc {call.ResolvedAt:HH:mm:ss})";
+                    }));
+                }
+                catch { }
+            };
+
+            lblRealtimeSummary.Cursor = Cursors.Hand;
+            lblRealtimeSummary.Click += (s, e) =>
+            {
+                var pending = StaffCallQueue.GetPendingCalls();
+                if (pending.Count == 0)
+                {
+                    ShowNotification("Hiện không có cuộc gọi máy trạm nào đang chờ xử lý.", "Trạng thái hỗ trợ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                var latest = pending.Last();
+                var ans = ShowNotification(
+                    $"Yêu cầu từ máy {latest.StationName} ({latest.MemberUsername}):\nLý do: {latest.Reason}\nThời gian: {latest.Timestamp:HH:mm:ss}\n\nXác nhận nhân viên '{CurrentUserSession.Username}' đã xử lý xong yêu cầu này?",
+                    "Xử lý cuộc gọi máy trạm",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (ans == DialogResult.Yes)
+                {
+                    StaffCallQueue.ResolveCall(latest.CallId, CurrentUserSession.Username);
+                }
             };
 
             btnDangXuat.Click += (s, e) =>
