@@ -765,5 +765,34 @@ namespace GamingCenterManagementSystem.DAL
                 return false;
             }
         }
+
+
+        /// <summary>
+        /// Mô phỏng quét Ping mạng và đánh giá độ trễ cho toàn bộ máy trạm trong phòng máy.
+        /// </summary>
+        public List<StationNetworkHealth> CheckAllStationsNetworkHealth()
+        {
+            var stations = GetAll();
+            var results = new List<StationNetworkHealth>();
+            var rnd = new Random(42);
+
+            foreach (var st in stations)
+            {
+                int latency = st.Status == "Maintenance" ? -1 : rnd.Next(8, 38);
+                double loss = latency < 0 ? 100.0 : 0.0;
+                results.Add(new StationNetworkHealth
+                {
+                    StationId = st.StationId,
+                    StationName = st.StationName,
+                    IpAddress = st.IpAddress,
+                    LatencyMs = latency,
+                    PacketLossPercent = loss,
+                    Status = StationNetworkHealth.EvaluateStatus(latency, loss),
+                    LastCheckedAt = DateTime.Now
+                });
+            }
+            return results;
+        }
+
     }
 }
