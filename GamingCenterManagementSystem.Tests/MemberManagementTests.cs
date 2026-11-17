@@ -847,5 +847,40 @@ namespace GamingCenterManagementSystem.Tests
             Assert.True(completed, "STA thread timed out");
             Assert.Null(threadException);
         }
+
+        [Fact]
+        public void LoyaltyReward_CalculatePoints_AppliesRoleMultiplier()
+        {
+            int memberPoints = LoyaltyReward.CalculatePoints(50000m, "Member");
+            int vipPoints = LoyaltyReward.CalculatePoints(50000m, "VIP");
+
+            Assert.Equal(50, memberPoints);
+            Assert.Equal(75, vipPoints); // 50 * 1.5 = 75
+        }
+
+        [Fact]
+        public void LoyaltyReward_RedeemPoints_RequiresMinimum50Points()
+        {
+            decimal cashUnderMin = LoyaltyReward.RedeemPointsToCash(40);
+            decimal cashValid = LoyaltyReward.RedeemPointsToCash(100);
+
+            Assert.Equal(0m, cashUnderMin);
+            Assert.Equal(10000m, cashValid); // 100 * 100 = 10,000 VNĐ
+        }
+
+        [Fact]
+        public void AccountRecoveryService_ValidateOtp_EnforcesLimitAndMatching()
+        {
+            var service = new AccountRecoveryService();
+            string code = service.GenerateOtp(99);
+
+            bool wrong = service.ValidateOtp(99, "000000", out string error);
+            Assert.False(wrong);
+            Assert.Contains("không chính xác", error);
+
+            bool correct = service.ValidateOtp(99, code, out string okMsg);
+            Assert.True(correct);
+            Assert.Empty(okMsg);
+        }
     }
 }
