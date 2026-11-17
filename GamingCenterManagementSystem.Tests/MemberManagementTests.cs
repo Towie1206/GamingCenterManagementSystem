@@ -965,6 +965,9 @@ namespace GamingCenterManagementSystem.Tests
         [InlineData("098abc4567", false)] // Contains letters
         [InlineData("098 123 456", false)] // Contains space inside
         [InlineData("098-1234567", false)] // Contains hyphen
+        [InlineData("0|12345678", false)] // Contains pipe symbol
+        [InlineData("+8498100001", false)] // International prefix +84
+        [InlineData("030312345678", false)] // 12 digits
         public void DBUser_IsValidPhoneNumber_ValidatesVietnamesePhoneNumbers(string? phone, bool expected)
         {
             Assert.Equal(expected, DBUser.IsValidPhoneNumber(phone));
@@ -976,43 +979,56 @@ namespace GamingCenterManagementSystem.Tests
             var offlineDb = CreateOfflineDb();
 
             // 1. Login with Username (gamer01, pass: 123456)
-            var userByUsername = offlineDb.Authenticate("gamer01", "123456");
+            var userByUsername = offlineDb.Authenticate(usernameOrPhone: "gamer01", password: "123456");
             Assert.NotNull(userByUsername);
             Assert.Equal("gamer01", userByUsername!.Username);
             Assert.Equal("0981000002", userByUsername.PhoneNumber);
 
             // 2. Login with PhoneNumber (0981000002, pass: 123456)
-            var userByPhone = offlineDb.Authenticate("0981000002", "123456");
+            var userByPhone = offlineDb.Authenticate(usernameOrPhone: "0981000002", password: "123456");
             Assert.NotNull(userByPhone);
             Assert.Equal("gamer01", userByPhone!.Username);
             Assert.Equal(userByUsername.UserId, userByPhone.UserId);
 
             // 3. TryAuthenticate with PhoneNumber
-            bool tryOk = offlineDb.TryAuthenticate("0981000002", "123456", out var tryUser, out string tryErr);
+            bool tryOk = offlineDb.TryAuthenticate(usernameOrPhone: "0981000002", password: "123456", out var tryUser, out string tryErr);
             Assert.True(tryOk);
             Assert.NotNull(tryUser);
             Assert.Empty(tryErr);
             Assert.Equal("gamer01", tryUser!.Username);
 
             // 4. AuthenticateAsync with PhoneNumber
-            var (asyncOk, asyncUser, asyncErr) = await offlineDb.AuthenticateAsync("0981000002", "123456");
+            var (asyncOk, asyncUser, asyncErr) = await offlineDb.AuthenticateAsync(usernameOrPhone: "0981000002", password: "123456");
             Assert.True(asyncOk);
             Assert.NotNull(asyncUser);
             Assert.Empty(asyncErr);
             Assert.Equal("gamer01", asyncUser!.Username);
 
             // 5. Dual login with Admin phone
-            var adminUser = offlineDb.Authenticate("0981000001", "123456");
+            var adminUser = offlineDb.Authenticate(usernameOrPhone: "0981000001", password: "123456");
             Assert.NotNull(adminUser);
             Assert.Equal("admin", adminUser!.Username);
 
-            // 6. Wrong password with phone number fails
+            // 6. ChangePassword using PhoneNumber identifier
+            bool changePassOk = offlineDb.ChangePassword("0981000002", "123456", "newPassViaPhone123", out string changeErr);
+            Assert.True(changePassOk, changeErr);
+            Assert.NotNull(offlineDb.Authenticate(usernameOrPhone: "0981000002", password: "newPassViaPhone123"));
+            Assert.NotNull(offlineDb.Authenticate(usernameOrPhone: "gamer01", password: "newPassViaPhone123"));
+            offlineDb.ChangePassword("gamer01", "newPassViaPhone123", "123456", out _);
+
+            // 7. ChangePasswordAsync using PhoneNumber identifier
+            var (asyncChangeOk, _) = await offlineDb.ChangePasswordAsync("0981000002", "123456", "asyncPassViaPhone123");
+            Assert.True(asyncChangeOk);
+            Assert.NotNull(offlineDb.Authenticate(usernameOrPhone: "0981000002", password: "asyncPassViaPhone123"));
+            offlineDb.ChangePassword("0981000002", "asyncPassViaPhone123", "123456", out _);
+
+            // 8. Wrong password with phone number fails
             Assert.Null(offlineDb.Authenticate("0981000002", "wrongpassword"));
             bool wrongPassOk = offlineDb.TryAuthenticate("0981000002", "wrongpassword", out _, out string wrongPassErr);
             Assert.False(wrongPassOk);
             Assert.NotEmpty(wrongPassErr);
 
-            // 7. Non-existent phone number fails
+            // 9. Non-existent phone number fails
             Assert.Null(offlineDb.Authenticate("0989999999", "123456"));
         }
 
@@ -1125,6 +1141,17 @@ namespace GamingCenterManagementSystem.Tests
             var byPhoneAsync = await offlineDb.GetByUsernameOrPhoneAsync("0981000003");
             Assert.NotNull(byPhoneAsync);
             Assert.Equal("gamer02", byPhoneAsync!.Username);
+
+            // 6. GetByCitizenId preserves PhoneNumber
+            var byCccdOnly = offlineDb.GetByCitizenId("001099000002");
+            Assert.NotNull(byCccdOnly);
+            Assert.Equal("gamer01", byCccdOnly!.Username);
+            Assert.Equal("0981000002", byCccdOnly.PhoneNumber);
+
+            var byCccdOnlyAsync = await offlineDb.GetByCitizenIdAsync("001099000003");
+            Assert.NotNull(byCccdOnlyAsync);
+            Assert.Equal("gamer02", byCccdOnlyAsync!.Username);
+            Assert.Equal("0981000003", byCccdOnlyAsync.PhoneNumber);
 
             Assert.Null(offlineDb.GetByUsernameOrPhone("nonexistent_val"));
             Assert.Null(await offlineDb.GetByUsernameOrPhoneAsync(""));

@@ -51,7 +51,7 @@ namespace GamingCenterManagementSystem
         private void SetupEvents()
         {
             // Hướng dẫn nhanh cho các thao tác quản lý hội viên.
-            _memberToolTip.SetToolTip(txtTimKiem, "Tìm hội viên theo tên đăng nhập, họ tên, vai trò hoặc hạng thẻ");
+            _memberToolTip.SetToolTip(txtTimKiem, "Tìm hội viên theo tên đăng nhập, họ tên, SĐT, CCCD, vai trò hoặc hạng thẻ");
             _memberToolTip.SetToolTip(btnNapTien, "Nạp tiền vào ví hội viên và ghi nhận giao dịch");
             _memberToolTip.SetToolTip(btnXoaHoiVien, "Khóa hoặc mở khóa tài khoản hội viên đang chọn");
             _memberToolTip.SetToolTip(btnThemHoiVien, "Tạo tài khoản hội viên mới");

@@ -751,7 +751,7 @@ namespace GamingCenterManagementSystem
             txtTimKiem.Font = new Font("Segoe UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
             txtTimKiem.Location = new Point(140, 10);
             txtTimKiem.Name = "txtTimKiem";
-            txtTimKiem.PlaceholderText = "Gõ tên hoặc username...";
+            txtTimKiem.PlaceholderText = "Gõ tên, username, SĐT, CCCD...";
             txtTimKiem.Size = new Size(185, 24);
             txtTimKiem.TabIndex = 1;
             // 

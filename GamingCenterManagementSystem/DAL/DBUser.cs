@@ -62,7 +62,7 @@ namespace GamingCenterManagementSystem.DAL
                 return false;
 
             string trimmed = phone.Trim();
-            return trimmed.Length == 10 && PhoneNumberRegex.IsMatch(trimmed);
+            return trimmed.Length == 10 && trimmed.All(char.IsDigit) && PhoneNumberRegex.IsMatch(trimmed);
         }
 
         private static readonly List<WalletTransaction> _fallbackWalletTransactions = new()
@@ -458,12 +458,12 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
-        public AppUser? GetByUsername(string username)
+        public AppUser? GetByUsername(string usernameOrPhone)
         {
-            if (string.IsNullOrWhiteSpace(username))
+            if (string.IsNullOrWhiteSpace(usernameOrPhone))
                 return null;
 
-            string trimmedUsername = username.Trim();
+            string trimmedInput = usernameOrPhone.Trim();
             bool opened = false;
             try
             {
@@ -477,12 +477,12 @@ namespace GamingCenterManagementSystem.DAL
                 string sql = hasPhoneNumber
                     ? $@"SELECT {cols}
                         FROM AppUser
-                        WHERE Username = @Username OR PhoneNumber = @Username"
+                        WHERE Username = @Input OR PhoneNumber = @Input"
                     : $@"SELECT {cols}
                         FROM AppUser
-                        WHERE Username = @Username";
+                        WHERE Username = @Input";
                 using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                cmd.Parameters.Add("@Input", SqlDbType.NVarChar, 50).Value = trimmedInput;
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
                 {
@@ -495,19 +495,19 @@ namespace GamingCenterManagementSystem.DAL
                 lock (_fallbackLock)
                 {
                     var found = _fallbackUsers.Find(u =>
-                        u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase) ||
-                        (!string.IsNullOrEmpty(u.PhoneNumber) && u.PhoneNumber.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase)));
+                        u.Username.Equals(trimmedInput, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(u.PhoneNumber) && u.PhoneNumber.Equals(trimmedInput, StringComparison.OrdinalIgnoreCase)));
                     return found == null ? null : CloneUser(found);
                 }
             }
         }
 
-        public async Task<AppUser?> GetByUsernameAsync(string username)
+        public async Task<AppUser?> GetByUsernameAsync(string usernameOrPhone)
         {
-            if (string.IsNullOrWhiteSpace(username))
+            if (string.IsNullOrWhiteSpace(usernameOrPhone))
                 return null;
 
-            string trimmedUsername = username.Trim();
+            string trimmedInput = usernameOrPhone.Trim();
             bool opened = false;
             try
             {
@@ -521,12 +521,12 @@ namespace GamingCenterManagementSystem.DAL
                 string sql = hasPhoneNumber
                     ? $@"SELECT {cols}
                         FROM AppUser
-                        WHERE Username = @Username OR PhoneNumber = @Username"
+                        WHERE Username = @Input OR PhoneNumber = @Input"
                     : $@"SELECT {cols}
                         FROM AppUser
-                        WHERE Username = @Username";
+                        WHERE Username = @Input";
                 using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                cmd.Parameters.Add("@Input", SqlDbType.NVarChar, 50).Value = trimmedInput;
                 using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
                 if (await reader.ReadAsync().ConfigureAwait(false))
                 {
@@ -539,8 +539,8 @@ namespace GamingCenterManagementSystem.DAL
                 lock (_fallbackLock)
                 {
                     var found = _fallbackUsers.Find(u =>
-                        u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase) ||
-                        (!string.IsNullOrEmpty(u.PhoneNumber) && u.PhoneNumber.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase)));
+                        u.Username.Equals(trimmedInput, StringComparison.OrdinalIgnoreCase) ||
+                        (!string.IsNullOrEmpty(u.PhoneNumber) && u.PhoneNumber.Equals(trimmedInput, StringComparison.OrdinalIgnoreCase)));
                     return found == null ? null : CloneUser(found);
                 }
             }
@@ -733,7 +733,8 @@ namespace GamingCenterManagementSystem.DAL
                 if (!HasCitizenIdColumn(conn))
                     return null;
 
-                string cols = GetUserSelectColumns(HasIsActiveColumn(conn), true);
+                bool hasPhoneNumber = HasPhoneNumberColumn(conn);
+                string cols = GetUserSelectColumns(HasIsActiveColumn(conn), true, hasPhoneNumber);
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 WHERE CitizenId = @CitizenId";
@@ -772,7 +773,8 @@ namespace GamingCenterManagementSystem.DAL
                     return null;
 
                 bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
-                string cols = GetUserSelectColumns(hasIsActive, true);
+                bool hasPhoneNumber = await HasPhoneNumberColumnAsync(conn).ConfigureAwait(false);
+                string cols = GetUserSelectColumns(hasIsActive, true, hasPhoneNumber);
                 string sql = $@"SELECT {cols}
                                 FROM AppUser
                                 WHERE CitizenId = @CitizenId";
@@ -955,18 +957,18 @@ namespace GamingCenterManagementSystem.DAL
         // AUTHENTICATION (LOGIN & SESSION)
         // ==========================================
 
-        public bool TryAuthenticate(string? username, string? password, out AppUser? authenticatedUser, out string errorMessage)
+        public bool TryAuthenticate(string? usernameOrPhone, string? password, out AppUser? authenticatedUser, out string errorMessage)
         {
             authenticatedUser = null;
             errorMessage = string.Empty;
 
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(usernameOrPhone) || string.IsNullOrEmpty(password))
             {
                 errorMessage = "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.";
                 return false;
             }
 
-            AppUser? found = GetByUsername(username.Trim());
+            AppUser? found = GetByUsername(usernameOrPhone.Trim());
             if (found == null || !VerifyPassword(password, found.PasswordHash))
             {
                 errorMessage = "Tên đăng nhập hoặc mật khẩu không chính xác.";
@@ -984,14 +986,14 @@ namespace GamingCenterManagementSystem.DAL
             return true;
         }
 
-        public async Task<(bool Success, AppUser? User, string ErrorMessage)> AuthenticateAsync(string? username, string? password)
+        public async Task<(bool Success, AppUser? User, string ErrorMessage)> AuthenticateAsync(string? usernameOrPhone, string? password)
         {
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(usernameOrPhone) || string.IsNullOrEmpty(password))
             {
                 return (false, null, "Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.");
             }
 
-            AppUser? found = await GetByUsernameAsync(username.Trim()).ConfigureAwait(false);
+            AppUser? found = await GetByUsernameAsync(usernameOrPhone.Trim()).ConfigureAwait(false);
             if (found == null || !VerifyPassword(password, found.PasswordHash))
             {
                 return (false, null, "Tên đăng nhập hoặc mật khẩu không chính xác.");
@@ -1006,8 +1008,8 @@ namespace GamingCenterManagementSystem.DAL
             return (true, found, string.Empty);
         }
 
-        public AppUser? Authenticate(string? username, string? password) =>
-            TryAuthenticate(username, password, out AppUser? user, out _) ? user : null;
+        public AppUser? Authenticate(string? usernameOrPhone, string? password) =>
+            TryAuthenticate(usernameOrPhone, password, out AppUser? user, out _) ? user : null;
 
         /// <summary>
         /// Khóa hoặc kích hoạt lại tài khoản hội viên vi phạm quy định phòng máy (cập nhật cột IsActive).
@@ -1917,12 +1919,17 @@ namespace GamingCenterManagementSystem.DAL
                 int userId;
                 string storedPassword;
 
-                const string selectQuery = @"SELECT UserId, PasswordHash
-                                             FROM AppUser WITH (UPDLOCK, HOLDLOCK)
-                                             WHERE Username = @Username";
+                bool hasPhoneNumber = HasPhoneNumberColumn(conn, trans);
+                string selectQuery = hasPhoneNumber
+                    ? @"SELECT UserId, PasswordHash
+                        FROM AppUser WITH (UPDLOCK, HOLDLOCK)
+                        WHERE Username = @Identifier OR PhoneNumber = @Identifier"
+                    : @"SELECT UserId, PasswordHash
+                        FROM AppUser WITH (UPDLOCK, HOLDLOCK)
+                        WHERE Username = @Identifier";
                 using (var cmd = new SqlCommand(selectQuery, conn, trans))
                 {
-                    cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                    cmd.Parameters.Add("@Identifier", SqlDbType.NVarChar, 50).Value = trimmedUsername;
                     using var reader = cmd.ExecuteReader();
                     if (!reader.Read())
                     {
@@ -1983,12 +1990,17 @@ namespace GamingCenterManagementSystem.DAL
                 int userId;
                 string storedPassword;
 
-                const string selectQuery = @"SELECT UserId, PasswordHash
-                                             FROM AppUser WITH (UPDLOCK, HOLDLOCK)
-                                             WHERE Username = @Username";
+                bool hasPhoneNumber = await HasPhoneNumberColumnAsync(conn, trans).ConfigureAwait(false);
+                string selectQuery = hasPhoneNumber
+                    ? @"SELECT UserId, PasswordHash
+                        FROM AppUser WITH (UPDLOCK, HOLDLOCK)
+                        WHERE Username = @Identifier OR PhoneNumber = @Identifier"
+                    : @"SELECT UserId, PasswordHash
+                        FROM AppUser WITH (UPDLOCK, HOLDLOCK)
+                        WHERE Username = @Identifier";
                 using (var cmd = new SqlCommand(selectQuery, conn, trans))
                 {
-                    cmd.Parameters.Add("@Username", SqlDbType.NVarChar, 50).Value = trimmedUsername;
+                    cmd.Parameters.Add("@Identifier", SqlDbType.NVarChar, 50).Value = trimmedUsername;
                     using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
                     if (!await reader.ReadAsync().ConfigureAwait(false))
                     {
@@ -2069,7 +2081,9 @@ namespace GamingCenterManagementSystem.DAL
             errorMessage = string.Empty;
             lock (_fallbackLock)
             {
-                var user = _fallbackUsers.Find(u => u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase));
+                var user = _fallbackUsers.Find(u =>
+                    u.Username.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrEmpty(u.PhoneNumber) && u.PhoneNumber.Equals(trimmedUsername, StringComparison.OrdinalIgnoreCase)));
                 if (user == null || !VerifyPassword(oldPassword, user.PasswordHash))
                 {
                     errorMessage = "Tên đăng nhập hoặc mật khẩu hiện tại không chính xác.";
@@ -2216,14 +2230,150 @@ namespace GamingCenterManagementSystem.DAL
 
         public List<AppUser> SearchUsers(string? keyword, string? roleFilter = null, string? tierFilter = null)
         {
-            var all = GetAll();
-            return SearchUsers(all, keyword, roleFilter, tierFilter);
+            string trimmedKeyword = keyword?.Trim() ?? string.Empty;
+            string? normalizedRole = !string.IsNullOrWhiteSpace(roleFilter) && !string.Equals(roleFilter, "Tất cả", StringComparison.OrdinalIgnoreCase)
+                ? roleFilter.Trim()
+                : null;
+            string? normalizedTier = !string.IsNullOrWhiteSpace(tierFilter) && !string.Equals(tierFilter, "Tất cả hạng", StringComparison.OrdinalIgnoreCase) && !string.Equals(tierFilter, "Tất cả", StringComparison.OrdinalIgnoreCase)
+                ? tierFilter.Trim()
+                : null;
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                conn.Open();
+                opened = true;
+
+                bool hasIsActive = HasIsActiveColumn(conn);
+                bool hasCitizenId = HasCitizenIdColumn(conn);
+                bool hasPhoneNumber = HasPhoneNumberColumn(conn);
+                string cols = GetUserSelectColumns(hasIsActive, hasCitizenId, hasPhoneNumber);
+
+                var whereClauses = new List<string>();
+                using var cmd = new SqlCommand();
+                cmd.Connection = conn;
+
+                if (!string.IsNullOrEmpty(trimmedKeyword))
+                {
+                    var keywordClauses = new List<string>
+                    {
+                        "Username LIKE @Keyword",
+                        "FullName LIKE @Keyword",
+                        "Role LIKE @Keyword",
+                        "MemberTier LIKE @Keyword"
+                    };
+                    if (hasPhoneNumber) keywordClauses.Add("PhoneNumber LIKE @Keyword");
+                    if (hasCitizenId) keywordClauses.Add("CitizenId LIKE @Keyword");
+
+                    whereClauses.Add($"({string.Join(" OR ", keywordClauses)})");
+                    cmd.Parameters.Add("@Keyword", SqlDbType.NVarChar, 100).Value = $"%{trimmedKeyword}%";
+                }
+
+                if (!string.IsNullOrEmpty(normalizedRole))
+                {
+                    whereClauses.Add("Role = @RoleFilter");
+                    cmd.Parameters.Add("@RoleFilter", SqlDbType.NVarChar, 20).Value = normalizedRole;
+                }
+
+                if (!string.IsNullOrEmpty(normalizedTier))
+                {
+                    whereClauses.Add("MemberTier = @TierFilter");
+                    cmd.Parameters.Add("@TierFilter", SqlDbType.NVarChar, 20).Value = normalizedTier;
+                }
+
+                string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : string.Empty;
+                cmd.CommandText = $@"SELECT {cols}
+                                    FROM AppUser
+                                    {whereSql}
+                                    ORDER BY UserId";
+
+                var list = new List<AppUser>();
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    list.Add(MapUser(reader));
+                }
+                return list;
+            }
+            catch when (!opened)
+            {
+                return SearchUsers(CloneFallbackUsers(), keyword, roleFilter, tierFilter);
+            }
         }
 
         public async Task<List<AppUser>> SearchUsersAsync(string? keyword, string? roleFilter = null, string? tierFilter = null)
         {
-            var all = await GetAllAsync().ConfigureAwait(false);
-            return SearchUsers(all, keyword, roleFilter, tierFilter);
+            string trimmedKeyword = keyword?.Trim() ?? string.Empty;
+            string? normalizedRole = !string.IsNullOrWhiteSpace(roleFilter) && !string.Equals(roleFilter, "Tất cả", StringComparison.OrdinalIgnoreCase)
+                ? roleFilter.Trim()
+                : null;
+            string? normalizedTier = !string.IsNullOrWhiteSpace(tierFilter) && !string.Equals(tierFilter, "Tất cả hạng", StringComparison.OrdinalIgnoreCase) && !string.Equals(tierFilter, "Tất cả", StringComparison.OrdinalIgnoreCase)
+                ? tierFilter.Trim()
+                : null;
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+
+                bool hasIsActive = await HasIsActiveColumnAsync(conn).ConfigureAwait(false);
+                bool hasCitizenId = await HasCitizenIdColumnAsync(conn).ConfigureAwait(false);
+                bool hasPhoneNumber = await HasPhoneNumberColumnAsync(conn).ConfigureAwait(false);
+                string cols = GetUserSelectColumns(hasIsActive, hasCitizenId, hasPhoneNumber);
+
+                var whereClauses = new List<string>();
+                using var cmd = new SqlCommand();
+                cmd.Connection = conn;
+
+                if (!string.IsNullOrEmpty(trimmedKeyword))
+                {
+                    var keywordClauses = new List<string>
+                    {
+                        "Username LIKE @Keyword",
+                        "FullName LIKE @Keyword",
+                        "Role LIKE @Keyword",
+                        "MemberTier LIKE @Keyword"
+                    };
+                    if (hasPhoneNumber) keywordClauses.Add("PhoneNumber LIKE @Keyword");
+                    if (hasCitizenId) keywordClauses.Add("CitizenId LIKE @Keyword");
+
+                    whereClauses.Add($"({string.Join(" OR ", keywordClauses)})");
+                    cmd.Parameters.Add("@Keyword", SqlDbType.NVarChar, 100).Value = $"%{trimmedKeyword}%";
+                }
+
+                if (!string.IsNullOrEmpty(normalizedRole))
+                {
+                    whereClauses.Add("Role = @RoleFilter");
+                    cmd.Parameters.Add("@RoleFilter", SqlDbType.NVarChar, 20).Value = normalizedRole;
+                }
+
+                if (!string.IsNullOrEmpty(normalizedTier))
+                {
+                    whereClauses.Add("MemberTier = @TierFilter");
+                    cmd.Parameters.Add("@TierFilter", SqlDbType.NVarChar, 20).Value = normalizedTier;
+                }
+
+                string whereSql = whereClauses.Count > 0 ? "WHERE " + string.Join(" AND ", whereClauses) : string.Empty;
+                cmd.CommandText = $@"SELECT {cols}
+                                    FROM AppUser
+                                    {whereSql}
+                                    ORDER BY UserId";
+
+                var list = new List<AppUser>();
+                using var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
+                while (await reader.ReadAsync().ConfigureAwait(false))
+                {
+                    list.Add(MapUser(reader));
+                }
+                return list;
+            }
+            catch when (!opened)
+            {
+                return SearchUsers(CloneFallbackUsers(), keyword, roleFilter, tierFilter);
+            }
         }
 
         // ==========================================

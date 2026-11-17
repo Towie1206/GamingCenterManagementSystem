@@ -195,7 +195,7 @@ namespace GamingCenterManagementSystem
             txtUsername.ForeColor = Color.White;
             txtUsername.Location = new Point(24, 72);
             txtUsername.Name = "txtUsername";
-            txtUsername.PlaceholderText = "Nhập tên đăng nhập hoặc số điện thoại...";
+            txtUsername.PlaceholderText = "Tên đăng nhập / Số điện thoại";
             txtUsername.Size = new Size(356, 26);
             txtUsername.TabIndex = 2;
             // 
