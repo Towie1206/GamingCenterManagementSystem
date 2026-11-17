@@ -625,4 +625,29 @@ public class TournamentPhase2Tests
         var match = new TournamentMatch { Team1Name = "Team A", Team2Name = "Team B" };
         Assert.Equal("Pending", match.Status);
     }
+
+    [Fact]
+    public void TournamentPrizeService_ValidDistribution_AllocatesExactly100Percent()
+    {
+        decimal pool = 10000000m; // 10 triệu
+        var allocations = TournamentPrizeService.CalculatePrizeDistribution(pool, 50, 30, 20);
+
+        Assert.Equal(3, allocations.Count);
+        Assert.Equal(5000000m, allocations[0].Amount); // Top 1: 5 triệu
+        Assert.Equal(3000000m, allocations[1].Amount); // Top 2: 3 triệu
+        Assert.Equal(2000000m, allocations[2].Amount); // Top 3: 2 triệu
+    }
+
+    [Fact]
+    public void TournamentPrizeService_NegativePool_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => TournamentPrizeService.CalculatePrizeDistribution(-1000m));
+    }
+
+    [Fact]
+    public void TournamentPrizeService_InvalidPercentageSum_ThrowsArgumentException()
+    {
+        // Tổng 50 + 30 + 10 = 90% (sai)
+        Assert.Throws<ArgumentException>(() => TournamentPrizeService.CalculatePrizeDistribution(5000000m, 50, 30, 10));
+    }
 }
