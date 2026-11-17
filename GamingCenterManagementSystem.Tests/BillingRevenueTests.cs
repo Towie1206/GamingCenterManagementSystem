@@ -204,5 +204,53 @@ namespace GamingCenterManagementSystem.Tests
             Assert.Equal(new[] { items[0] }, DBBilling.FilterLowStockItems(items, 4).ToArray());
         }
 
+        [Fact]
+        public void DBBilling_GetLowStockItems_ReturnsValidList()
+        {
+            var db = new DBBilling();
+            var lowStock = db.GetLowStockItems(5);
+            Assert.NotNull(lowStock);
+            Assert.All(lowStock, item => Assert.True(item.StockQuantity <= 5));
+        }
+
+        [Fact]
+        public void DBBilling_FilterLowStockItems_NegativeThreshold_ThrowsArgumentOutOfRangeException()
+        {
+            var items = new[] { new ServiceItem { StockQuantity = 2 } };
+            Assert.Throws<ArgumentOutOfRangeException>(() => DBBilling.FilterLowStockItems(items, -1));
+        }
+
+        [Fact]
+        public void ThermalReceiptFormatter_NullItems_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() =>
+                ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD01", "PC-01", "staff", null!));
+        }
+
+        [Fact]
+        public void ThermalReceiptFormatter_InvalidVat_ThrowsArgumentOutOfRangeException()
+        {
+            var items = new List<ReceiptItem> { new() { ItemName = "Nước suối", Quantity = 1, UnitPrice = 10000m } };
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD01", "PC-01", "staff", items, -1m));
+            Assert.Throws<ArgumentOutOfRangeException>(() =>
+                ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD01", "PC-01", "staff", items, 105m));
+        }
+
+        [Fact]
+        public void ThermalReceiptFormatter_LongItemName_WrapsNicely()
+        {
+            var items = new List<ReceiptItem>
+            {
+                new() { ItemName = "Combo Siêu Cấp Vip Pro Cơm Chiên Dương Châu Đặc Biệt Trứng Ốp La", Quantity = 1, UnitPrice = 65000m }
+            };
+
+            string receipt = ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD099", "PC-01", "staff", items);
+            var lines = receipt.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+            Assert.All(lines, line => Assert.True(line.Length <= 40));
+            Assert.Contains(lines, l => l.Contains("Cơm Chiên"));
+            Assert.Contains(lines, l => l.Contains("65.000"));
+        }
     }
 }

@@ -650,4 +650,40 @@ public class TournamentPhase2Tests
         // Tổng 50 + 30 + 10 = 90% (sai)
         Assert.Throws<ArgumentException>(() => TournamentPrizeService.CalculatePrizeDistribution(5000000m, 50, 30, 10));
     }
+
+    [Fact]
+    public void TournamentPrizeService_NegativePercentages_ThrowsArgumentException()
+    {
+        Assert.Throws<ArgumentException>(() => TournamentPrizeService.CalculatePrizeDistribution(5000000m, 150, -30, -20));
+    }
+
+    [Fact]
+    public void TournamentPrizeService_SumOfPrizesEqualsTotalPoolExactly()
+    {
+        decimal pool = 10000001m; // Lẻ 1 đồng
+        var allocations = TournamentPrizeService.CalculatePrizeDistribution(pool, 50, 30, 20);
+        decimal sum = allocations.Sum(a => a.Amount);
+        Assert.Equal(pool, sum);
+    }
+
+    [Fact]
+    public void DBTournament_GeneratePrizeReport_ValidTournament_GeneratesFormattedReport()
+    {
+        var db = new DBTournament();
+        string report = db.GeneratePrizeReport(1, 10000000m);
+
+        Assert.Contains("BIÊN BẢN CƠ CẤU GIẢI THƯỞNG GIẢI ĐẤU CYBER", report);
+        Assert.Contains("Mã giải đấu: #1", report);
+        Assert.Contains("Quỹ thưởng: 10.000.000 VNĐ", report);
+        Assert.Contains("Quán Quân", report);
+        Assert.Contains("5.000.000 VNĐ", report);
+    }
+
+    [Fact]
+    public void DBTournament_GeneratePrizeReport_InvalidTournamentId_ThrowsArgumentException()
+    {
+        var db = new DBTournament();
+        Assert.Throws<ArgumentException>(() => db.GeneratePrizeReport(0, 10000000m));
+        Assert.Throws<ArgumentException>(() => db.GeneratePrizeReport(-5, 10000000m));
+    }
 }

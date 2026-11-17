@@ -1041,14 +1041,18 @@ namespace GamingCenterManagementSystem.DAL
         /// </summary>
         public string GeneratePrizeReport(int tournamentId, decimal totalPrizePool)
         {
+            if (tournamentId <= 0)
+                throw new ArgumentException("Mã giải đấu phải là số nguyên dương.", nameof(tournamentId));
+
             var allocations = TournamentPrizeService.CalculatePrizeDistribution(totalPrizePool);
+            var viCulture = System.Globalization.CultureInfo.GetCultureInfo("vi-VN");
             var sb = new System.Text.StringBuilder();
             sb.AppendLine("=== BIÊN BẢN CƠ CẤU GIẢI THƯỞNG GIẢI ĐẤU CYBER ===");
-            sb.AppendLine($"Mã giải đấu: #{tournamentId} | Quỹ thưởng: {totalPrizePool:N0} VNĐ");
+            sb.AppendLine($"Mã giải đấu: #{tournamentId} | Quỹ thưởng: {totalPrizePool.ToString("N0", viCulture)} VNĐ");
             sb.AppendLine("-------------------------------------------------");
             foreach (var item in allocations)
             {
-                sb.AppendLine($"{item.Title}: {item.Percentage}% => {item.Amount:N0} VNĐ");
+                sb.AppendLine($"{item.Title}: {item.Percentage}% => {item.Amount.ToString("N0", viCulture)} VNĐ");
             }
             sb.AppendLine("-------------------------------------------------");
             return sb.ToString();

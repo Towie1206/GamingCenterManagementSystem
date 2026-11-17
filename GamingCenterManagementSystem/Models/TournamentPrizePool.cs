@@ -25,14 +25,26 @@ namespace GamingCenterManagementSystem.Models
             if (totalPrizePool <= 0)
                 throw new ArgumentException("Tổng quỹ giải thưởng phải lớn hơn 0 VNĐ.");
 
+            if (top1Pct < 0 || top2Pct < 0 || top3Pct < 0)
+                throw new ArgumentException("Tỷ lệ phần trăm phân bổ không được âm.");
+
             if (Math.Abs((top1Pct + top2Pct + top3Pct) - 100.0) > 0.001)
                 throw new ArgumentException("Tổng tỷ lệ phần trăm phân bổ phải bằng đúng 100%.");
 
+            decimal a1 = Math.Round(totalPrizePool * (decimal)(top1Pct / 100.0), 0, MidpointRounding.AwayFromZero);
+            decimal a2 = Math.Round(totalPrizePool * (decimal)(top2Pct / 100.0), 0, MidpointRounding.AwayFromZero);
+            decimal a3 = totalPrizePool - a1 - a2;
+            if (a3 < 0m)
+            {
+                a3 = 0m;
+                a2 = totalPrizePool - a1;
+            }
+
             return new List<TournamentPrizeAllocation>
             {
-                new() { Placement = 1, Title = "🥇 Quán Quân (Vô Địch)", Percentage = top1Pct, Amount = Math.Round(totalPrizePool * (decimal)(top1Pct / 100.0), 0) },
-                new() { Placement = 2, Title = "🥈 Á Quân (Hạng Nhì)", Percentage = top2Pct, Amount = Math.Round(totalPrizePool * (decimal)(top2Pct / 100.0), 0) },
-                new() { Placement = 3, Title = "🥉 Quý Quân (Hạng Ba)", Percentage = top3Pct, Amount = Math.Round(totalPrizePool * (decimal)(top3Pct / 100.0), 0) }
+                new() { Placement = 1, Title = "🥇 Quán Quân (Vô Địch)", Percentage = top1Pct, Amount = a1 },
+                new() { Placement = 2, Title = "🥈 Á Quân (Hạng Nhì)", Percentage = top2Pct, Amount = a2 },
+                new() { Placement = 3, Title = "🥉 Quý Quân (Hạng Ba)", Percentage = top3Pct, Amount = a3 }
             };
         }
     }

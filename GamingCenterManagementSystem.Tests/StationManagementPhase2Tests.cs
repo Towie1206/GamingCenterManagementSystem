@@ -208,5 +208,40 @@ namespace GamingCenterManagementSystem.Tests
             Assert.NotNull(list);
             Assert.NotEmpty(list);
         }
+
+        [Fact]
+        public void StationNetworkHealth_EvaluateStatus_BoundaryValues()
+        {
+            // Ranh giới Good vs Warning (29ms vs 30ms)
+            Assert.Equal(NetworkHealthStatus.Good, StationNetworkHealth.EvaluateStatus(29, 0.0));
+            Assert.Equal(NetworkHealthStatus.Warning, StationNetworkHealth.EvaluateStatus(30, 0.0));
+
+            // Ranh giới Warning vs Critical (80ms vs 81ms)
+            Assert.Equal(NetworkHealthStatus.Warning, StationNetworkHealth.EvaluateStatus(80, 0.0));
+            Assert.Equal(NetworkHealthStatus.Critical, StationNetworkHealth.EvaluateStatus(81, 0.0));
+
+            // Ranh giới packet loss (0% vs 0.1%, 5.0% vs 5.1%)
+            Assert.Equal(NetworkHealthStatus.Warning, StationNetworkHealth.EvaluateStatus(20, 0.1));
+            Assert.Equal(NetworkHealthStatus.Warning, StationNetworkHealth.EvaluateStatus(20, 5.0));
+            Assert.Equal(NetworkHealthStatus.Critical, StationNetworkHealth.EvaluateStatus(20, 5.1));
+
+            // Offline khi >= 100% hoặc latency < 0
+            Assert.Equal(NetworkHealthStatus.Offline, StationNetworkHealth.EvaluateStatus(20, 100.0));
+            Assert.Equal(NetworkHealthStatus.Offline, StationNetworkHealth.EvaluateStatus(-1, 0.0));
+        }
+
+        [Fact]
+        public void StationNetworkHealth_GetStatusBadge_AllStatusesCovered()
+        {
+            var hGood = new StationNetworkHealth { Status = NetworkHealthStatus.Good };
+            var hWarn = new StationNetworkHealth { Status = NetworkHealthStatus.Warning };
+            var hCrit = new StationNetworkHealth { Status = NetworkHealthStatus.Critical };
+            var hOff = new StationNetworkHealth { Status = NetworkHealthStatus.Offline };
+
+            Assert.Contains("Ổn định", hGood.GetStatusBadge());
+            Assert.Contains("Chậm", hWarn.GetStatusBadge());
+            Assert.Contains("Lag cao", hCrit.GetStatusBadge());
+            Assert.Contains("Mất mạng", hOff.GetStatusBadge());
+        }
     }
 }

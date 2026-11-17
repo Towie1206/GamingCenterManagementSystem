@@ -20,41 +20,49 @@ namespace GamingCenterManagementSystem.Models
 
         private static string Money(decimal amount) => amount.ToString("#,0.############################", Vietnamese);
 
-        public static string FormatReceipt(string cyberName, string invoiceNumber, string stationOrCustomer,
-            string cashierName, List<ReceiptItem> items, decimal vatPercent = 8m)
+        public static string FormatReceipt(string? cyberName, string? invoiceNumber, string? stationOrCustomer,
+            string? cashierName, List<ReceiptItem> items, decimal vatPercent = 8m)
         {
             ArgumentNullException.ThrowIfNull(items);
             if (vatPercent < 0 || vatPercent > 100)
                 throw new ArgumentOutOfRangeException(nameof(vatPercent));
 
+            string safeCyberName = string.IsNullOrWhiteSpace(cyberName) ? "CYBER GAME" : cyberName.Trim();
+            string safeInvoiceNumber = invoiceNumber ?? string.Empty;
+            string safeStationOrCustomer = stationOrCustomer ?? string.Empty;
+            string safeCashierName = cashierName ?? string.Empty;
+
             var receipt = new StringBuilder();
             string rule = new string('-', Width);
             string border = new string('=', Width);
             receipt.AppendLine(border);
-            WriteLine(receipt, cyberName.ToUpper(Vietnamese));
+            WriteLine(receipt, safeCyberName.ToUpper(Vietnamese));
             receipt.AppendLine("DỊCH VỤ PHÒNG GAME CHUYÊN NGHIỆP");
             receipt.AppendLine(border);
-            WriteLine(receipt, $"Số HĐ: {invoiceNumber}");
+            WriteLine(receipt, $"Số HĐ: {safeInvoiceNumber}");
             WriteLine(receipt, $"Ngày: {DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss", Vietnamese)}");
-            WriteLine(receipt, $"Khách: {stationOrCustomer}");
-            WriteLine(receipt, $"Thu ngân: {cashierName}");
+            WriteLine(receipt, $"Khách: {safeStationOrCustomer}");
+            WriteLine(receipt, $"Thu ngân: {safeCashierName}");
             receipt.AppendLine(rule);
             receipt.AppendLine("Tên món          SL    Đơn giá    T.Tiền");
 
             decimal subtotal = 0m;
             foreach (var item in items)
             {
+                if (item == null)
+                    throw new ArgumentNullException(nameof(items), "Mục thanh toán không được rỗng.");
                 if (item.Quantity <= 0 || item.UnitPrice < 0)
                     throw new ArgumentException("Số lượng phải dương và đơn giá phải không âm.", nameof(items));
 
+                string itemName = item.ItemName ?? string.Empty;
                 decimal lineTotal = item.Subtotal;
                 string amounts = string.Format(Vietnamese, "{0,3} {1,9} {2,9}", item.Quantity, Money(item.UnitPrice), Money(lineTotal));
-                if (item.ItemName.Length + 1 + amounts.Length <= Width)
-                    receipt.AppendLine(item.ItemName.PadRight(Width - amounts.Length) + amounts);
+                if (itemName.Length + 1 + amounts.Length <= Width)
+                    receipt.AppendLine(itemName.PadRight(Width - amounts.Length) + amounts);
                 else
                 {
-                    WriteLine(receipt, item.ItemName);
-                    WriteLine(receipt, amounts.PadLeft(Width));
+                    WriteLine(receipt, itemName);
+                    WriteLine(receipt, amounts.Length < Width ? amounts.PadLeft(Width) : amounts);
                 }
                 subtotal += lineTotal;
             }
@@ -72,6 +80,12 @@ namespace GamingCenterManagementSystem.Models
 
         private static void WriteLine(StringBuilder receipt, string text)
         {
+            if (string.IsNullOrEmpty(text))
+            {
+                receipt.AppendLine();
+                return;
+            }
+
             for (int start = 0; start < text.Length; start += Width)
                 receipt.AppendLine(text.Substring(start, Math.Min(Width, text.Length - start)));
         }

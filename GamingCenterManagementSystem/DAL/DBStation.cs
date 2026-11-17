@@ -778,7 +778,8 @@ namespace GamingCenterManagementSystem.DAL
 
             foreach (var st in stations)
             {
-                int latency = st.Status == "Maintenance" ? -1 : rnd.Next(8, 38);
+                bool isMaintenance = string.Equals(st.Status?.Trim(), "Maintenance", StringComparison.OrdinalIgnoreCase);
+                int latency = isMaintenance ? -1 : rnd.Next(8, 38);
                 double loss = latency < 0 ? 100.0 : 0.0;
                 results.Add(new StationNetworkHealth
                 {

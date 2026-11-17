@@ -567,13 +567,19 @@ namespace GamingCenterManagementSystem.DAL
             IsActive = item.IsActive
         };
 
-        public List<ServiceItem> GetLowStockItems(int threshold = 5) =>
-            FilterLowStockItems(GetAllServiceItems(), threshold);
+        public List<ServiceItem> GetLowStockItems(int threshold = 5)
+        {
+            if (threshold < 0)
+                throw new ArgumentOutOfRangeException(nameof(threshold), "Ngưỡng tồn kho không được âm.");
+            return FilterLowStockItems(GetAllServiceItems(), threshold);
+        }
 
         public static List<ServiceItem> FilterLowStockItems(IEnumerable<ServiceItem> items, int threshold = 5)
         {
             ArgumentNullException.ThrowIfNull(items);
-            return items.Where(item => item.StockQuantity <= threshold).ToList();
+            if (threshold < 0)
+                throw new ArgumentOutOfRangeException(nameof(threshold), "Ngưỡng tồn kho không được âm.");
+            return items.Where(item => item != null && item.StockQuantity <= threshold).ToList();
         }
 
         public List<ServiceItem> GetAllServiceItems(bool activeOnly = false)

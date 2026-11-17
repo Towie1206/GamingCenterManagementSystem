@@ -882,5 +882,62 @@ namespace GamingCenterManagementSystem.Tests
             Assert.True(correct);
             Assert.Empty(okMsg);
         }
+
+        [Fact]
+        public void AccountRecoveryService_ValidateOtp_LockedAfterThreeFailedAttempts()
+        {
+            var service = new AccountRecoveryService();
+            string code = service.GenerateOtp(101);
+
+            service.ValidateOtp(101, "111111", out _); // Lan 1
+            service.ValidateOtp(101, "222222", out _); // Lan 2
+            bool thirdWrong = service.ValidateOtp(101, "333333", out string err3); // Lan 3
+            Assert.False(thirdWrong);
+            Assert.Contains("quá 3 lần", err3);
+
+            // Nhập đúng mã sau 3 lần sai vẫn bị khóa
+            bool fourthAttempt = service.ValidateOtp(101, code, out string err4);
+            Assert.False(fourthAttempt);
+            Assert.Contains("quá 3 lần", err4);
+        }
+
+        [Fact]
+        public void AccountRecoveryService_ValidateOtp_ReusedOtpFails()
+        {
+            var service = new AccountRecoveryService();
+            string code = service.GenerateOtp(102);
+
+            Assert.True(service.ValidateOtp(102, code, out _));
+            bool secondUse = service.ValidateOtp(102, code, out string reuseErr);
+            Assert.False(secondUse);
+            Assert.Contains("đã được sử dụng", reuseErr);
+        }
+
+        [Fact]
+        public void AccountRecoveryService_GenerateOtp_ValidatesInputs()
+        {
+            var service = new AccountRecoveryService();
+            Assert.Throws<ArgumentOutOfRangeException>(() => service.GenerateOtp(0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => service.GenerateOtp(1, 0));
+        }
+
+        [Fact]
+        public void LoyaltyReward_CalculatePoints_CaseInsensitive()
+        {
+            int vipLower = LoyaltyReward.CalculatePoints(50000m, "vip");
+            int tournamentMixed = LoyaltyReward.CalculatePoints(50000m, "Tournament");
+            int nonExistent = LoyaltyReward.CalculatePoints(50000m, "Other");
+
+            Assert.Equal(75, vipLower);
+            Assert.Equal(100, tournamentMixed);
+            Assert.Equal(50, nonExistent);
+        }
+
+        [Fact]
+        public void LoyaltyReward_RedeemPoints_InvalidRate_ThrowsArgumentOutOfRangeException()
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => LoyaltyReward.RedeemPointsToCash(100, 0m));
+            Assert.Throws<ArgumentOutOfRangeException>(() => LoyaltyReward.RedeemPointsToCash(100, -5m));
+        }
     }
 }
