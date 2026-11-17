@@ -97,7 +97,7 @@ namespace GamingCenterManagementSystem
             lblRoleHint.Name = "lblRoleHint";
             lblRoleHint.Size = new Size(274, 13);
             lblRoleHint.TabIndex = 9;
-            lblRoleHint.Text = "Hỗ trợ phân quyền: Admin / Staff / Member (PBKDF2)";
+            lblRoleHint.Text = "Tài khoản mẫu: admin / 123456 (hoặc SĐT: 0981000001)";
             // 
             // btnExit
             // 

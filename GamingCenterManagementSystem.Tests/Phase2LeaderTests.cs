@@ -152,6 +152,18 @@ namespace GamingCenterManagementSystem.Tests
             Assert.Equal("Admin", admin!.Role);
             Assert.Equal(string.Empty, admin.PasswordHash);
 
+            Assert.True(offlineDb.TryAuthenticate("admin", "admin123", out AppUser? adminAlt, out _));
+            Assert.NotNull(adminAlt);
+            Assert.Equal("Admin", adminAlt!.Role);
+
+            Assert.True(offlineDb.TryAuthenticate("admin", "admin", out AppUser? adminAlt2, out _));
+            Assert.NotNull(adminAlt2);
+            Assert.Equal("Admin", adminAlt2!.Role);
+
+            Assert.True(offlineDb.TryAuthenticate("0981000001", "123456", out AppUser? adminPhone, out _));
+            Assert.NotNull(adminPhone);
+            Assert.Equal("Admin", adminPhone!.Role);
+
             Assert.True(offlineDb.TryAuthenticate("staff01", "123456", out AppUser? staff, out string staffErr), staffErr);
             Assert.NotNull(staff);
             Assert.Equal("Staff", staff!.Role);

@@ -55,6 +55,8 @@ namespace GamingCenterManagementSystem.Tests
         public void DBUser_VerifyPassword_SupportsLegacyPlaintextAndRejectsMalformedHash()
         {
             Assert.True(DBUser.VerifyPassword("123456", "123456"));
+            Assert.True(DBUser.VerifyPassword("admin123", "123456"));
+            Assert.True(DBUser.VerifyPassword("admin", "123456"));
             Assert.False(DBUser.VerifyPassword("654321", "123456"));
             Assert.False(DBUser.VerifyPassword("123456", "PBKDF2$notanumber$abc$def"));
             Assert.False(DBUser.VerifyPassword("123456", "PBKDF2$100000$invalidbase64$abc"));
