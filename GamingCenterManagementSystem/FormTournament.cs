@@ -43,6 +43,14 @@ namespace GamingCenterManagementSystem
 
         private void SetupEvents()
         {
+            // ToolTip được giải phóng cùng các component của form.
+            components ??= new System.ComponentModel.Container();
+            var tip = new ToolTip(components);
+            tip.SetToolTip(btnTaoVongSau, "Tự động lấy các đội thắng vòng hiện tại để ghép cặp cho vòng đấu tiếp theo");
+            tip.SetToolTip(btnKhoaMayGiaiDau, "Khóa đúng 5 máy Available đã chọn để chuẩn bị thi đấu giải");
+            tip.SetToolTip(btnMoKhoaMay, "Mở khóa dàn máy thi đấu trả về trạng thái sẵn sàng cho khách");
+            tip.SetToolTip(clbDanMay, "Tích chọn chính xác 5 máy trống Available để khóa thi đấu");
+
             Load += (s, e) => RefreshTournamentData();
             btnTaoGiai.Click += BtnTaoGiai_Click;
             btnCapNhatGiai.Click += BtnCapNhatGiai_Click;
@@ -59,6 +67,30 @@ namespace GamingCenterManagementSystem
 
             dgvGiaiDau.SelectionChanged += DgvGiaiDau_SelectionChanged;
             dgvTranDau.SelectionChanged += DgvTranDau_SelectionChanged;
+            dgvTranDau.CellFormatting += DgvTranDau_CellFormatting;
+        }
+
+        private void DgvTranDau_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || !dgvTranDau.Columns.Contains("TrangThai")) return;
+
+            string? status = dgvTranDau.Rows[e.RowIndex].Cells["TrangThai"].Value?.ToString();
+            switch (status?.ToUpperInvariant())
+            {
+                case "PENDING":
+                    e.CellStyle.BackColor = Color.FromArgb(255, 248, 220);
+                    e.CellStyle.ForeColor = Color.FromArgb(120, 76, 0);
+                    break;
+                case "PLAYING":
+                    e.CellStyle.BackColor = Color.FromArgb(225, 240, 255);
+                    e.CellStyle.ForeColor = Color.FromArgb(0, 77, 130);
+                    break;
+                case "FINISHED":
+                    e.CellStyle.BackColor = Color.FromArgb(232, 245, 233);
+                    e.CellStyle.ForeColor = Color.FromArgb(27, 94, 32);
+                    break;
+            }
+            // Giữ nguyên SelectionBackColor/SelectionForeColor để dòng được chọn vẫn nổi bật.
         }
 
         private void RefreshTournamentData()
