@@ -567,6 +567,15 @@ namespace GamingCenterManagementSystem.DAL
             IsActive = item.IsActive
         };
 
+        public List<ServiceItem> GetLowStockItems(int threshold = 5) =>
+            FilterLowStockItems(GetAllServiceItems(), threshold);
+
+        public static List<ServiceItem> FilterLowStockItems(IEnumerable<ServiceItem> items, int threshold = 5)
+        {
+            ArgumentNullException.ThrowIfNull(items);
+            return items.Where(item => item.StockQuantity <= threshold).ToList();
+        }
+
         public List<ServiceItem> GetAllServiceItems(bool activeOnly = false)
         {
             bool opened = false;

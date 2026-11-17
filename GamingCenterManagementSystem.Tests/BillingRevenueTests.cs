@@ -140,5 +140,69 @@ namespace GamingCenterManagementSystem.Tests
             Assert.Contains("Hourly", report);
         }
 
+        [Fact]
+        public void Receipt_PrintsItemsVatAndTotalInDong()
+        {
+            var items = new List<ReceiptItem>
+            {
+                new() { ItemName = "Mì xào bò", Quantity = 2, UnitPrice = 30000m },
+                new() { ItemName = "Sting dâu", Quantity = 1, UnitPrice = 15000m }
+            };
+
+            var lines = ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD001", "Máy 05", "staff01", items)
+                .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+            Assert.Contains("CYBER X", lines);
+            Assert.Contains(lines, line => line.StartsWith("Mì xào bò") && line.EndsWith("60.000"));
+            Assert.Contains("Cộng tiền hàng: 75.000 đ", lines);
+            Assert.Contains("Thuế GTGT (8%): 6.000 đ", lines);
+            Assert.Contains("TỔNG CỘNG: 81.000 đ", lines);
+            Assert.All(lines, line => Assert.True(line.Length <= 40));
+        }
+
+        [Fact]
+        public void Receipt_FractionalPricesMatchPrintedTotals()
+        {
+            var items = new List<ReceiptItem>
+            {
+                new() { ItemName = "A", Quantity = 2, UnitPrice = 1000.25m },
+                new() { ItemName = "B", Quantity = 1, UnitPrice = 1000.50m }
+            };
+
+            var lines = ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD003", "Máy 01", "staff01", items)
+                .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+            Assert.Contains(lines, line => line.StartsWith("A ") && line.Contains("1.000,25") && line.EndsWith("2.000,5"));
+            Assert.Contains(lines, line => line.StartsWith("B ") && line.EndsWith("1.000,5"));
+            Assert.Contains("Cộng tiền hàng: 3.001 đ", lines);
+            Assert.Contains("Thuế GTGT (8%): 240 đ", lines);
+            Assert.Contains("TỔNG CỘNG: 3.241 đ", lines);
+        }
+
+        [Fact]
+        public void Receipt_EmptyOrderPrintsZeroForEveryTotal()
+        {
+            var lines = ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD002", "Mang về", "staff01",
+                new List<ReceiptItem>(), 10m).Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+            Assert.Contains("Cộng tiền hàng: 0 đ", lines);
+            Assert.Contains("Thuế GTGT (10%): 0 đ", lines);
+            Assert.Contains("TỔNG CỘNG: 0 đ", lines);
+        }
+
+        [Fact]
+        public void LowStock_IncludesItemsAtOrBelowThreshold()
+        {
+            var items = new[]
+            {
+                new ServiceItem { StockQuantity = 4 },
+                new ServiceItem { StockQuantity = 5 },
+                new ServiceItem { StockQuantity = 6 }
+            };
+
+            Assert.Equal(new[] { items[0], items[1] }, DBBilling.FilterLowStockItems(items).ToArray());
+            Assert.Equal(new[] { items[0] }, DBBilling.FilterLowStockItems(items, 4).ToArray());
+        }
+
     }
 }
