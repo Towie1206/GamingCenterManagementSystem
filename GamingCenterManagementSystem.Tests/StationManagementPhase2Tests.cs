@@ -183,5 +183,30 @@ namespace GamingCenterManagementSystem.Tests
             Assert.True(completed, "STA thread timed out");
             Assert.Null(threadException);
         }
+
+        [Fact]
+        public void StationNetworkHealth_EvaluateStatus_ClassifiesCorrectly()
+        {
+            Assert.Equal(NetworkHealthStatus.Good, StationNetworkHealth.EvaluateStatus(15, 0));
+            Assert.Equal(NetworkHealthStatus.Warning, StationNetworkHealth.EvaluateStatus(45, 0));
+            Assert.Equal(NetworkHealthStatus.Critical, StationNetworkHealth.EvaluateStatus(95, 0));
+            Assert.Equal(NetworkHealthStatus.Offline, StationNetworkHealth.EvaluateStatus(-1, 100));
+        }
+
+        [Fact]
+        public void StationNetworkHealth_GetStatusBadge_ReturnsDescriptiveText()
+        {
+            var health = new StationNetworkHealth { Status = NetworkHealthStatus.Good };
+            Assert.Contains("Ổn định", health.GetStatusBadge());
+        }
+
+        [Fact]
+        public void DBStation_CheckAllStationsNetworkHealth_ReturnsValidList()
+        {
+            var db = new DBStation();
+            var list = db.CheckAllStationsNetworkHealth();
+            Assert.NotNull(list);
+            Assert.NotEmpty(list);
+        }
     }
 }
