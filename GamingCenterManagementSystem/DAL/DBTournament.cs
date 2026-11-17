@@ -1035,5 +1035,23 @@ namespace GamingCenterManagementSystem.DAL
                 return table;
             }
         }
+
+        /// <summary>
+        /// Tạo nội dung văn bản tóm tắt cơ cấu giải thưởng phục vụ in biên bản trao giải.
+        /// </summary>
+        public string GeneratePrizeReport(int tournamentId, decimal totalPrizePool)
+        {
+            var allocations = TournamentPrizeService.CalculatePrizeDistribution(totalPrizePool);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("=== BIÊN BẢN CƠ CẤU GIẢI THƯỞNG GIẢI ĐẤU CYBER ===");
+            sb.AppendLine($"Mã giải đấu: #{tournamentId} | Quỹ thưởng: {totalPrizePool:N0} VNĐ");
+            sb.AppendLine("-------------------------------------------------");
+            foreach (var item in allocations)
+            {
+                sb.AppendLine($"{item.Title}: {item.Percentage}% => {item.Amount:N0} VNĐ");
+            }
+            sb.AppendLine("-------------------------------------------------");
+            return sb.ToString();
+        }
     }
 }
