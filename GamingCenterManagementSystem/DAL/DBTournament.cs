@@ -450,6 +450,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Khóa đồng loạt cụm 5 máy trạm sang trạng thái TournamentLocked phục vụ trận thi đấu giải.
+        /// </summary>
         public bool LockTournamentStations(int[] stationIds)
         {
             if (stationIds == null || stationIds.Length == 0) return false;
@@ -474,6 +477,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
+        /// <summary>
+        /// Giải phóng cụm máy thi đấu đưa về trạng thái Available cho khách hàng thường sử dụng.
+        /// </summary>
         public bool UnlockTournamentStations(int[] stationIds)
         {
             if (stationIds == null || stationIds.Length == 0) return false;
@@ -790,7 +796,9 @@ namespace GamingCenterManagementSystem.DAL
             }
         }
 
-        /// <summary>Pairs the latest round's winners, or finishes the tournament after its final.</summary>
+        /// <summary>
+        /// Thuật toán tự động ghép cặp vòng sau (Single Elimination), xử lý số đội lẻ bằng vé BYE và vinh danh Nhà Vô Địch.
+        /// </summary>
         public AdvanceRoundResult AutoAdvanceRound(int tournamentId)
         {
             bool opened = false;
@@ -1026,6 +1034,24 @@ namespace GamingCenterManagementSystem.DAL
                 var table = new DataTable();
                 return table;
             }
+        }
+
+        /// <summary>
+        /// Tạo nội dung văn bản tóm tắt cơ cấu giải thưởng phục vụ in biên bản trao giải.
+        /// </summary>
+        public string GeneratePrizeReport(int tournamentId, decimal totalPrizePool)
+        {
+            var allocations = TournamentPrizeService.CalculatePrizeDistribution(totalPrizePool);
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("=== BIÊN BẢN CƠ CẤU GIẢI THƯỞNG GIẢI ĐẤU CYBER ===");
+            sb.AppendLine($"Mã giải đấu: #{tournamentId} | Quỹ thưởng: {totalPrizePool:N0} VNĐ");
+            sb.AppendLine("-------------------------------------------------");
+            foreach (var item in allocations)
+            {
+                sb.AppendLine($"{item.Title}: {item.Percentage}% => {item.Amount:N0} VNĐ");
+            }
+            sb.AppendLine("-------------------------------------------------");
+            return sb.ToString();
         }
     }
 }
