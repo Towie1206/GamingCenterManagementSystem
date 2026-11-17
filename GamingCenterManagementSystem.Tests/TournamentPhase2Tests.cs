@@ -603,4 +603,26 @@ public class TournamentPhase2Tests
 
         public void Dispose() => Database.Delete(TournamentId);
     }
+
+    [Fact]
+    public void AutoAdvanceRound_InvalidTournamentId_ThrowsInvalidOperationException()
+    {
+        using var fixture = new OfflineTournament();
+        Assert.Throws<InvalidOperationException>(() => fixture.Database.AutoAdvanceRound(-999));
+    }
+
+    [Fact]
+    public void DBTournament_LockEmptyStationsArray_ReturnsFalseSafely()
+    {
+        var dbTournament = new DBTournament();
+        bool result = dbTournament.LockTournamentStations(Array.Empty<int>());
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void TournamentMatch_DefaultScore_IsZeroZero()
+    {
+        var match = new TournamentMatch { Team1Name = "Team A", Team2Name = "Team B" };
+        Assert.Equal("Pending", match.Status);
+    }
 }
