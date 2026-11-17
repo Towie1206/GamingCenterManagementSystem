@@ -28,6 +28,7 @@ namespace GamingCenterManagementSystem
             lblMainTitle = new Label();
             pnlNav = new Panel();
             btnLamMoiSoDo = new Button();
+            btnChatHub = new Button();
             btnClientMode = new Button();
             btnNavBilling = new Button();
             btnNavTournament = new Button();
@@ -43,6 +44,7 @@ namespace GamingCenterManagementSystem
             pnlRight = new Panel();
             grpDieuKhienPhien = new GroupBox();
             lblKetQuaTinhTien = new Label();
+            btnChatStation = new Button();
             btnBaoTri = new Button();
             btnDongMay = new Button();
             btnGoiMon = new Button();
@@ -133,6 +135,7 @@ namespace GamingCenterManagementSystem
             // 
             pnlNav.BackColor = Color.FromArgb(30, 36, 60);
             pnlNav.Controls.Add(btnLamMoiSoDo);
+            pnlNav.Controls.Add(btnChatHub);
             pnlNav.Controls.Add(btnClientMode);
             pnlNav.Controls.Add(btnNavBilling);
             pnlNav.Controls.Add(btnNavTournament);
@@ -161,18 +164,32 @@ namespace GamingCenterManagementSystem
             btnLamMoiSoDo.Text = "🔄 Làm Mới Sơ Đồ";
             btnLamMoiSoDo.UseVisualStyleBackColor = false;
             // 
+            // btnChatHub
+            // 
+            btnChatHub.BackColor = Color.FromArgb(13, 148, 136);
+            btnChatHub.FlatStyle = FlatStyle.Flat;
+            btnChatHub.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            btnChatHub.ForeColor = Color.White;
+            btnChatHub.Location = new Point(1018, 11);
+            btnChatHub.Margin = new Padding(3, 4, 3, 4);
+            btnChatHub.Name = "btnChatHub";
+            btnChatHub.Size = new Size(140, 45);
+            btnChatHub.TabIndex = 6;
+            btnChatHub.Text = "💬 Chat Quầy";
+            btnChatHub.UseVisualStyleBackColor = false;
+            // 
             // btnClientMode
             // 
             btnClientMode.BackColor = Color.FromArgb(0, 180, 136);
             btnClientMode.FlatStyle = FlatStyle.Flat;
             btnClientMode.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             btnClientMode.ForeColor = Color.White;
-            btnClientMode.Location = new Point(882, 11);
+            btnClientMode.Location = new Point(878, 11);
             btnClientMode.Margin = new Padding(3, 4, 3, 4);
             btnClientMode.Name = "btnClientMode";
-            btnClientMode.Size = new Size(220, 45);
+            btnClientMode.Size = new Size(134, 45);
             btnClientMode.TabIndex = 4;
-            btnClientMode.Text = "🖥️ Máy Trạm (Client Mode)";
+            btnClientMode.Text = "🖥️ Máy Trạm (Client)";
             btnClientMode.UseVisualStyleBackColor = false;
             // 
             // btnNavBilling
@@ -328,6 +345,7 @@ namespace GamingCenterManagementSystem
             // grpDieuKhienPhien
             // 
             grpDieuKhienPhien.Controls.Add(lblKetQuaTinhTien);
+            grpDieuKhienPhien.Controls.Add(btnChatStation);
             grpDieuKhienPhien.Controls.Add(btnBaoTri);
             grpDieuKhienPhien.Controls.Add(btnDongMay);
             grpDieuKhienPhien.Controls.Add(btnGoiMon);
@@ -359,12 +377,26 @@ namespace GamingCenterManagementSystem
             lblKetQuaTinhTien.BorderStyle = BorderStyle.FixedSingle;
             lblKetQuaTinhTien.Font = new Font("Segoe UI", 9F);
             lblKetQuaTinhTien.ForeColor = Color.FromArgb(0, 51, 102);
-            lblKetQuaTinhTien.Location = new Point(17, 455);
+            lblKetQuaTinhTien.Location = new Point(17, 495);
             lblKetQuaTinhTien.Name = "lblKetQuaTinhTien";
             lblKetQuaTinhTien.Padding = new Padding(7, 8, 7, 8);
-            lblKetQuaTinhTien.Size = new Size(343, 255);
-            lblKetQuaTinhTien.TabIndex = 12;
+            lblKetQuaTinhTien.Size = new Size(343, 215);
+            lblKetQuaTinhTien.TabIndex = 13;
             lblKetQuaTinhTien.Text = "Thông tin thanh toán phiên chơi sẽ hiển thị tại đây sau khi chốt phiên tính cước đa hình.";
+            // 
+            // btnChatStation
+            // 
+            btnChatStation.BackColor = Color.FromArgb(13, 148, 136);
+            btnChatStation.FlatStyle = FlatStyle.Flat;
+            btnChatStation.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold);
+            btnChatStation.ForeColor = Color.White;
+            btnChatStation.Location = new Point(17, 453);
+            btnChatStation.Margin = new Padding(3, 4, 3, 4);
+            btnChatStation.Name = "btnChatStation";
+            btnChatStation.Size = new Size(343, 36);
+            btnChatStation.TabIndex = 12;
+            btnChatStation.Text = "💬 CHAT VỚI MÁY TRẠM";
+            btnChatStation.UseVisualStyleBackColor = false;
             // 
             // btnBaoTri
             // 
@@ -573,6 +605,7 @@ namespace GamingCenterManagementSystem
         private Button btnNavTournament;
         private Button btnNavBilling;
         private Button btnClientMode;
+        public Button btnChatHub;
         private Button btnLamMoiSoDo;
         private Panel pnlLegend;
         private Label lblLegendTitle;
@@ -595,6 +628,7 @@ namespace GamingCenterManagementSystem
         private Button btnGoiMon;
         private Button btnDongMay;
         private Button btnBaoTri;
+        public Button btnChatStation;
         private Label lblKetQuaTinhTien;
         private Panel pnlCenter;
         private FlowLayoutPanel flpDanhSachMay;

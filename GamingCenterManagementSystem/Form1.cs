@@ -111,6 +111,56 @@ namespace GamingCenterManagementSystem
                 LoadDashboardData();
             };
 
+            btnChatHub.Click += (s, e) => OpenChatHub(_selectedStation?.StationId);
+            btnChatStation.Click += (s, e) => OpenChatHub(_selectedStation?.StationId ?? 1);
+
+            StationChatService.OnMessageSent += msg =>
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                try
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        int unread = StationChatService.GetUnreadCountForStaff();
+                        if (unread > 0)
+                        {
+                            btnChatHub.Text = $"💬 Chat Quầy ({unread})";
+                            btnChatHub.BackColor = Color.FromArgb(234, 88, 12);
+                            lblRealtimeSummary.Text = $"💬 [{msg.StationName}] {msg.SenderDisplayName}: {msg.MessageText} [Click để Chat]";
+                        }
+                        else
+                        {
+                            btnChatHub.Text = "💬 Chat Quầy";
+                            btnChatHub.BackColor = Color.FromArgb(13, 148, 136);
+                        }
+                    }));
+                }
+                catch { }
+            };
+
+            StationChatService.OnUnreadCountChanged += stId =>
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                try
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        int unread = StationChatService.GetUnreadCountForStaff();
+                        if (unread > 0)
+                        {
+                            btnChatHub.Text = $"💬 Chat Quầy ({unread})";
+                            btnChatHub.BackColor = Color.FromArgb(234, 88, 12);
+                        }
+                        else
+                        {
+                            btnChatHub.Text = "💬 Chat Quầy";
+                            btnChatHub.BackColor = Color.FromArgb(13, 148, 136);
+                        }
+                    }));
+                }
+                catch { }
+            };
+
             StaffCallQueue.OnCallReceived += call =>
             {
                 if (IsDisposed || !IsHandleCreated) return;
@@ -140,6 +190,12 @@ namespace GamingCenterManagementSystem
             lblRealtimeSummary.Cursor = Cursors.Hand;
             lblRealtimeSummary.Click += (s, e) =>
             {
+                if (StationChatService.GetUnreadCountForStaff() > 0)
+                {
+                    OpenChatHub(_selectedStation?.StationId);
+                    return;
+                }
+
                 var pending = StaffCallQueue.GetPendingCalls();
                 if (pending.Count == 0)
                 {
@@ -246,6 +302,8 @@ namespace GamingCenterManagementSystem
                 btnNavTournament.Enabled = true;
                 btnNavBilling.Enabled = true;
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
+                btnChatHub.Enabled = true;
+                btnChatStation.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
                 return;
@@ -263,6 +321,8 @@ namespace GamingCenterManagementSystem
                 btnNavBilling.Enabled = true;
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
                 btnClientMode.Enabled = true;
+                btnChatHub.Enabled = true;
+                btnChatStation.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
             }
@@ -276,6 +336,8 @@ namespace GamingCenterManagementSystem
                 btnNavBilling.Enabled = false;
                 btnNavBilling.Text = "🔒 Doanh Thu (Chỉ Admin)";
                 btnClientMode.Enabled = true;
+                btnChatHub.Enabled = true;
+                btnChatStation.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
             }
@@ -289,6 +351,8 @@ namespace GamingCenterManagementSystem
                 btnNavBilling.Enabled = false;
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
                 btnClientMode.Enabled = true;
+                btnChatHub.Enabled = false;
+                btnChatStation.Enabled = false;
                 btnMoMay.Enabled = false;
                 btnGoiMon.Enabled = false;
                 btnDongMay.Enabled = false;
@@ -301,6 +365,14 @@ namespace GamingCenterManagementSystem
             {
                 SelectStation(_selectedStation);
             }
+        }
+
+        public FormCashierChatHub OpenChatHub(int? stationId = null)
+        {
+            int targetStationId = stationId ?? _selectedStation?.StationId ?? 1;
+            var hub = new FormCashierChatHub(_dbStation, targetStationId);
+            hub.Show(this);
+            return hub;
         }
 
         public void LoadDashboardData()

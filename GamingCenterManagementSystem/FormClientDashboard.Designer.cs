@@ -20,6 +20,8 @@ namespace GamingCenterManagementSystem
             System.Windows.Forms.DataGridViewCellStyle dgvOrdersHeaderStyle = new System.Windows.Forms.DataGridViewCellStyle();
             System.Windows.Forms.DataGridViewCellStyle dgvOrdersRowStyle = new System.Windows.Forms.DataGridViewCellStyle();
             pnlTopHud = new System.Windows.Forms.Panel();
+            pnlHardwareHud = new System.Windows.Forms.Panel();
+            lblHardwareLatencyHud = new System.Windows.Forms.Label();
             pnlStationInfo = new System.Windows.Forms.Panel();
             lblStationInfo = new System.Windows.Forms.Label();
             lblCenterBranding = new System.Windows.Forms.Label();
@@ -74,6 +76,30 @@ namespace GamingCenterManagementSystem
             lblFoodQty = new System.Windows.Forms.Label();
             lblSelectedFoodPrice = new System.Windows.Forms.Label();
             lblSelectedFoodName = new System.Windows.Forms.Label();
+            tabChat = new System.Windows.Forms.TabPage();
+            pnlChatHeader = new System.Windows.Forms.Panel();
+            lblChatHeaderTitle = new System.Windows.Forms.Label();
+            lblChatHeaderInfo = new System.Windows.Forms.Label();
+            btnOpenVietQrTopUp = new System.Windows.Forms.Button();
+            pnlChatContainer = new System.Windows.Forms.Panel();
+            flpClientChat = new System.Windows.Forms.FlowLayoutPanel();
+            pnlVietQrDrawer = new System.Windows.Forms.Panel();
+            lblDrawerHeader = new System.Windows.Forms.Label();
+            lblDrawerAmountPrompt = new System.Windows.Forms.Label();
+            cboDrawerAmount = new System.Windows.Forms.ComboBox();
+            picDrawerQr = new System.Windows.Forms.PictureBox();
+            lblDrawerSyntax = new System.Windows.Forms.Label();
+            btnCloseDrawer = new System.Windows.Forms.Button();
+            pnlQuickChips = new System.Windows.Forms.Panel();
+            lblQuickChipsPrompt = new System.Windows.Forms.Label();
+            btnChipWater = new System.Windows.Forms.Button();
+            btnChipDeposit = new System.Windows.Forms.Button();
+            btnChipHardware = new System.Windows.Forms.Button();
+            btnChipAC = new System.Windows.Forms.Button();
+            btnChipFood = new System.Windows.Forms.Button();
+            pnlChatInputBar = new System.Windows.Forms.Panel();
+            txtClientChatMessage = new System.Windows.Forms.TextBox();
+            btnSendClientChat = new System.Windows.Forms.Button();
             pnlLockOverlay = new System.Windows.Forms.Panel();
             lblUnlockError = new System.Windows.Forms.Label();
             btnUnlock = new System.Windows.Forms.Button();
@@ -108,11 +134,34 @@ namespace GamingCenterManagementSystem
             pnlTopHud.Controls.Add(pnlAccountActions);
             pnlTopHud.Controls.Add(pnlSessionTimers);
             pnlTopHud.Controls.Add(pnlStationInfo);
+            pnlTopHud.Controls.Add(pnlHardwareHud);
             pnlTopHud.Dock = System.Windows.Forms.DockStyle.Top;
             pnlTopHud.Location = new System.Drawing.Point(0, 0);
             pnlTopHud.Name = "pnlTopHud";
-            pnlTopHud.Size = new System.Drawing.Size(1300, 125);
+            pnlTopHud.Size = new System.Drawing.Size(1300, 158);
             pnlTopHud.TabIndex = 0;
+            // 
+            // pnlHardwareHud
+            // 
+            pnlHardwareHud.BackColor = System.Drawing.Color.FromArgb(12, 16, 24);
+            pnlHardwareHud.Controls.Add(lblHardwareLatencyHud);
+            pnlHardwareHud.Dock = System.Windows.Forms.DockStyle.Bottom;
+            pnlHardwareHud.Location = new System.Drawing.Point(0, 125);
+            pnlHardwareHud.Name = "pnlHardwareHud";
+            pnlHardwareHud.Size = new System.Drawing.Size(1300, 33);
+            pnlHardwareHud.TabIndex = 3;
+            // 
+            // lblHardwareLatencyHud
+            // 
+            lblHardwareLatencyHud.Dock = System.Windows.Forms.DockStyle.Fill;
+            lblHardwareLatencyHud.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
+            lblHardwareLatencyHud.ForeColor = System.Drawing.Color.FromArgb(0, 220, 255);
+            lblHardwareLatencyHud.Location = new System.Drawing.Point(0, 0);
+            lblHardwareLatencyHud.Name = "lblHardwareLatencyHud";
+            lblHardwareLatencyHud.Size = new System.Drawing.Size(1300, 33);
+            lblHardwareLatencyHud.TabIndex = 0;
+            lblHardwareLatencyHud.Text = "🖥️ i7-14700K | 32GB DDR5 | RTX 4070 Ti | 240Hz Fast-IPS | 🟢 Ping 12ms";
+            lblHardwareLatencyHud.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // pnlStationInfo
             // 
@@ -320,12 +369,13 @@ namespace GamingCenterManagementSystem
             // 
             tabMain.Controls.Add(tabGameHub);
             tabMain.Controls.Add(tabFoodMenu);
+            tabMain.Controls.Add(tabChat);
             tabMain.Dock = System.Windows.Forms.DockStyle.Fill;
             tabMain.Font = new System.Drawing.Font("Segoe UI", 10.5F, System.Drawing.FontStyle.Bold);
-            tabMain.Location = new System.Drawing.Point(0, 125);
+            tabMain.Location = new System.Drawing.Point(0, 158);
             tabMain.Name = "tabMain";
             tabMain.SelectedIndex = 0;
-            tabMain.Size = new System.Drawing.Size(1300, 725);
+            tabMain.Size = new System.Drawing.Size(1300, 692);
             tabMain.TabIndex = 1;
             // 
             // tabGameHub
@@ -803,6 +853,310 @@ namespace GamingCenterManagementSystem
             lblSelectedFoodName.TabIndex = 0;
             lblSelectedFoodName.Text = "Vui lòng chọn món từ menu bên trái";
             // 
+            // tabChat
+            // 
+            tabChat.BackColor = System.Drawing.Color.FromArgb(15, 20, 28);
+            tabChat.Controls.Add(pnlChatContainer);
+            tabChat.Controls.Add(pnlVietQrDrawer);
+            tabChat.Controls.Add(pnlQuickChips);
+            tabChat.Controls.Add(pnlChatInputBar);
+            tabChat.Controls.Add(pnlChatHeader);
+            tabChat.Location = new System.Drawing.Point(4, 32);
+            tabChat.Name = "tabChat";
+            tabChat.Padding = new System.Windows.Forms.Padding(3);
+            tabChat.Size = new System.Drawing.Size(1292, 656);
+            tabChat.TabIndex = 2;
+            tabChat.Text = "💬 HỖ TRỢ & CHAT QUẦY";
+            // 
+            // pnlChatHeader
+            // 
+            pnlChatHeader.BackColor = System.Drawing.Color.FromArgb(18, 24, 38);
+            pnlChatHeader.Controls.Add(btnOpenVietQrTopUp);
+            pnlChatHeader.Controls.Add(lblChatHeaderInfo);
+            pnlChatHeader.Controls.Add(lblChatHeaderTitle);
+            pnlChatHeader.Dock = System.Windows.Forms.DockStyle.Top;
+            pnlChatHeader.Location = new System.Drawing.Point(3, 3);
+            pnlChatHeader.Name = "pnlChatHeader";
+            pnlChatHeader.Size = new System.Drawing.Size(1286, 50);
+            pnlChatHeader.TabIndex = 0;
+            // 
+            // lblChatHeaderTitle
+            // 
+            lblChatHeaderTitle.AutoSize = true;
+            lblChatHeaderTitle.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
+            lblChatHeaderTitle.ForeColor = System.Drawing.Color.FromArgb(0, 210, 255);
+            lblChatHeaderTitle.Location = new System.Drawing.Point(12, 12);
+            lblChatHeaderTitle.Name = "lblChatHeaderTitle";
+            lblChatHeaderTitle.Size = new System.Drawing.Size(435, 25);
+            lblChatHeaderTitle.TabIndex = 0;
+            lblChatHeaderTitle.Text = "💬 TRÒ CHUYỆN TRỰC TIẾP VỚI THU NGÂN QUẦY";
+            // 
+            // lblChatHeaderInfo
+            // 
+            lblChatHeaderInfo.AutoSize = true;
+            lblChatHeaderInfo.Font = new System.Drawing.Font("Segoe UI", 9F);
+            lblChatHeaderInfo.ForeColor = System.Drawing.Color.FromArgb(160, 220, 180);
+            lblChatHeaderInfo.Location = new System.Drawing.Point(460, 16);
+            lblChatHeaderInfo.Name = "lblChatHeaderInfo";
+            lblChatHeaderInfo.Size = new System.Drawing.Size(340, 20);
+            lblChatHeaderInfo.TabIndex = 1;
+            lblChatHeaderInfo.Text = "🟢 Thu ngân đang trực tuyến | Phản hồi siêu tốc 24/7";
+            // 
+            // btnOpenVietQrTopUp
+            // 
+            btnOpenVietQrTopUp.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            btnOpenVietQrTopUp.BackColor = System.Drawing.Color.FromArgb(13, 148, 136);
+            btnOpenVietQrTopUp.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnOpenVietQrTopUp.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
+            btnOpenVietQrTopUp.ForeColor = System.Drawing.Color.White;
+            btnOpenVietQrTopUp.Location = new System.Drawing.Point(1070, 8);
+            btnOpenVietQrTopUp.Name = "btnOpenVietQrTopUp";
+            btnOpenVietQrTopUp.Size = new System.Drawing.Size(205, 34);
+            btnOpenVietQrTopUp.TabIndex = 2;
+            btnOpenVietQrTopUp.Text = "⚡ NẠP VÍ TỰ ĐỘNG VIETQR";
+            btnOpenVietQrTopUp.UseVisualStyleBackColor = false;
+            // 
+            // pnlVietQrDrawer
+            // 
+            pnlVietQrDrawer.BackColor = System.Drawing.Color.FromArgb(20, 26, 40);
+            pnlVietQrDrawer.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            pnlVietQrDrawer.Controls.Add(btnCloseDrawer);
+            pnlVietQrDrawer.Controls.Add(lblDrawerSyntax);
+            pnlVietQrDrawer.Controls.Add(picDrawerQr);
+            pnlVietQrDrawer.Controls.Add(cboDrawerAmount);
+            pnlVietQrDrawer.Controls.Add(lblDrawerAmountPrompt);
+            pnlVietQrDrawer.Controls.Add(lblDrawerHeader);
+            pnlVietQrDrawer.Dock = System.Windows.Forms.DockStyle.Right;
+            pnlVietQrDrawer.Location = new System.Drawing.Point(976, 53);
+            pnlVietQrDrawer.Name = "pnlVietQrDrawer";
+            pnlVietQrDrawer.Padding = new System.Windows.Forms.Padding(10);
+            pnlVietQrDrawer.Size = new System.Drawing.Size(310, 507);
+            pnlVietQrDrawer.TabIndex = 3;
+            pnlVietQrDrawer.Visible = false;
+            // 
+            // lblDrawerHeader
+            // 
+            lblDrawerHeader.Dock = System.Windows.Forms.DockStyle.Top;
+            lblDrawerHeader.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            lblDrawerHeader.ForeColor = System.Drawing.Color.FromArgb(0, 220, 255);
+            lblDrawerHeader.Location = new System.Drawing.Point(10, 10);
+            lblDrawerHeader.Name = "lblDrawerHeader";
+            lblDrawerHeader.Size = new System.Drawing.Size(288, 25);
+            lblDrawerHeader.TabIndex = 0;
+            lblDrawerHeader.Text = "⚡ NẠP VÍ NHANH VIETQR";
+            lblDrawerHeader.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // lblDrawerAmountPrompt
+            // 
+            lblDrawerAmountPrompt.AutoSize = true;
+            lblDrawerAmountPrompt.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
+            lblDrawerAmountPrompt.ForeColor = System.Drawing.Color.White;
+            lblDrawerAmountPrompt.Location = new System.Drawing.Point(12, 42);
+            lblDrawerAmountPrompt.Name = "lblDrawerAmountPrompt";
+            lblDrawerAmountPrompt.Size = new System.Drawing.Size(107, 19);
+            lblDrawerAmountPrompt.TabIndex = 1;
+            lblDrawerAmountPrompt.Text = "Chọn số tiền:";
+            // 
+            // cboDrawerAmount
+            // 
+            cboDrawerAmount.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            cboDrawerAmount.Font = new System.Drawing.Font("Segoe UI", 9.5F);
+            cboDrawerAmount.FormattingEnabled = true;
+            cboDrawerAmount.Items.AddRange(new object[] { "20,000 VNĐ", "50,000 VNĐ", "100,000 VNĐ", "200,000 VNĐ", "500,000 VNĐ" });
+            cboDrawerAmount.Location = new System.Drawing.Point(120, 38);
+            cboDrawerAmount.Name = "cboDrawerAmount";
+            cboDrawerAmount.Size = new System.Drawing.Size(160, 29);
+            cboDrawerAmount.TabIndex = 2;
+            // 
+            // picDrawerQr
+            // 
+            picDrawerQr.BackColor = System.Drawing.Color.White;
+            picDrawerQr.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            picDrawerQr.Location = new System.Drawing.Point(35, 78);
+            picDrawerQr.Name = "picDrawerQr";
+            picDrawerQr.Size = new System.Drawing.Size(240, 240);
+            picDrawerQr.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
+            picDrawerQr.TabIndex = 3;
+            picDrawerQr.TabStop = false;
+            // 
+            // lblDrawerSyntax
+            // 
+            lblDrawerSyntax.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
+            lblDrawerSyntax.ForeColor = System.Drawing.Color.FromArgb(255, 215, 0);
+            lblDrawerSyntax.Location = new System.Drawing.Point(10, 325);
+            lblDrawerSyntax.Name = "lblDrawerSyntax";
+            lblDrawerSyntax.Size = new System.Drawing.Size(288, 40);
+            lblDrawerSyntax.TabIndex = 4;
+            lblDrawerSyntax.Text = "Cú pháp: NAP PC02 GAMER01";
+            lblDrawerSyntax.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            // 
+            // btnCloseDrawer
+            // 
+            btnCloseDrawer.BackColor = System.Drawing.Color.FromArgb(50, 60, 80);
+            btnCloseDrawer.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnCloseDrawer.Font = new System.Drawing.Font("Segoe UI", 9F);
+            btnCloseDrawer.ForeColor = System.Drawing.Color.White;
+            btnCloseDrawer.Location = new System.Drawing.Point(85, 372);
+            btnCloseDrawer.Name = "btnCloseDrawer";
+            btnCloseDrawer.Size = new System.Drawing.Size(140, 32);
+            btnCloseDrawer.TabIndex = 5;
+            btnCloseDrawer.Text = "Đóng Nạp Ví";
+            btnCloseDrawer.UseVisualStyleBackColor = false;
+            // 
+            // pnlChatContainer
+            // 
+            pnlChatContainer.BackColor = System.Drawing.Color.FromArgb(14, 18, 26);
+            pnlChatContainer.Controls.Add(flpClientChat);
+            pnlChatContainer.Dock = System.Windows.Forms.DockStyle.Fill;
+            pnlChatContainer.Location = new System.Drawing.Point(3, 53);
+            pnlChatContainer.Name = "pnlChatContainer";
+            pnlChatContainer.Padding = new System.Windows.Forms.Padding(8);
+            pnlChatContainer.Size = new System.Drawing.Size(973, 507);
+            pnlChatContainer.TabIndex = 4;
+            // 
+            // flpClientChat
+            // 
+            flpClientChat.AutoScroll = true;
+            flpClientChat.BackColor = System.Drawing.Color.FromArgb(16, 22, 34);
+            flpClientChat.Dock = System.Windows.Forms.DockStyle.Fill;
+            flpClientChat.FlowDirection = System.Windows.Forms.FlowDirection.TopDown;
+            flpClientChat.Location = new System.Drawing.Point(8, 8);
+            flpClientChat.Name = "flpClientChat";
+            flpClientChat.Padding = new System.Windows.Forms.Padding(10);
+            flpClientChat.Size = new System.Drawing.Size(957, 491);
+            flpClientChat.TabIndex = 0;
+            flpClientChat.WrapContents = false;
+            // 
+            // pnlQuickChips
+            // 
+            pnlQuickChips.BackColor = System.Drawing.Color.FromArgb(22, 28, 42);
+            pnlQuickChips.Controls.Add(btnChipFood);
+            pnlQuickChips.Controls.Add(btnChipAC);
+            pnlQuickChips.Controls.Add(btnChipHardware);
+            pnlQuickChips.Controls.Add(btnChipDeposit);
+            pnlQuickChips.Controls.Add(btnChipWater);
+            pnlQuickChips.Controls.Add(lblQuickChipsPrompt);
+            pnlQuickChips.Dock = System.Windows.Forms.DockStyle.Bottom;
+            pnlQuickChips.Location = new System.Drawing.Point(3, 560);
+            pnlQuickChips.Name = "pnlQuickChips";
+            pnlQuickChips.Size = new System.Drawing.Size(1286, 44);
+            pnlQuickChips.TabIndex = 1;
+            // 
+            // lblQuickChipsPrompt
+            // 
+            lblQuickChipsPrompt.AutoSize = true;
+            lblQuickChipsPrompt.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
+            lblQuickChipsPrompt.ForeColor = System.Drawing.Color.FromArgb(200, 215, 235);
+            lblQuickChipsPrompt.Location = new System.Drawing.Point(12, 13);
+            lblQuickChipsPrompt.Name = "lblQuickChipsPrompt";
+            lblQuickChipsPrompt.Size = new System.Drawing.Size(107, 19);
+            lblQuickChipsPrompt.TabIndex = 0;
+            lblQuickChipsPrompt.Text = "⚡ Chọn nhanh:";
+            // 
+            // btnChipWater
+            // 
+            btnChipWater.BackColor = System.Drawing.Color.FromArgb(34, 46, 68);
+            btnChipWater.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnChipWater.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            btnChipWater.ForeColor = System.Drawing.Color.White;
+            btnChipWater.Location = new System.Drawing.Point(125, 6);
+            btnChipWater.Name = "btnChipWater";
+            btnChipWater.Size = new System.Drawing.Size(165, 32);
+            btnChipWater.TabIndex = 1;
+            btnChipWater.Text = "Xin thêm nước lọc/đá";
+            btnChipWater.UseVisualStyleBackColor = false;
+            // 
+            // btnChipDeposit
+            // 
+            btnChipDeposit.BackColor = System.Drawing.Color.FromArgb(34, 46, 68);
+            btnChipDeposit.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnChipDeposit.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            btnChipDeposit.ForeColor = System.Drawing.Color.White;
+            btnChipDeposit.Location = new System.Drawing.Point(298, 6);
+            btnChipDeposit.Name = "btnChipDeposit";
+            btnChipDeposit.Size = new System.Drawing.Size(135, 32);
+            btnChipDeposit.TabIndex = 2;
+            btnChipDeposit.Text = "Nạp 50k ví";
+            btnChipDeposit.UseVisualStyleBackColor = false;
+            // 
+            // btnChipHardware
+            // 
+            btnChipHardware.BackColor = System.Drawing.Color.FromArgb(34, 46, 68);
+            btnChipHardware.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnChipHardware.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            btnChipHardware.ForeColor = System.Drawing.Color.White;
+            btnChipHardware.Location = new System.Drawing.Point(441, 6);
+            btnChipHardware.Name = "btnChipHardware";
+            btnChipHardware.Size = new System.Drawing.Size(145, 32);
+            btnChipHardware.TabIndex = 3;
+            btnChipHardware.Text = "Kẹt phím/chuột";
+            btnChipHardware.UseVisualStyleBackColor = false;
+            // 
+            // btnChipAC
+            // 
+            btnChipAC.BackColor = System.Drawing.Color.FromArgb(34, 46, 68);
+            btnChipAC.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnChipAC.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            btnChipAC.ForeColor = System.Drawing.Color.White;
+            btnChipAC.Location = new System.Drawing.Point(594, 6);
+            btnChipAC.Name = "btnChipAC";
+            btnChipAC.Size = new System.Drawing.Size(145, 32);
+            btnChipAC.TabIndex = 4;
+            btnChipAC.Text = "Chỉnh điều hòa";
+            btnChipAC.UseVisualStyleBackColor = false;
+            // 
+            // btnChipFood
+            // 
+            btnChipFood.BackColor = System.Drawing.Color.FromArgb(34, 46, 68);
+            btnChipFood.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnChipFood.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            btnChipFood.ForeColor = System.Drawing.Color.White;
+            btnChipFood.Location = new System.Drawing.Point(747, 6);
+            btnChipFood.Name = "btnChipFood";
+            btnChipFood.Size = new System.Drawing.Size(175, 32);
+            btnChipFood.TabIndex = 5;
+            btnChipFood.Text = "Bao lâu nữa có đồ ăn ạ?";
+            btnChipFood.UseVisualStyleBackColor = false;
+            // 
+            // pnlChatInputBar
+            // 
+            pnlChatInputBar.BackColor = System.Drawing.Color.FromArgb(18, 24, 38);
+            pnlChatInputBar.Controls.Add(btnSendClientChat);
+            pnlChatInputBar.Controls.Add(txtClientChatMessage);
+            pnlChatInputBar.Dock = System.Windows.Forms.DockStyle.Bottom;
+            pnlChatInputBar.Location = new System.Drawing.Point(3, 604);
+            pnlChatInputBar.Name = "pnlChatInputBar";
+            pnlChatInputBar.Padding = new System.Windows.Forms.Padding(12, 8, 12, 8);
+            pnlChatInputBar.Size = new System.Drawing.Size(1286, 49);
+            pnlChatInputBar.TabIndex = 2;
+            // 
+            // txtClientChatMessage
+            // 
+            txtClientChatMessage.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
+            txtClientChatMessage.BackColor = System.Drawing.Color.FromArgb(30, 38, 56);
+            txtClientChatMessage.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            txtClientChatMessage.Font = new System.Drawing.Font("Segoe UI", 10F);
+            txtClientChatMessage.ForeColor = System.Drawing.Color.White;
+            txtClientChatMessage.Location = new System.Drawing.Point(12, 10);
+            txtClientChatMessage.Name = "txtClientChatMessage";
+            txtClientChatMessage.PlaceholderText = "Nhập tin nhắn gửi tới thu ngân quầy (Nhấn Enter để gửi)...";
+            txtClientChatMessage.Size = new System.Drawing.Size(1140, 30);
+            txtClientChatMessage.TabIndex = 0;
+            // 
+            // btnSendClientChat
+            // 
+            btnSendClientChat.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right;
+            btnSendClientChat.BackColor = System.Drawing.Color.FromArgb(0, 180, 136);
+            btnSendClientChat.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            btnSendClientChat.Font = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
+            btnSendClientChat.ForeColor = System.Drawing.Color.White;
+            btnSendClientChat.Location = new System.Drawing.Point(1162, 8);
+            btnSendClientChat.Name = "btnSendClientChat";
+            btnSendClientChat.Size = new System.Drawing.Size(110, 34);
+            btnSendClientChat.TabIndex = 1;
+            btnSendClientChat.Text = "Gửi 📤";
+            btnSendClientChat.UseVisualStyleBackColor = false;
+            // 
             // pnlLockOverlay
             // 
             pnlLockOverlay.BackColor = System.Drawing.Color.FromArgb(12, 16, 24);
@@ -945,10 +1299,24 @@ namespace GamingCenterManagementSystem
             ((System.ComponentModel.ISupportInitialize)nudFoodQty).EndInit();
             pnlLockOverlay.ResumeLayout(false);
             pnlLockOverlay.PerformLayout();
+            pnlHardwareHud.ResumeLayout(false);
+            tabChat.ResumeLayout(false);
+            pnlChatHeader.ResumeLayout(false);
+            pnlChatHeader.PerformLayout();
+            pnlVietQrDrawer.ResumeLayout(false);
+            pnlVietQrDrawer.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)picDrawerQr).EndInit();
+            pnlChatContainer.ResumeLayout(false);
+            pnlQuickChips.ResumeLayout(false);
+            pnlQuickChips.PerformLayout();
+            pnlChatInputBar.ResumeLayout(false);
+            pnlChatInputBar.PerformLayout();
             ResumeLayout(false);
         }
 
         private System.Windows.Forms.Panel pnlTopHud;
+        private System.Windows.Forms.Panel pnlHardwareHud;
+        public System.Windows.Forms.Label lblHardwareLatencyHud;
         private System.Windows.Forms.Panel pnlStationInfo;
         private System.Windows.Forms.Label lblCenterBranding;
         private System.Windows.Forms.Label lblStationInfo;
@@ -966,7 +1334,7 @@ namespace GamingCenterManagementSystem
         private System.Windows.Forms.Button btnChangePassword;
         private System.Windows.Forms.Button btnCallStaff;
         private System.Windows.Forms.Button btnLogoutSession;
-        private System.Windows.Forms.TabControl tabMain;
+        public System.Windows.Forms.TabControl tabMain;
         private System.Windows.Forms.TabPage tabGameHub;
         private System.Windows.Forms.Panel pnlGameTop;
         private System.Windows.Forms.Button btnCatAll;
@@ -1003,6 +1371,30 @@ namespace GamingCenterManagementSystem
         private System.Windows.Forms.Button btnOrderFood;
         private System.Windows.Forms.Label lblOrdersHeader;
         private System.Windows.Forms.DataGridView dgvSessionOrders;
+        public System.Windows.Forms.TabPage tabChat;
+        private System.Windows.Forms.Panel pnlChatHeader;
+        private System.Windows.Forms.Label lblChatHeaderTitle;
+        private System.Windows.Forms.Label lblChatHeaderInfo;
+        public System.Windows.Forms.Button btnOpenVietQrTopUp;
+        private System.Windows.Forms.Panel pnlChatContainer;
+        public System.Windows.Forms.FlowLayoutPanel flpClientChat;
+        public System.Windows.Forms.Panel pnlVietQrDrawer;
+        private System.Windows.Forms.Label lblDrawerHeader;
+        private System.Windows.Forms.Label lblDrawerAmountPrompt;
+        public System.Windows.Forms.ComboBox cboDrawerAmount;
+        public System.Windows.Forms.PictureBox picDrawerQr;
+        public System.Windows.Forms.Label lblDrawerSyntax;
+        public System.Windows.Forms.Button btnCloseDrawer;
+        private System.Windows.Forms.Panel pnlQuickChips;
+        private System.Windows.Forms.Label lblQuickChipsPrompt;
+        public System.Windows.Forms.Button btnChipWater;
+        public System.Windows.Forms.Button btnChipDeposit;
+        public System.Windows.Forms.Button btnChipHardware;
+        public System.Windows.Forms.Button btnChipAC;
+        public System.Windows.Forms.Button btnChipFood;
+        private System.Windows.Forms.Panel pnlChatInputBar;
+        public System.Windows.Forms.TextBox txtClientChatMessage;
+        public System.Windows.Forms.Button btnSendClientChat;
         private System.Windows.Forms.Panel pnlLockOverlay;
         private System.Windows.Forms.Label lblLockIcon;
         private System.Windows.Forms.Label lblLockTitle;

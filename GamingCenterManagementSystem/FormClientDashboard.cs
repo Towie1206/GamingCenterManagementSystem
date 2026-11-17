@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
@@ -38,6 +39,21 @@ namespace GamingCenterManagementSystem
         public string MemberFullName { get; private set; } = string.Empty;
         public string MemberTier { get; private set; } = "Standard";
 
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string HardwareSpecs { get; set; } = "i7-14700K | 32GB DDR5 | RTX 4070 Ti | 240Hz Fast-IPS";
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public int NetworkPingMs { get; set; } = 12;
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public string HardwareLatencyText => lblHardwareLatencyHud.Text;
+
+        [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public int ClientChatMessageCount => flpClientChat.Controls.Count;
+
+        private readonly Action<ChatMessage> _onChatMessageSentHandler;
+        private readonly Action<int> _onChatUnreadChangedHandler;
+
         public List<GameItem> AvailableGames { get; } = new();
         public List<ServiceItem> AvailableServiceItems { get; private set; } = new();
         public List<SessionServiceDetail> SessionServices { get; private set; } = new();
@@ -59,16 +75,29 @@ namespace GamingCenterManagementSystem
             _dbBilling = dbBilling;
             _dbUser = dbUser;
 
+            _onChatMessageSentHandler = HandleIncomingChatMessage;
+            _onChatUnreadChangedHandler = HandleChatUnreadChanged;
+            StationChatService.OnMessageSent += _onChatMessageSentHandler;
+            StationChatService.OnUnreadCountChanged += _onChatUnreadChangedHandler;
+
             InitializeComponent();
             InitializeDefaultSessionAndStation(stationId);
             InitializeGameCatalog();
             SetupEventHandlers();
+            SetupChatEventHandlers();
             LoadFoodCatalog();
             LoadSessionOrders();
+            LoadClientChatHistory();
             UpdateRealtimeHud();
 
             tmrRealtime.Tick += (s, e) => UpdateRealtimeHud();
             tmrRealtime.Start();
+
+            FormClosed += (s, e) =>
+            {
+                StationChatService.OnMessageSent -= _onChatMessageSentHandler;
+                StationChatService.OnUnreadCountChanged -= _onChatUnreadChangedHandler;
+            };
 
             FormClosing += (s, e) =>
             {
@@ -589,8 +618,275 @@ namespace GamingCenterManagementSystem
                     TryUnlockStationFromUi();
                 }
             };
-            btnCallStaff.Click += (s, e) => PromptCallStaff();
+            btnCallStaff.Click += (s, e) =>
+            {
+                int currentStId = CurrentStation?.StationId ?? 1;
+                int unread = StationChatService.GetUnreadCountForStation(currentStId);
+                if (unread > 0)
+                {
+                    SwitchToChatTab();
+                }
+                else
+                {
+                    PromptCallStaff();
+                }
+            };
             btnLogoutSession.Click += (s, e) => ConfirmEndSessionAndLogout();
+        }
+
+        private void SetupChatEventHandlers()
+        {
+            tabMain.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabMain.SelectedTab == tabChat)
+                {
+                    int stId = CurrentStation?.StationId ?? 1;
+                    StationChatService.MarkAsReadByMember(stId);
+                    tabChat.Text = "💬 HỖ TRỢ & CHAT QUẦY";
+                    btnCallStaff.Text = "🔔 Gọi quầy";
+                    btnCallStaff.BackColor = Color.FromArgb(217, 119, 6);
+                    if (flpClientChat.Controls.Count > 0)
+                    {
+                        flpClientChat.ScrollControlIntoView(flpClientChat.Controls[^1]);
+                    }
+                }
+            };
+
+            btnSendClientChat.Click += (s, e) => SendClientTypedMessage();
+
+            txtClientChatMessage.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter && !e.Shift)
+                {
+                    e.SuppressKeyPress = true;
+                    SendClientTypedMessage();
+                }
+            };
+
+            // Quick chips
+            btnChipWater.Click += (s, e) => SendClientChatMessage("Xin thêm nước lọc/đá", "Water");
+            btnChipDeposit.Click += (s, e) =>
+            {
+                SendClientChatMessage("Nạp 50k ví", "Deposit");
+                pnlVietQrDrawer.Visible = true;
+                RefreshVietQrDrawer(50000m);
+            };
+            btnChipHardware.Click += (s, e) => SendClientChatMessage("Kẹt phím/chuột", "Hardware");
+            btnChipAC.Click += (s, e) => SendClientChatMessage("Chỉnh điều hòa", "AC");
+            btnChipFood.Click += (s, e) => SendClientChatMessage("Bao lâu nữa có đồ ăn ạ?", "Food");
+
+            // VietQR Drawer
+            btnOpenVietQrTopUp.Click += (s, e) =>
+            {
+                pnlVietQrDrawer.Visible = !pnlVietQrDrawer.Visible;
+                if (pnlVietQrDrawer.Visible)
+                {
+                    RefreshVietQrDrawer();
+                }
+            };
+
+            btnCloseDrawer.Click += (s, e) => pnlVietQrDrawer.Visible = false;
+
+            cboDrawerAmount.SelectedIndex = 1; // Default 50,000 VNĐ
+            cboDrawerAmount.SelectedIndexChanged += (s, e) => RefreshVietQrDrawer();
+        }
+
+        public void SwitchToChatTab()
+        {
+            tabMain.SelectedTab = tabChat;
+        }
+
+        public void SendClientTypedMessage()
+        {
+            string text = txtClientChatMessage.Text.Trim();
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            SendClientChatMessage(text, null);
+            txtClientChatMessage.Clear();
+            txtClientChatMessage.Focus();
+        }
+
+        public ChatMessage SendClientChatMessage(string text, string? quickTag = null)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                throw new ArgumentException("Nội dung tin nhắn không được để trống.", nameof(text));
+
+            int stId = CurrentStation?.StationId ?? 1;
+            string stName = CurrentStation?.StationName ?? $"PC-{stId:D2}";
+            string displayName = string.IsNullOrWhiteSpace(MemberFullName)
+                ? (string.IsNullOrWhiteSpace(MemberUsername) ? "Khách trạm" : MemberUsername)
+                : MemberFullName;
+
+            return StationChatService.SendMessage(
+                stationId: stId,
+                stationName: stName,
+                senderRole: "Member",
+                senderUsername: MemberUsername,
+                senderDisplayName: displayName,
+                messageText: text,
+                quickTag: quickTag);
+        }
+
+        public void LoadClientChatHistory()
+        {
+            int stId = CurrentStation?.StationId ?? 1;
+            flpClientChat.SuspendLayout();
+            flpClientChat.Controls.Clear();
+
+            var messages = StationChatService.GetMessages(stId);
+            foreach (var msg in messages)
+            {
+                var bubble = CreateClientChatBubble(msg);
+                flpClientChat.Controls.Add(bubble);
+            }
+
+            flpClientChat.ResumeLayout(true);
+            if (flpClientChat.Controls.Count > 0)
+            {
+                flpClientChat.ScrollControlIntoView(flpClientChat.Controls[^1]);
+            }
+        }
+
+        private Control CreateClientChatBubble(ChatMessage msg)
+        {
+            var pnlBubble = new Panel
+            {
+                Width = Math.Max(280, flpClientChat.ClientSize.Width - 30),
+                AutoSize = true,
+                Margin = new Padding(0, 4, 0, 8),
+                Padding = new Padding(12, 8, 12, 8)
+            };
+
+            bool isFromStaff = msg.IsSentByStaff;
+
+            pnlBubble.BackColor = isFromStaff
+                ? Color.FromArgb(28, 44, 72)
+                : Color.FromArgb(0, 110, 85);
+
+            var lblHeader = new Label
+            {
+                Text = msg.GetDisplayHeader(),
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                ForeColor = isFromStaff ? Color.FromArgb(0, 210, 255) : Color.FromArgb(170, 255, 220),
+                Dock = DockStyle.Top,
+                AutoSize = true
+            };
+
+            var lblContent = new Label
+            {
+                Text = msg.MessageText,
+                Font = new Font("Segoe UI", 10F),
+                ForeColor = Color.White,
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                MaximumSize = new Size(flpClientChat.ClientSize.Width - 50, 0),
+                Margin = new Padding(0, 4, 0, 0)
+            };
+
+            pnlBubble.Controls.Add(lblContent);
+            pnlBubble.Controls.Add(lblHeader);
+
+            return pnlBubble;
+        }
+
+        private void HandleIncomingChatMessage(ChatMessage msg)
+        {
+            if (IsDisposed) return;
+
+            int currentStId = CurrentStation?.StationId ?? 1;
+            if (msg.StationId != currentStId) return;
+
+            Action renderAction = () =>
+            {
+                var bubble = CreateClientChatBubble(msg);
+                flpClientChat.Controls.Add(bubble);
+                flpClientChat.ScrollControlIntoView(bubble);
+
+                if (msg.IsSentByStaff)
+                {
+                    if (tabMain.SelectedTab == tabChat)
+                    {
+                        StationChatService.MarkAsReadByMember(currentStId);
+                    }
+                    else
+                    {
+                        int unread = StationChatService.GetUnreadCountForStation(currentStId);
+                        tabChat.Text = $"💬 HỖ TRỢ & CHAT QUẦY ({unread})";
+                        btnCallStaff.Text = $"💬 Chat Quầy ({unread})";
+                        btnCallStaff.BackColor = Color.FromArgb(234, 88, 12);
+                    }
+                }
+            };
+
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(renderAction); } catch { }
+            }
+            else
+            {
+                renderAction();
+            }
+        }
+
+        private void HandleChatUnreadChanged(int stationId)
+        {
+            if (IsDisposed) return;
+
+            int currentStId = CurrentStation?.StationId ?? 1;
+            if (stationId != currentStId) return;
+
+            Action updateUnreadAction = () =>
+            {
+                int unread = StationChatService.GetUnreadCountForStation(currentStId);
+                if (unread > 0 && tabMain.SelectedTab != tabChat)
+                {
+                    tabChat.Text = $"💬 HỖ TRỢ & CHAT QUẦY ({unread})";
+                    btnCallStaff.Text = $"💬 Chat Quầy ({unread})";
+                    btnCallStaff.BackColor = Color.FromArgb(234, 88, 12);
+                }
+                else if (unread == 0)
+                {
+                    tabChat.Text = "💬 HỖ TRỢ & CHAT QUẦY";
+                    btnCallStaff.Text = "🔔 Gọi quầy";
+                    btnCallStaff.BackColor = Color.FromArgb(217, 119, 6);
+                }
+            };
+
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(updateUnreadAction); } catch { }
+            }
+            else
+            {
+                updateUnreadAction();
+            }
+        }
+
+        public void RefreshVietQrDrawer(decimal? overrideAmount = null)
+        {
+            decimal amt = 50000m;
+            if (overrideAmount.HasValue && overrideAmount.Value > 0)
+            {
+                amt = overrideAmount.Value;
+            }
+            else if (cboDrawerAmount.SelectedItem != null)
+            {
+                string text = cboDrawerAmount.SelectedItem.ToString() ?? "";
+                text = Regex.Replace(text, @"[^0-9]", "");
+                if (decimal.TryParse(text, out decimal parsed) && parsed > 0)
+                {
+                    amt = parsed;
+                }
+            }
+
+            string stName = CurrentStation?.StationName ?? "PC-01";
+            string syntax = VietQrHelper.BuildTransferSyntax(stName, MemberUsername);
+            lblDrawerSyntax.Text = $"Cú pháp: {syntax}\nSố tiền: {amt:N0} VNĐ";
+
+            string payload = VietQrHelper.GenerateWalletTopUpPayload(stName, MemberUsername, amt);
+            var oldImg = picDrawerQr.Image;
+            picDrawerQr.Image = VietQrHelper.GenerateQrBitmap(payload, 5);
+            oldImg?.Dispose();
         }
 
         private void SwitchGameCategory(string category, Button activeBtn)
@@ -957,6 +1253,10 @@ namespace GamingCenterManagementSystem
 
         public void UpdateRealtimeHud()
         {
+            // Update Hardware Specs and Network Latency HUD
+            string pingStatus = NetworkPingMs < 30 ? "🟢" : (NetworkPingMs < 80 ? "🟡" : "🔴");
+            lblHardwareLatencyHud.Text = $"🖥️ {HardwareSpecs} | {pingStatus} Ping {NetworkPingMs}ms";
+
             if (CurrentSession == null) return;
 
             DateTime now = DateTime.Now;
@@ -1114,6 +1414,15 @@ namespace GamingCenterManagementSystem
                 Timestamp = DateTime.Now
             });
 
+            StationChatService.SendMessage(
+                CurrentStation?.StationId ?? 1,
+                stName,
+                "Member",
+                MemberUsername,
+                MemberFullName,
+                $"🔔 [Yêu cầu gọi quầy]: {reason}",
+                "CallStaff");
+
             ShowNotification(
                 $"🔔 Đã gửi yêu cầu hỗ trợ tới quầy thu ngân cho máy {stName}!\nNội dung: {reason}\nNhân viên quầy sẽ hỗ trợ bạn trong giây lát.",
                 "Đã gọi nhân viên quầy",
@@ -1125,7 +1434,7 @@ namespace GamingCenterManagementSystem
         {
             using var dlg = new Form();
             dlg.Text = "🔔 Gọi nhân viên / Hỗ trợ quầy";
-            dlg.Size = new Size(420, 260);
+            dlg.Size = new Size(420, 310);
             dlg.StartPosition = FormStartPosition.CenterParent;
             dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
             dlg.MaximizeBox = false;
@@ -1171,6 +1480,23 @@ namespace GamingCenterManagementSystem
                 PlaceholderText = "Ghi chú thêm (không bắt buộc)..."
             };
 
+            var btnOpenChatDirectly = new Button
+            {
+                Text = "💬 MỞ TAB TRÒ CHUYỆN 2 CHIỀU",
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                BackColor = Color.FromArgb(13, 148, 136),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Location = new Point(20, 130),
+                Size = new Size(360, 34)
+            };
+            btnOpenChatDirectly.Click += (s, e) =>
+            {
+                dlg.DialogResult = DialogResult.Ignore;
+                dlg.Close();
+                SwitchToChatTab();
+            };
+
             var btnSend = new Button
             {
                 Text = "🔔 GỬI YÊU CẦU",
@@ -1178,7 +1504,7 @@ namespace GamingCenterManagementSystem
                 BackColor = Color.FromArgb(217, 119, 6),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Location = new Point(190, 150),
+                Location = new Point(190, 180),
                 Size = new Size(190, 42),
                 DialogResult = DialogResult.OK
             };
@@ -1190,7 +1516,7 @@ namespace GamingCenterManagementSystem
                 BackColor = Color.FromArgb(50, 60, 80),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Location = new Point(70, 150),
+                Location = new Point(70, 180),
                 Size = new Size(100, 42),
                 DialogResult = DialogResult.Cancel
             };
@@ -1198,12 +1524,14 @@ namespace GamingCenterManagementSystem
             dlg.Controls.Add(lblPrompt);
             dlg.Controls.Add(cboReason);
             dlg.Controls.Add(txtCustom);
+            dlg.Controls.Add(btnOpenChatDirectly);
             dlg.Controls.Add(btnSend);
             dlg.Controls.Add(btnCancel);
             dlg.AcceptButton = btnSend;
             dlg.CancelButton = btnCancel;
 
-            if (dlg.ShowDialog(this) == DialogResult.OK)
+            var result = dlg.ShowDialog(this);
+            if (result == DialogResult.OK)
             {
                 string baseReason = cboReason.SelectedItem?.ToString() ?? "Hỗ trợ khách hàng tại máy";
                 string extra = txtCustom.Text.Trim();
