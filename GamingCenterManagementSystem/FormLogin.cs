@@ -40,6 +40,12 @@ namespace GamingCenterManagementSystem
                 Close();
             };
 
+            lnkForgotPassword.LinkClicked += (s, e) =>
+            {
+                using var dlg = new FormAccountRecoveryDialog(_dbUser);
+                dlg.ShowDialog(this);
+            };
+
             Shown += (s, e) => txtUsername.Focus();
         }
 

@@ -25,6 +25,7 @@ namespace GamingCenterManagementSystem
             btnExit = new Button();
             btnLogin = new Button();
             lblError = new Label();
+            lnkForgotPassword = new LinkLabel();
             chkShowPassword = new CheckBox();
             txtPassword = new TextBox();
             lblPassword = new Label();
@@ -75,6 +76,7 @@ namespace GamingCenterManagementSystem
             pnlCard.Controls.Add(btnExit);
             pnlCard.Controls.Add(btnLogin);
             pnlCard.Controls.Add(lblError);
+            pnlCard.Controls.Add(lnkForgotPassword);
             pnlCard.Controls.Add(chkShowPassword);
             pnlCard.Controls.Add(txtPassword);
             pnlCard.Controls.Add(lblPassword);
@@ -132,9 +134,22 @@ namespace GamingCenterManagementSystem
             lblError.Location = new Point(24, 198);
             lblError.Name = "lblError";
             lblError.Size = new Size(356, 36);
-            lblError.TabIndex = 6;
+            lblError.TabIndex = 7;
             lblError.Text = "";
             lblError.Visible = false;
+            // 
+            // lnkForgotPassword
+            // 
+            lnkForgotPassword.AutoSize = true;
+            lnkForgotPassword.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            lnkForgotPassword.LinkColor = Color.FromArgb(0, 210, 255);
+            lnkForgotPassword.ActiveLinkColor = Color.FromArgb(120, 230, 255);
+            lnkForgotPassword.Location = new Point(230, 171);
+            lnkForgotPassword.Name = "lnkForgotPassword";
+            lnkForgotPassword.Size = new Size(150, 15);
+            lnkForgotPassword.TabIndex = 6;
+            lnkForgotPassword.TabStop = true;
+            lnkForgotPassword.Text = "Quên mật khẩu / CCCD?";
             // 
             // chkShowPassword
             // 
@@ -180,7 +195,7 @@ namespace GamingCenterManagementSystem
             txtUsername.ForeColor = Color.White;
             txtUsername.Location = new Point(24, 72);
             txtUsername.Name = "txtUsername";
-            txtUsername.PlaceholderText = "Nhập tên đăng nhập (vd: admin, staff01, gamer01)...";
+            txtUsername.PlaceholderText = "Nhập tên đăng nhập hoặc số điện thoại...";
             txtUsername.Size = new Size(356, 26);
             txtUsername.TabIndex = 2;
             // 
@@ -191,9 +206,9 @@ namespace GamingCenterManagementSystem
             lblUsername.ForeColor = Color.FromArgb(220, 228, 242);
             lblUsername.Location = new Point(24, 50);
             lblUsername.Name = "lblUsername";
-            lblUsername.Size = new Size(102, 17);
+            lblUsername.Size = new Size(205, 17);
             lblUsername.TabIndex = 1;
-            lblUsername.Text = "Tên đăng nhập:";
+            lblUsername.Text = "Tên đăng nhập / Số điện thoại:";
             // 
             // lblLoginTitle
             // 
@@ -241,6 +256,7 @@ namespace GamingCenterManagementSystem
         private Label lblPassword;
         private TextBox txtPassword;
         private CheckBox chkShowPassword;
+        private LinkLabel lnkForgotPassword;
         private Label lblError;
         private Button btnLogin;
         private Button btnExit;

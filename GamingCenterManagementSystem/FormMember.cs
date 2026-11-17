@@ -529,6 +529,7 @@ namespace GamingCenterManagementSystem
                     MaHoiVien = u.UserId,
                     TenDangNhap = u.Username,
                     HoVaTen = u.FullName,
+                    SoDienThoai = string.IsNullOrWhiteSpace(u.PhoneNumber) ? "Chưa khai báo" : u.PhoneNumber,
                     SoCCCD = string.IsNullOrWhiteSpace(u.CitizenId) ? "Chưa khai báo" : u.CitizenId,
                     VaiTro = u.Role,
                     SoDuVi = $"{u.Balance:N0} VNĐ",
@@ -542,6 +543,7 @@ namespace GamingCenterManagementSystem
                 if (dgvHoiVien.Columns["MaHoiVien"] is DataGridViewColumn col1) col1.HeaderText = "Mã";
                 if (dgvHoiVien.Columns["TenDangNhap"] is DataGridViewColumn col2) col2.HeaderText = "Tên Đăng Nhập";
                 if (dgvHoiVien.Columns["HoVaTen"] is DataGridViewColumn col3) col3.HeaderText = "Họ và Tên";
+                if (dgvHoiVien.Columns["SoDienThoai"] is DataGridViewColumn colPhone) colPhone.HeaderText = "Số Điện Thoại";
                 if (dgvHoiVien.Columns["SoCCCD"] is DataGridViewColumn colCccd) colCccd.HeaderText = "Số CCCD/CMND";
                 if (dgvHoiVien.Columns["VaiTro"] is DataGridViewColumn col4) col4.HeaderText = "Vai Trò";
                 if (dgvHoiVien.Columns["SoDuVi"] is DataGridViewColumn col5) col5.HeaderText = "Số Dư Ví";
@@ -620,6 +622,7 @@ namespace GamingCenterManagementSystem
             txtPassword.Clear();
             txtPassword.PlaceholderText = "Tối thiểu 6 ký tự";
             txtFullName.Clear();
+            txtPhoneNumber.Clear();
             txtCccd.Clear();
             cboRole.SelectedItem = "Member";
             cboMemberTier.SelectedItem = "Standard";
@@ -674,6 +677,7 @@ namespace GamingCenterManagementSystem
                 txtPassword.Clear();
                 txtPassword.PlaceholderText = "Để trống (dùng khung Đổi Mật Khẩu)";
                 txtFullName.Text = _selectedUser.FullName;
+                txtPhoneNumber.Text = _selectedUser.PhoneNumber ?? string.Empty;
                 txtCccd.Text = _selectedUser.CitizenId ?? string.Empty;
                 cboMemberTier.SelectedItem = _selectedUser.MemberTier;
                 cboRole.SelectedItem = _selectedUser.Role;
@@ -786,7 +790,35 @@ namespace GamingCenterManagementSystem
                 return;
             }
 
-            if (!DBUser.ValidateMemberInput(txtUsername.Text, txtFullName.Text, txtPassword.Text, initialBalance, role, cccd, out string validationError, requireCitizenId: true))
+            string phone = txtPhoneNumber.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                if (!DBUser.IsValidPhoneNumber(phone))
+                {
+                    _messageBox(
+                        "Số điện thoại không đúng định dạng di động Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09)!",
+                        "Số điện thoại không hợp lệ",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    txtPhoneNumber.Focus();
+                    txtPhoneNumber.SelectAll();
+                    return;
+                }
+
+                if (_dbUser.IsPhoneNumberExists(phone))
+                {
+                    _messageBox(
+                        "Số điện thoại này đã được đăng ký cho một tài khoản khác trong hệ thống!",
+                        "Trùng lặp Số điện thoại",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    txtPhoneNumber.Focus();
+                    txtPhoneNumber.SelectAll();
+                    return;
+                }
+            }
+
+            if (!DBUser.ValidateMemberInput(txtUsername.Text, txtFullName.Text, txtPassword.Text, initialBalance, role, cccd, phone, out string validationError, requireCitizenId: true))
             {
                 _messageBox(validationError, "Không thể tạo tài khoản", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 if (validationError.Contains("Số dư", StringComparison.OrdinalIgnoreCase))
@@ -802,6 +834,7 @@ namespace GamingCenterManagementSystem
             {
                 Username = txtUsername.Text.Trim(),
                 FullName = txtFullName.Text.Trim(),
+                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
                 CitizenId = cccd,
                 Role = role,
                 MemberTier = requestedTier,
@@ -891,11 +924,38 @@ namespace GamingCenterManagementSystem
                 }
             }
 
+            string phone = txtPhoneNumber.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(phone))
+            {
+                if (!DBUser.IsValidPhoneNumber(phone))
+                {
+                    _messageBox(
+                        "Số điện thoại không đúng định dạng di động Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09)!",
+                        "Số điện thoại không hợp lệ",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    txtPhoneNumber.Focus();
+                    return;
+                }
+
+                if (_dbUser.IsPhoneNumberExists(phone, id))
+                {
+                    _messageBox(
+                        "Số điện thoại này đã thuộc về tài khoản khác trong hệ thống!",
+                        "Trùng lặp Số điện thoại",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    txtPhoneNumber.Focus();
+                    return;
+                }
+            }
+
             var user = new AppUser
             {
                 UserId = id,
                 Username = txtUsername.Text.Trim(),
                 FullName = txtFullName.Text.Trim(),
+                PhoneNumber = string.IsNullOrWhiteSpace(phone) ? null : phone,
                 CitizenId = string.IsNullOrWhiteSpace(cccd) ? null : cccd,
                 Role = role,
                 MemberTier = cboMemberTier.SelectedItem?.ToString() ?? "Standard"

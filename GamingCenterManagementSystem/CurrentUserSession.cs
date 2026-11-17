@@ -59,6 +59,11 @@ namespace GamingCenterManagementSystem
             get { lock (_syncLock) { return _currentUser?.CitizenId; } }
         }
 
+        public static string? PhoneNumber
+        {
+            get { lock (_syncLock) { return _currentUser?.PhoneNumber; } }
+        }
+
         public static bool IsAdmin => string.Equals(Role, "Admin", StringComparison.OrdinalIgnoreCase);
         public static bool IsStaff => string.Equals(Role, "Staff", StringComparison.OrdinalIgnoreCase);
         public static bool IsMember => string.Equals(Role, "Member", StringComparison.OrdinalIgnoreCase);
@@ -71,7 +76,8 @@ namespace GamingCenterManagementSystem
             string fullName = "",
             decimal balance = 0m,
             string tier = "Standard",
-            string? citizenId = null)
+            string? citizenId = null,
+            string? phoneNumber = null)
         {
             SetUser(new AppUser
             {
@@ -82,6 +88,7 @@ namespace GamingCenterManagementSystem
                 Balance = balance,
                 MemberTier = tier,
                 CitizenId = citizenId,
+                PhoneNumber = phoneNumber,
                 IsActive = true
             });
         }
@@ -101,6 +108,7 @@ namespace GamingCenterManagementSystem
                     Role = user.Role,
                     Balance = user.Balance,
                     MemberTier = user.MemberTier,
+                    PhoneNumber = user.PhoneNumber,
                     CitizenId = user.CitizenId,
                     CreatedAt = user.CreatedAt,
                     IsActive = user.IsActive
@@ -122,6 +130,7 @@ namespace GamingCenterManagementSystem
                     _currentUser.Role = user.Role;
                     _currentUser.Balance = user.Balance;
                     _currentUser.MemberTier = user.MemberTier;
+                    _currentUser.PhoneNumber = user.PhoneNumber;
                     _currentUser.CitizenId = user.CitizenId;
                     _currentUser.IsActive = user.IsActive;
                 }

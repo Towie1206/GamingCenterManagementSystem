@@ -50,6 +50,7 @@ BEGIN
         Role NVARCHAR(20) NOT NULL DEFAULT 'Member', -- 'Admin', 'Staff', 'Member'
         Balance DECIMAL(18,2) NOT NULL DEFAULT 0 CHECK (Balance >= 0),
         MemberTier NVARCHAR(20) NOT NULL DEFAULT 'Standard', -- 'Standard', 'Silver', 'Gold'
+        PhoneNumber VARCHAR(15) NULL,
         CitizenId VARCHAR(12) NULL, -- Khai báo CCCD 12 số (hoặc CMND 9 số) theo Nghị định 72/2013/NĐ-CP & 27/2018/NĐ-CP
         CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
         IsActive BIT NOT NULL DEFAULT 1
@@ -64,6 +65,13 @@ BEGIN
 END
 GO
 
+IF COL_LENGTH('dbo.AppUser', 'PhoneNumber') IS NULL
+BEGIN
+    ALTER TABLE dbo.AppUser
+    ADD PhoneNumber VARCHAR(15) NULL;
+END
+GO
+
 IF COL_LENGTH('dbo.AppUser', 'CitizenId') IS NULL
 BEGIN
     ALTER TABLE dbo.AppUser
@@ -73,6 +81,14 @@ GO
 
 SET ANSI_NULLS ON;
 SET QUOTED_IDENTIFIER ON;
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UQ_AppUser_PhoneNumber' AND object_id = OBJECT_ID('dbo.AppUser'))
+BEGIN
+    CREATE UNIQUE NONCLUSTERED INDEX UQ_AppUser_PhoneNumber
+    ON dbo.AppUser (PhoneNumber)
+    WHERE PhoneNumber IS NOT NULL;
+END
 GO
 
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UQ_AppUser_CitizenId' AND object_id = OBJECT_ID('dbo.AppUser'))
@@ -233,20 +249,29 @@ END
 
 IF NOT EXISTS (SELECT * FROM AppUser)
 BEGIN
-    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CitizenId, IsActive) VALUES 
-    ('admin', '123456', N'Quản Lý Cyber', 'Admin', 0, 'Standard', '001099000001', 1),
-    ('gamer01', '123456', N'Nguyễn Văn A', 'Member', 50000, 'Standard', '001099000002', 1),
-    ('gamer02', '123456', N'Trần Thị B', 'Member', 120000, 'Silver', '001099000003', 1),
-    ('gamer03', '123456', N'Lê Hoàng C', 'Member', 300000, 'Gold', '001099000004', 1);
+    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, PhoneNumber, CitizenId, IsActive) VALUES 
+    ('admin', '123456', N'Quản Lý Cyber', 'Admin', 0, 'Standard', '0981000001', '001099000001', 1),
+    ('gamer01', '123456', N'Nguyễn Văn A', 'Member', 50000, 'Standard', '0981000002', '001099000002', 1),
+    ('gamer02', '123456', N'Trần Thị B', 'Member', 120000, 'Silver', '0981000003', '001099000003', 1),
+    ('gamer03', '123456', N'Lê Hoàng C', 'Member', 300000, 'Gold', '0981000004', '001099000004', 1);
 END
 
 IF NOT EXISTS (SELECT 1 FROM AppUser WHERE Username = 'staff01')
 BEGIN
-    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, CitizenId, IsActive)
-    VALUES ('staff01', '123456', N'Nhân Viên Quầy', 'Staff', 0, 'Standard', '001099000005', 1);
+    INSERT INTO AppUser (Username, PasswordHash, FullName, Role, Balance, MemberTier, PhoneNumber, CitizenId, IsActive)
+    VALUES ('staff01', '123456', N'Nhân Viên Quầy', 'Staff', 0, 'Standard', '0981000005', '001099000005', 1);
 END
 
--- Đảm bảo dữ liệu mẫu đã có CCCD nếu cơ sở dữ liệu đã tồn tại từ trước
+-- Đảm bảo dữ liệu mẫu đã có SĐT và CCCD nếu cơ sở dữ liệu đã tồn tại từ trước
+IF COL_LENGTH('dbo.AppUser', 'PhoneNumber') IS NOT NULL
+BEGIN
+    UPDATE AppUser SET PhoneNumber = '0981000001' WHERE Username = 'admin' AND PhoneNumber IS NULL;
+    UPDATE AppUser SET PhoneNumber = '0981000002' WHERE Username = 'gamer01' AND PhoneNumber IS NULL;
+    UPDATE AppUser SET PhoneNumber = '0981000003' WHERE Username = 'gamer02' AND PhoneNumber IS NULL;
+    UPDATE AppUser SET PhoneNumber = '0981000004' WHERE Username = 'gamer03' AND PhoneNumber IS NULL;
+    UPDATE AppUser SET PhoneNumber = '0981000005' WHERE Username = 'staff01' AND PhoneNumber IS NULL;
+END
+
 IF COL_LENGTH('dbo.AppUser', 'CitizenId') IS NOT NULL
 BEGIN
     UPDATE AppUser SET CitizenId = '001099000001' WHERE Username = 'admin' AND CitizenId IS NULL;
