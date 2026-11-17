@@ -161,6 +161,25 @@ namespace GamingCenterManagementSystem.Tests
         }
 
         [Fact]
+        public void Receipt_FractionalPricesMatchPrintedTotals()
+        {
+            var items = new List<ReceiptItem>
+            {
+                new() { ItemName = "A", Quantity = 2, UnitPrice = 1000.25m },
+                new() { ItemName = "B", Quantity = 1, UnitPrice = 1000.50m }
+            };
+
+            var lines = ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD003", "Máy 01", "staff01", items)
+                .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+            Assert.Contains(lines, line => line.StartsWith("A ") && line.Contains("1.000,25") && line.EndsWith("2.000,5"));
+            Assert.Contains(lines, line => line.StartsWith("B ") && line.EndsWith("1.000,5"));
+            Assert.Contains("Cộng tiền hàng: 3.001 đ", lines);
+            Assert.Contains("Thuế GTGT (8%): 240 đ", lines);
+            Assert.Contains("TỔNG CỘNG: 3.241 đ", lines);
+        }
+
+        [Fact]
         public void Receipt_EmptyOrderPrintsZeroForEveryTotal()
         {
             var lines = ThermalReceiptFormatter.FormatReceipt("Cyber X", "HD002", "Mang về", "staff01",

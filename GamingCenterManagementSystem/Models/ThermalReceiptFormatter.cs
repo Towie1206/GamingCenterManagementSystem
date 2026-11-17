@@ -18,6 +18,8 @@ namespace GamingCenterManagementSystem.Models
         private const int Width = 40;
         private static readonly CultureInfo Vietnamese = CultureInfo.GetCultureInfo("vi-VN");
 
+        private static string Money(decimal amount) => amount.ToString("#,0.############################", Vietnamese);
+
         public static string FormatReceipt(string cyberName, string invoiceNumber, string stationOrCustomer,
             string cashierName, List<ReceiptItem> items, decimal vatPercent = 8m)
         {
@@ -46,7 +48,7 @@ namespace GamingCenterManagementSystem.Models
                     throw new ArgumentException("Số lượng phải dương và đơn giá phải không âm.", nameof(items));
 
                 decimal lineTotal = item.Subtotal;
-                string amounts = string.Format(Vietnamese, "{0,3} {1,9:N0} {2,9:N0}", item.Quantity, item.UnitPrice, lineTotal);
+                string amounts = string.Format(Vietnamese, "{0,3} {1,9} {2,9}", item.Quantity, Money(item.UnitPrice), Money(lineTotal));
                 if (item.ItemName.Length + 1 + amounts.Length <= Width)
                     receipt.AppendLine(item.ItemName.PadRight(Width - amounts.Length) + amounts);
                 else
@@ -59,9 +61,9 @@ namespace GamingCenterManagementSystem.Models
 
             decimal vat = Math.Round(subtotal * (vatPercent / 100m), 0, MidpointRounding.AwayFromZero);
             receipt.AppendLine(rule);
-            WriteLine(receipt, "Cộng tiền hàng: " + subtotal.ToString("N0", Vietnamese) + " đ");
-            WriteLine(receipt, "Thuế GTGT (" + vatPercent.ToString("G29", Vietnamese) + "%): " + vat.ToString("N0", Vietnamese) + " đ");
-            WriteLine(receipt, "TỔNG CỘNG: " + (subtotal + vat).ToString("N0", Vietnamese) + " đ");
+            WriteLine(receipt, "Cộng tiền hàng: " + Money(subtotal) + " đ");
+            WriteLine(receipt, "Thuế GTGT (" + vatPercent.ToString("G29", Vietnamese) + "%): " + Money(vat) + " đ");
+            WriteLine(receipt, "TỔNG CỘNG: " + Money(subtotal + vat) + " đ");
             receipt.AppendLine(border);
             receipt.AppendLine("CẢM ƠN QUÝ KHÁCH - HẸN GẶP LẠI!");
             receipt.AppendLine("Wifi pass: cybergamevip2026");
