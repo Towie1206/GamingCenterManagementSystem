@@ -22,8 +22,10 @@ namespace GamingCenterManagementSystem.Models
         public bool IsReadByMember { get; set; }
         public string? QuickTag { get; init; }
 
-        public bool IsSentByStaff => string.Equals(SenderRole, "Staff", StringComparison.OrdinalIgnoreCase);
-        public bool IsSentByMember => string.Equals(SenderRole, "Member", StringComparison.OrdinalIgnoreCase);
+        public bool IsSentByStaff => string.Equals(SenderRole, "Staff", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(SenderRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(SenderRole, "Cashier", StringComparison.OrdinalIgnoreCase);
+        public bool IsSentByMember => !IsSentByStaff;
         public string FormattedTime => Timestamp.ToString("HH:mm:ss");
 
         public ChatMessage()
@@ -77,9 +79,15 @@ namespace GamingCenterManagementSystem.Models
 
         public string GetDisplayHeader()
         {
-            return IsSentByStaff
-                ? $"[Thu Ngân - {SenderDisplayName}] ({FormattedTime})"
-                : $"[{StationName} - {SenderDisplayName}] ({FormattedTime})";
+            if (IsSentByStaff)
+            {
+                string rolePrefix = string.Equals(SenderRole, "Admin", StringComparison.OrdinalIgnoreCase)
+                    ? "Quản Lý"
+                    : "Thu Ngân";
+                return $"[{rolePrefix} - {SenderDisplayName}] ({FormattedTime})";
+            }
+
+            return $"[{StationName} - {SenderDisplayName}] ({FormattedTime})";
         }
     }
 }

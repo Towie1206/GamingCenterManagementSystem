@@ -689,6 +689,28 @@ namespace GamingCenterManagementSystem
 
             cboDrawerAmount.SelectedIndex = 1; // Default 50,000 VNĐ
             cboDrawerAmount.SelectedIndexChanged += (s, e) => RefreshVietQrDrawer();
+
+            flpClientChat.SizeChanged += (s, e) =>
+            {
+                int targetWidth = Math.Max(280, flpClientChat.ClientSize.Width - 30);
+                int contentMax = Math.Max(240, flpClientChat.ClientSize.Width - 50);
+                flpClientChat.SuspendLayout();
+                foreach (Control c in flpClientChat.Controls)
+                {
+                    if (c is Panel p)
+                    {
+                        p.Width = targetWidth;
+                        foreach (Control child in p.Controls)
+                        {
+                            if (child is Label lbl && lbl.Font.Size >= 10F)
+                            {
+                                lbl.MaximumSize = new Size(contentMax, 0);
+                            }
+                        }
+                    }
+                }
+                flpClientChat.ResumeLayout(true);
+            };
         }
 
         public void SwitchToChatTab()
@@ -749,9 +771,12 @@ namespace GamingCenterManagementSystem
 
         private Control CreateClientChatBubble(ChatMessage msg)
         {
+            int bubbleWidth = Math.Max(280, flpClientChat.ClientSize.Width - 30);
+            int contentMax = Math.Max(240, flpClientChat.ClientSize.Width - 50);
+
             var pnlBubble = new Panel
             {
-                Width = Math.Max(280, flpClientChat.ClientSize.Width - 30),
+                Width = bubbleWidth,
                 AutoSize = true,
                 Margin = new Padding(0, 4, 0, 8),
                 Padding = new Padding(12, 8, 12, 8)
@@ -779,7 +804,7 @@ namespace GamingCenterManagementSystem
                 ForeColor = Color.White,
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                MaximumSize = new Size(flpClientChat.ClientSize.Width - 50, 0),
+                MaximumSize = new Size(contentMax, 0),
                 Margin = new Padding(0, 4, 0, 0)
             };
 
@@ -791,7 +816,7 @@ namespace GamingCenterManagementSystem
 
         private void HandleIncomingChatMessage(ChatMessage msg)
         {
-            if (IsDisposed) return;
+            if (IsDisposed || !IsHandleCreated) return;
 
             int currentStId = CurrentStation?.StationId ?? 1;
             if (msg.StationId != currentStId) return;
@@ -830,7 +855,7 @@ namespace GamingCenterManagementSystem
 
         private void HandleChatUnreadChanged(int stationId)
         {
-            if (IsDisposed) return;
+            if (IsDisposed || !IsHandleCreated) return;
 
             int currentStId = CurrentStation?.StationId ?? 1;
             if (stationId != currentStId) return;
@@ -868,6 +893,17 @@ namespace GamingCenterManagementSystem
             if (overrideAmount.HasValue && overrideAmount.Value > 0)
             {
                 amt = overrideAmount.Value;
+                // Synchronize dropdown if matched
+                for (int i = 0; i < cboDrawerAmount.Items.Count; i++)
+                {
+                    string itemText = cboDrawerAmount.Items[i]?.ToString() ?? "";
+                    string numOnly = Regex.Replace(itemText, @"[^0-9]", "");
+                    if (decimal.TryParse(numOnly, out decimal d) && d == amt)
+                    {
+                        cboDrawerAmount.SelectedIndex = i;
+                        break;
+                    }
+                }
             }
             else if (cboDrawerAmount.SelectedItem != null)
             {
@@ -879,11 +915,15 @@ namespace GamingCenterManagementSystem
                 }
             }
 
+            string user = string.IsNullOrWhiteSpace(MemberUsername)
+                ? (string.IsNullOrWhiteSpace(CurrentUserSession.Username) ? "GUEST" : CurrentUserSession.Username)
+                : MemberUsername;
+
             string stName = CurrentStation?.StationName ?? "PC-01";
-            string syntax = VietQrHelper.BuildTransferSyntax(stName, MemberUsername);
+            string syntax = VietQrHelper.BuildTransferSyntax(stName, user);
             lblDrawerSyntax.Text = $"Cú pháp: {syntax}\nSố tiền: {amt:N0} VNĐ";
 
-            string payload = VietQrHelper.GenerateWalletTopUpPayload(stName, MemberUsername, amt);
+            string payload = VietQrHelper.GenerateWalletTopUpPayload(stName, user, amt);
             var oldImg = picDrawerQr.Image;
             picDrawerQr.Image = VietQrHelper.GenerateQrBitmap(payload, 5);
             oldImg?.Dispose();

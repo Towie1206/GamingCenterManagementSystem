@@ -67,8 +67,31 @@ namespace GamingCenterManagementSystem
                     LoadChatHistory();
                     StationChatService.MarkAsReadByStaff(_currentStationId);
                     UpdateUnreadHeader();
+                    RefreshStationDropdownUnreadCounts();
                     UpdateStationDetails(item);
                 }
+            };
+
+            flpChatHistory.SizeChanged += (s, e) =>
+            {
+                int targetWidth = Math.Max(280, flpChatHistory.ClientSize.Width - 30);
+                int contentMax = Math.Max(240, flpChatHistory.ClientSize.Width - 50);
+                flpChatHistory.SuspendLayout();
+                foreach (Control c in flpChatHistory.Controls)
+                {
+                    if (c is Panel p)
+                    {
+                        p.Width = targetWidth;
+                        foreach (Control child in p.Controls)
+                        {
+                            if (child is Label lbl && lbl.Font.Size >= 10F)
+                            {
+                                lbl.MaximumSize = new Size(contentMax, 0);
+                            }
+                        }
+                    }
+                }
+                flpChatHistory.ResumeLayout(true);
             };
 
             btnRefresh.Click += (s, e) =>
@@ -196,9 +219,12 @@ namespace GamingCenterManagementSystem
 
         private Control CreateMessageBubble(ChatMessage msg)
         {
+            int bubbleWidth = Math.Max(280, flpChatHistory.ClientSize.Width - 30);
+            int contentMax = Math.Max(240, flpChatHistory.ClientSize.Width - 50);
+
             var pnlBubble = new Panel
             {
-                Width = Math.Max(300, flpChatHistory.ClientSize.Width - 30),
+                Width = bubbleWidth,
                 AutoSize = true,
                 Margin = new Padding(0, 4, 0, 8),
                 Padding = new Padding(10, 8, 10, 8)
@@ -226,7 +252,7 @@ namespace GamingCenterManagementSystem
                 ForeColor = Color.White,
                 Dock = DockStyle.Top,
                 AutoSize = true,
-                MaximumSize = new Size(flpChatHistory.ClientSize.Width - 50, 0),
+                MaximumSize = new Size(contentMax, 0),
                 Margin = new Padding(0, 4, 0, 0)
             };
 
@@ -273,7 +299,7 @@ namespace GamingCenterManagementSystem
 
         private void HandleMessageSent(ChatMessage msg)
         {
-            if (IsDisposed) return;
+            if (IsDisposed || !IsHandleCreated) return;
 
             Action renderAction = () =>
             {
@@ -288,6 +314,7 @@ namespace GamingCenterManagementSystem
                     }
                 }
                 UpdateUnreadHeader();
+                RefreshStationDropdownUnreadCounts();
             };
 
             if (InvokeRequired)
@@ -302,9 +329,13 @@ namespace GamingCenterManagementSystem
 
         private void HandleUnreadChanged(int stationId)
         {
-            if (IsDisposed) return;
+            if (IsDisposed || !IsHandleCreated) return;
 
-            Action updateAction = UpdateUnreadHeader;
+            Action updateAction = () =>
+            {
+                UpdateUnreadHeader();
+                RefreshStationDropdownUnreadCounts();
+            };
 
             if (InvokeRequired)
             {
@@ -314,6 +345,50 @@ namespace GamingCenterManagementSystem
             {
                 updateAction();
             }
+        }
+
+        public void RefreshStationDropdownUnreadCounts()
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+
+            for (int i = 0; i < cboStation.Items.Count; i++)
+            {
+                if (cboStation.Items[i] is StationComboItem item)
+                {
+                    int unread = StationChatService.GetUnreadCountForStaff(item.StationId);
+                    if (item.UnreadCount != unread)
+                    {
+                        item.UnreadCount = unread;
+                        cboStation.Items[i] = item;
+                    }
+                }
+            }
+        }
+
+        public string ResolveMemberUsernameForStation(int stationId)
+        {
+            var recentMemberMsg = StationChatService.GetMessages(stationId)
+                .LastOrDefault(m => m.IsSentByMember && !string.IsNullOrWhiteSpace(m.SenderUsername));
+            if (recentMemberMsg != null)
+            {
+                return recentMemberMsg.SenderUsername;
+            }
+
+            try
+            {
+                var activeSession = new DBBilling().GetActiveSession(stationId);
+                if (activeSession?.UserId.HasValue == true)
+                {
+                    var user = new DBUser().GetById(activeSession.UserId.Value);
+                    if (user != null && !string.IsNullOrWhiteSpace(user.Username))
+                    {
+                        return user.Username;
+                    }
+                }
+            }
+            catch { }
+
+            return "GUEST";
         }
 
         public void UpdateUnreadHeader()
@@ -328,10 +403,11 @@ namespace GamingCenterManagementSystem
             string stationName = cboStation.SelectedItem is StationComboItem item
                 ? item.StationName
                 : $"PC-{_currentStationId:D2}";
+            string resolvedUser = ResolveMemberUsernameForStation(_currentStationId);
 
             using var dlg = new Form();
             dlg.Text = $"⚡ Sinh mã VietQR nạp ví cho máy {stationName}";
-            dlg.Size = new Size(420, 480);
+            dlg.Size = new Size(440, 530);
             dlg.StartPosition = FormStartPosition.CenterParent;
             dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
             dlg.MaximizeBox = false;
@@ -341,16 +417,33 @@ namespace GamingCenterManagementSystem
 
             var lblPrompt = new Label
             {
-                Text = $"Nhập số tiền nạp ví cho máy {stationName}:",
+                Text = $"Nhập số tiền nạp ví (VNĐ):",
                 Location = new Point(20, 15),
-                Size = new Size(360, 20),
-                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold)
+                Size = new Size(180, 20),
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
             };
 
             var txtAmount = new TextBox
             {
                 Text = "50000",
-                Location = new Point(20, 40),
+                Location = new Point(20, 38),
+                Size = new Size(180, 25),
+                BackColor = Color.FromArgb(30, 38, 52),
+                ForeColor = Color.White
+            };
+
+            var lblUserPrompt = new Label
+            {
+                Text = "Tên tài khoản:",
+                Location = new Point(220, 15),
+                Size = new Size(180, 20),
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+            };
+
+            var txtUsername = new TextBox
+            {
+                Text = resolvedUser,
+                Location = new Point(220, 38),
                 Size = new Size(180, 25),
                 BackColor = Color.FromArgb(30, 38, 52),
                 ForeColor = Color.White
@@ -358,8 +451,8 @@ namespace GamingCenterManagementSystem
 
             var picQr = new PictureBox
             {
-                Location = new Point(70, 80),
-                Size = new Size(260, 260),
+                Location = new Point(90, 80),
+                Size = new Size(240, 240),
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BorderStyle = BorderStyle.FixedSingle,
                 BackColor = Color.White
@@ -367,9 +460,9 @@ namespace GamingCenterManagementSystem
 
             var lblSyntax = new Label
             {
-                Location = new Point(20, 355),
-                Size = new Size(360, 30),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Location = new Point(20, 335),
+                Size = new Size(380, 45),
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(0, 220, 255),
                 TextAlign = ContentAlignment.MiddleCenter
             };
@@ -378,9 +471,10 @@ namespace GamingCenterManagementSystem
             {
                 if (decimal.TryParse(txtAmount.Text, out decimal amt) && amt > 0)
                 {
-                    string syntax = VietQrHelper.BuildTransferSyntax(stationName, "GUEST");
-                    lblSyntax.Text = $"Cú pháp CK: {syntax} | Số tiền: {amt:N0}đ";
-                    string payload = VietQrHelper.GenerateWalletTopUpPayload(stationName, "GUEST", amt);
+                    string user = string.IsNullOrWhiteSpace(txtUsername.Text) ? "GUEST" : txtUsername.Text.Trim();
+                    string syntax = VietQrHelper.BuildTransferSyntax(stationName, user);
+                    lblSyntax.Text = $"Cú pháp CK: {syntax}\nSố tiền: {amt:N0} VNĐ";
+                    string payload = VietQrHelper.GenerateWalletTopUpPayload(stationName, user, amt);
                     var oldImg = picQr.Image;
                     picQr.Image = VietQrHelper.GenerateQrBitmap(payload, 6);
                     oldImg?.Dispose();
@@ -388,13 +482,14 @@ namespace GamingCenterManagementSystem
             }
 
             txtAmount.TextChanged += (s, e) => RefreshQr();
+            txtUsername.TextChanged += (s, e) => RefreshQr();
             RefreshQr();
 
             var btnClose = new Button
             {
                 Text = "Đóng",
-                Location = new Point(150, 395),
-                Size = new Size(100, 32),
+                Location = new Point(160, 430),
+                Size = new Size(100, 34),
                 BackColor = Color.FromArgb(50, 65, 90),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -403,6 +498,8 @@ namespace GamingCenterManagementSystem
 
             dlg.Controls.Add(lblPrompt);
             dlg.Controls.Add(txtAmount);
+            dlg.Controls.Add(lblUserPrompt);
+            dlg.Controls.Add(txtUsername);
             dlg.Controls.Add(picQr);
             dlg.Controls.Add(lblSyntax);
             dlg.Controls.Add(btnClose);

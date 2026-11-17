@@ -26,6 +26,9 @@ namespace GamingCenterManagementSystem
         private readonly System.Windows.Forms.Timer _realtimeTimer = new();
         private readonly Font _stationButtonFont = new("Segoe UI", 9F, FontStyle.Bold);
         private Func<string, string, MessageBoxButtons, MessageBoxIcon, DialogResult>? _promptHandler;
+        private Action<ChatMessage>? _onChatMessageSentHandler;
+        private Action<int>? _onChatUnreadChangedHandler;
+        private FormCashierChatHub? _activeChatHub;
 
         public bool IsLogoutRequested { get; private set; }
 
@@ -114,7 +117,7 @@ namespace GamingCenterManagementSystem
             btnChatHub.Click += (s, e) => OpenChatHub(_selectedStation?.StationId);
             btnChatStation.Click += (s, e) => OpenChatHub(_selectedStation?.StationId ?? 1);
 
-            StationChatService.OnMessageSent += msg =>
+            _onChatMessageSentHandler = msg =>
             {
                 if (IsDisposed || !IsHandleCreated) return;
                 try
@@ -138,7 +141,7 @@ namespace GamingCenterManagementSystem
                 catch { }
             };
 
-            StationChatService.OnUnreadCountChanged += stId =>
+            _onChatUnreadChangedHandler = stId =>
             {
                 if (IsDisposed || !IsHandleCreated) return;
                 try
@@ -160,6 +163,9 @@ namespace GamingCenterManagementSystem
                 }
                 catch { }
             };
+
+            StationChatService.OnMessageSent += _onChatMessageSentHandler;
+            StationChatService.OnUnreadCountChanged += _onChatUnreadChangedHandler;
 
             StaffCallQueue.OnCallReceived += call =>
             {
@@ -273,6 +279,11 @@ namespace GamingCenterManagementSystem
 
             FormClosed += (s, e) =>
             {
+                if (_onChatMessageSentHandler != null)
+                    StationChatService.OnMessageSent -= _onChatMessageSentHandler;
+                if (_onChatUnreadChangedHandler != null)
+                    StationChatService.OnUnreadCountChanged -= _onChatUnreadChangedHandler;
+
                 _realtimeTimer.Stop();
                 _realtimeTimer.Dispose();
             };
@@ -370,9 +381,22 @@ namespace GamingCenterManagementSystem
         public FormCashierChatHub OpenChatHub(int? stationId = null)
         {
             int targetStationId = stationId ?? _selectedStation?.StationId ?? 1;
-            var hub = new FormCashierChatHub(_dbStation, targetStationId);
-            hub.Show(this);
-            return hub;
+
+            if (_activeChatHub != null && !_activeChatHub.IsDisposed)
+            {
+                _activeChatHub.SelectStation(targetStationId);
+                if (_activeChatHub.WindowState == FormWindowState.Minimized)
+                {
+                    _activeChatHub.WindowState = FormWindowState.Normal;
+                }
+                _activeChatHub.BringToFront();
+                _activeChatHub.Focus();
+                return _activeChatHub;
+            }
+
+            _activeChatHub = new FormCashierChatHub(_dbStation, targetStationId);
+            _activeChatHub.Show(this);
+            return _activeChatHub;
         }
 
         public void LoadDashboardData()

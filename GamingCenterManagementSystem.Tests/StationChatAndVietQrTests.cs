@@ -611,5 +611,169 @@ namespace GamingCenterManagementSystem.Tests
                 CurrentUserSession.Clear();
             });
         }
+
+        // =========================================================================
+        // 5. HARDENED ROUND 2 TESTS: UTF-8 BYTE LENGTH, REUSE, CONCURRENCY & DROPDOWN SYNC
+        // =========================================================================
+
+        [Fact]
+        public void VietQrHelper_FormatTlv_CalculatesByteLength_ForUtf8()
+        {
+            // "Cà phê sữa": 10 chars, but in UTF-8:
+            // C (1) + à (2) + ' ' (1) + p (1) + h (1) + ê (2) + ' ' (1) + s (1) + ữ (2) + a (1) = 13 bytes (or 14 depending on composed/decomposed)
+            string text = "Cà phê sữa";
+            int expectedBytes = System.Text.Encoding.UTF8.GetByteCount(text);
+            string tlv = VietQrHelper.FormatTlv("08", text);
+
+            Assert.StartsWith($"08{expectedBytes:D2}", tlv);
+            Assert.EndsWith(text, tlv);
+        }
+
+        [Fact]
+        public void ChatMessage_SenderRole_AdminAndCashier_RecognizedAsStaff()
+        {
+            var adminMsg = new ChatMessage(1, "PC-01", "Admin", "admin", "Nguyễn Sếp", "Xin chào hội viên");
+            Assert.True(adminMsg.IsSentByStaff);
+            Assert.False(adminMsg.IsSentByMember);
+            Assert.True(adminMsg.IsReadByStaff);
+            Assert.False(adminMsg.IsReadByMember);
+            Assert.Contains("Quản Lý - Nguyễn Sếp", adminMsg.GetDisplayHeader());
+
+            var cashierMsg = new ChatMessage(1, "PC-01", "Cashier", "cashier01", "Ly Thu Ngân", "Đã nhận tiền mặt");
+            Assert.True(cashierMsg.IsSentByStaff);
+            Assert.False(cashierMsg.IsSentByMember);
+            Assert.Contains("Thu Ngân - Ly Thu Ngân", cashierMsg.GetDisplayHeader());
+        }
+
+        [Fact]
+        public void FormCashierChatHub_DropdownUnreadCounts_UpdateOnIncomingMessage_AndClearOnSelect()
+        {
+            RunOnSTA(() =>
+            {
+                CurrentUserSession.SetSession(1, "staff01", "Staff", "Nhân Viên Quầy");
+                using var hub = new FormCashierChatHub(new DAL.DBStation(), initialStationId: 1)
+                {
+                    ShowInTaskbar = false,
+                    StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                    Location = new Point(-2000, -2000)
+                };
+                hub.Show();
+                System.Windows.Forms.Application.DoEvents();
+
+                Assert.Equal(1, hub.SelectedStationId);
+
+                // Simulate Station 2 sending a message
+                StationChatService.SendMessage(2, "PC-02", "Member", "player02", "Player Two", "Em cần gọi nước ạ");
+                System.Windows.Forms.Application.DoEvents();
+
+                // Dropdown item for Station 2 must show unread count > 0
+                var itemSt2 = hub.cboStation.Items.Cast<FormCashierChatHub.StationComboItem>().FirstOrDefault(i => i.StationId == 2);
+                Assert.NotNull(itemSt2);
+                Assert.Equal(1, itemSt2.UnreadCount);
+                Assert.Contains("🔔 1 mới", itemSt2.ToString());
+
+                // Now cashier selects Station 2
+                hub.SelectStation(2);
+                System.Windows.Forms.Application.DoEvents();
+
+                // Now unread for Station 2 should be cleared to 0
+                Assert.Equal(2, hub.SelectedStationId);
+                Assert.Equal(0, itemSt2.UnreadCount);
+                Assert.DoesNotContain("mới", itemSt2.ToString());
+
+                CurrentUserSession.Clear();
+            });
+        }
+
+        [Fact]
+        public void FormCashierChatHub_ResolveMemberUsername_FindsActiveUserOrChatSender()
+        {
+            StationChatService.SendMessage(4, "PC-04", "Member", "Towie1206", "Nguyễn Công Bằng", "Nạp 100k giúp em");
+
+            using var hub = new FormCashierChatHub(new DAL.DBStation(), initialStationId: 4)
+            {
+                ShowInTaskbar = false,
+                StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                Location = new Point(-2000, -2000)
+            };
+
+            string user = hub.ResolveMemberUsernameForStation(4);
+            Assert.Equal("Towie1206", user);
+        }
+
+        [Fact]
+        public void Form1_OpenChatHub_ReusesExistingActiveInstance()
+        {
+            RunOnSTA(() =>
+            {
+                CurrentUserSession.SetSession(1, "admin", "Admin", "Quản Lý");
+                using var form1 = new Form1
+                {
+                    ShowInTaskbar = false,
+                    StartPosition = System.Windows.Forms.FormStartPosition.Manual,
+                    Location = new Point(-2000, -2000)
+                };
+                form1.Show();
+                System.Windows.Forms.Application.DoEvents();
+
+                var hub1 = form1.OpenChatHub(1);
+                Assert.NotNull(hub1);
+                Assert.Equal(1, hub1.SelectedStationId);
+
+                var hub2 = form1.OpenChatHub(2);
+                // Must be the same instance, updated to station 2
+                Assert.Same(hub1, hub2);
+                Assert.Equal(2, hub1.SelectedStationId);
+
+                hub1.Close();
+                hub1.Dispose();
+                CurrentUserSession.Clear();
+            });
+        }
+
+        [Fact]
+        public void StationChatService_HighConcurrencyFlooding_RemainsThreadSafe()
+        {
+            StationChatService.Clear();
+            int threadCount = 8;
+            int messagesPerThread = 25;
+            var countdown = new System.Threading.CountdownEvent(threadCount);
+
+            for (int i = 0; i < threadCount; i++)
+            {
+                int stationId = (i % 4) + 1;
+                string threadName = $"Worker-{i}";
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    try
+                    {
+                        for (int j = 0; j < messagesPerThread; j++)
+                        {
+                            StationChatService.SendMessage(
+                                stationId: stationId,
+                                stationName: $"PC-{stationId:D2}",
+                                senderRole: (j % 2 == 0) ? "Member" : "Staff",
+                                senderUsername: $"user_{threadName}",
+                                senderDisplayName: $"User {threadName}",
+                                messageText: $"Concurreny message #{j} from {threadName}");
+                        }
+                    }
+                    finally
+                    {
+                        countdown.Signal();
+                    }
+                });
+            }
+
+            bool completed = countdown.Wait(TimeSpan.FromSeconds(10));
+            Assert.True(completed, "High concurrency message flooding timed out.");
+
+            var all = StationChatService.GetAllMessages();
+            Assert.Equal(threadCount * messagesPerThread, all.Count);
+
+            // Message IDs must all be strictly unique
+            var distinctIds = all.Select(m => m.MessageId).Distinct().Count();
+            Assert.Equal(all.Count, distinctIds);
+        }
     }
 }

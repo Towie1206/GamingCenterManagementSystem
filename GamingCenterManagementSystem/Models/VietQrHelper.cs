@@ -78,13 +78,14 @@ namespace GamingCenterManagementSystem.Models
         }
 
         /// <summary>
-        /// Đóng gói TLV (Tag-Length-Value) theo chuẩn EMVCo.
+        /// Đóng gói TLV (Tag-Length-Value) theo chuẩn EMVCo (Length tính theo số byte UTF-8).
         /// </summary>
         public static string FormatTlv(string tag, string value)
         {
             ArgumentNullException.ThrowIfNull(tag);
             ArgumentNullException.ThrowIfNull(value);
-            return $"{tag}{value.Length:D2}{value}";
+            int byteLength = Encoding.UTF8.GetByteCount(value);
+            return $"{tag}{byteLength:D2}{value}";
         }
 
         /// <summary>
@@ -128,7 +129,11 @@ namespace GamingCenterManagementSystem.Models
             if (string.IsNullOrWhiteSpace(transferContent))
                 transferContent = "NAP TIEN GAMING";
 
+            amount = Math.Max(0m, amount);
+
             string cleanContent = RemoveDiacritics(transferContent).Trim();
+            // Sanitize to alphanumeric, spaces and hyphens for banking rails
+            cleanContent = Regex.Replace(cleanContent, @"[^A-Za-z0-9\-\s#]", "");
             if (cleanContent.Length > 25)
                 cleanContent = cleanContent.Substring(0, 25);
 
