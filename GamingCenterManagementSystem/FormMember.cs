@@ -153,6 +153,28 @@ namespace GamingCenterManagementSystem
 
             btnNapTien.Click += async (s, e) => await BtnNapTien_ClickAsync();
             btnDoiMatKhau.Click += async (s, e) => await BtnDoiMatKhau_ClickAsync();
+
+            // Bổ sung nút mở Hộp thoại khôi phục mật khẩu OTP
+            // (nút chưa có trong Designer nên tạo bằng code, đặt ngay cạnh nút Đổi mật khẩu)
+            if (Controls.Find("btnKhoiPhucMatKhau", true).FirstOrDefault() is not Button btnRecovery)
+            {
+                btnRecovery = new Button
+                {
+                    Name = "btnKhoiPhucMatKhau",
+                    Text = "🔐 Khôi phục MK (OTP)",
+                    Size = new Size(150, btnDoiMatKhau.Height),
+                    Location = new Point(btnDoiMatKhau.Right + 8, btnDoiMatKhau.Top),
+                    Font = btnDoiMatKhau.Font,
+                    UseVisualStyleBackColor = true
+                };
+                btnDoiMatKhau.Parent?.Controls.Add(btnRecovery);
+            }
+            _memberToolTip.SetToolTip(btnRecovery, "Khôi phục mật khẩu hội viên bằng mã OTP");
+            btnRecovery.Click += (s, e) =>
+            {
+                using var dlg = new FormAccountRecoveryDialog(_dbUser, new AccountRecoveryService());
+                dlg.ShowDialog(this);
+            };
             btnTaiLaiLichSu.Click += async (s, e) => await LoadWalletTransactionsForSelectedUserAsync();
             tabMain.SelectedIndexChanged += async (s, e) =>
             {
