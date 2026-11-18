@@ -493,5 +493,80 @@ namespace GamingCenterManagementSystem.Tests
             Assert.True(correct);
             Assert.Empty(okMsg);
         }
+
+        private static void RunOnSTA(Action action)
+        {
+            Exception? threadException = null;
+
+            Thread staThread = new(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    threadException = ex;
+                }
+            });
+
+            staThread.SetApartmentState(ApartmentState.STA);
+            staThread.Start();
+            staThread.Join();
+
+            Assert.Null(threadException);
+        }
+
+        [Fact]
+        public void FormAccountRecoveryDialog_NullDependencies_ThrowsArgumentNullException()
+        {
+            RunOnSTA(() =>
+            {
+                var db = CreateOfflineDb();
+                var service = new AccountRecoveryService();
+
+                Assert.Throws<ArgumentNullException>(() => new FormAccountRecoveryDialog(null!, service));
+                Assert.Throws<ArgumentNullException>(() => new FormAccountRecoveryDialog(db, null!));
+            });
+        }
+
+        [Fact]
+        public void FormAccountRecoveryDialog_InitializesAndRendersProperly_OnSTA()
+        {
+            RunOnSTA(() =>
+            {
+                var db = CreateOfflineDb();
+                var service = new AccountRecoveryService();
+                using var dlg = new FormAccountRecoveryDialog(db, service);
+                dlg.ShowInTaskbar = false;
+                dlg.Show();
+                Application.DoEvents();
+
+                Assert.NotNull(dlg.Controls.Find("_txtUsername", true).FirstOrDefault());
+            });
+        }
+
+        [Fact]
+        public void FormAccountRecoveryDialog_EmptyUsername_DisplaysWarningLabel()
+        {
+            RunOnSTA(() =>
+            {
+                var db = CreateOfflineDb();
+                var service = new AccountRecoveryService();
+                using var dlg = new FormAccountRecoveryDialog(db, service);
+                dlg.ShowInTaskbar = false;
+                dlg.Show();
+                Application.DoEvents();
+
+                var btnSend = dlg.Controls.OfType<Button>().FirstOrDefault(b => b.Text.Contains("OTP"));
+                Assert.NotNull(btnSend);
+                btnSend!.PerformClick();
+                Application.DoEvents();
+
+                var lblStatus = dlg.Controls.Find("lblStatus", true).OfType<Label>().FirstOrDefault();
+                Assert.NotNull(lblStatus);
+                Assert.Contains("Tên đăng nhập", lblStatus!.Text);
+            });
+        }
     }
 }
