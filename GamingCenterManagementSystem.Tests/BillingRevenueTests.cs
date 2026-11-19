@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Windows.Forms;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
 using Xunit;
@@ -251,6 +254,91 @@ namespace GamingCenterManagementSystem.Tests
             Assert.All(lines, line => Assert.True(line.Length <= 40));
             Assert.Contains(lines, l => l.Contains("Cơm Chiên"));
             Assert.Contains(lines, l => l.Contains("65.000"));
+        }
+
+        [Fact]
+        public void FormPosThermalReceiptDialog_NullItems_ThrowsArgumentNullException()
+        {
+            RunOnSTA(() =>
+            {
+                var error = Assert.Throws<ArgumentNullException>(() =>
+                    new FormPosThermalReceiptDialog("HD01", "PC-01", "staff01", null!));
+                Assert.Equal("items", error.ParamName);
+            });
+        }
+
+        [Fact]
+        public void FormPosThermalReceiptDialog_InitializesAndRendersReceipt_OnSTA()
+        {
+            RunOnSTA(() =>
+            {
+                var items = new List<ReceiptItem>
+                {
+                    new() { ItemName = "Mì cay bò", Quantity = 1, UnitPrice = 35000m }
+                };
+                using var dialog = new FormPosThermalReceiptDialog("HD99", "PC-05", "staff01", items)
+                {
+                    ShowInTaskbar = false
+                };
+                dialog.Show();
+                Application.DoEvents();
+
+                var preview = Assert.Single(dialog.Controls.OfType<TextBox>());
+                Assert.True(preview.ReadOnly);
+                string text = preview.Text;
+                Assert.StartsWith("MẪU HÓA ĐƠN F&B (TẠM TÍNH)" + Environment.NewLine, text);
+                Assert.Contains("CYBER GAMING LOUNGE", text);
+                Assert.Contains("Số HĐ: HD99", text);
+                Assert.Contains("Khách: PC-05", text);
+                Assert.Contains("Thu ngân: staff01", text);
+                Assert.Contains("Mì cay bò", text);
+                Assert.Contains("Cộng tiền hàng: 35.000 đ", text);
+                Assert.Contains("Thuế GTGT (8%): 2.800 đ", text);
+                Assert.Contains("TỔNG CỘNG: 37.800 đ", text);
+            });
+        }
+
+        [Fact]
+        public void OrderDialog_PreviewsOnlyConfirmedItemsFromItsSession()
+        {
+            RunOnSTA(() =>
+            {
+                var offline = new DBBilling(() => throw new TimeoutException());
+                // The offline fixture has one confirmed 15,000đ order in session 1.
+                using var orderForm = new FormOrderServiceDialog(offline, 1, "PC-01");
+                Assert.IsType<Button>(Assert.Single(orderForm.Controls.Find("btnPreviewReceipt", true)));
+                using var receipt = orderForm.CreateSessionReceiptPreview();
+                Assert.NotNull(receipt);
+                var text = Assert.Single(receipt.Controls.OfType<TextBox>()).Text;
+                Assert.Contains("Số HĐ: FB-1", text);
+                Assert.Contains("Khách: PC-01", text);
+                Assert.Contains("Cộng tiền hàng: 15.000 đ", text);
+                Assert.Contains("TỔNG CỘNG: 16.200 đ", text);
+
+                using var emptyOrderForm = new FormOrderServiceDialog(offline, int.MaxValue, "PC-02");
+                using var emptyReceipt = emptyOrderForm.CreateSessionReceiptPreview();
+                Assert.Null(emptyReceipt);
+            });
+        }
+
+        private static void RunOnSTA(Action action)
+        {
+            ExceptionDispatchInfo? failure = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    failure = ExceptionDispatchInfo.Capture(ex);
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            failure?.Throw();
         }
     }
 }
