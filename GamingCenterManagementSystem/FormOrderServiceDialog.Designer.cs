@@ -32,6 +32,7 @@ namespace GamingCenterManagementSystem
             lblTotalAmount = new Label();
             lblTotalTitle = new Label();
             btnConfirm = new Button();
+            btnPreviewReceipt = new Button();
             btnCancel = new Button();
             pnlHeader.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)nudQuantity).BeginInit();
@@ -198,10 +199,23 @@ namespace GamingCenterManagementSystem
             btnConfirm.ForeColor = Color.White;
             btnConfirm.Location = new Point(20, 410);
             btnConfirm.Name = "btnConfirm";
-            btnConfirm.Size = new Size(270, 42);
+            btnConfirm.Size = new Size(190, 42);
             btnConfirm.TabIndex = 10;
             btnConfirm.Text = "✅ XÁC NHẬN GỌI MÓN";
             btnConfirm.UseVisualStyleBackColor = false;
+            //
+            // btnPreviewReceipt
+            //
+            btnPreviewReceipt.BackColor = Color.FromArgb(40, 87, 138);
+            btnPreviewReceipt.FlatStyle = FlatStyle.Flat;
+            btnPreviewReceipt.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+            btnPreviewReceipt.ForeColor = Color.White;
+            btnPreviewReceipt.Location = new Point(218, 410);
+            btnPreviewReceipt.Name = "btnPreviewReceipt";
+            btnPreviewReceipt.Size = new Size(137, 42);
+            btnPreviewReceipt.TabIndex = 11;
+            btnPreviewReceipt.Text = "Xem mẫu POS";
+            btnPreviewReceipt.UseVisualStyleBackColor = false;
             // 
             // btnCancel
             // 
@@ -210,10 +224,10 @@ namespace GamingCenterManagementSystem
             btnCancel.FlatStyle = FlatStyle.Flat;
             btnCancel.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
             btnCancel.ForeColor = Color.White;
-            btnCancel.Location = new Point(304, 410);
+            btnCancel.Location = new Point(363, 410);
             btnCancel.Name = "btnCancel";
-            btnCancel.Size = new Size(140, 42);
-            btnCancel.TabIndex = 11;
+            btnCancel.Size = new Size(81, 42);
+            btnCancel.TabIndex = 12;
             btnCancel.Text = "❌ Đóng";
             btnCancel.UseVisualStyleBackColor = false;
             // 
@@ -225,6 +239,7 @@ namespace GamingCenterManagementSystem
             CancelButton = btnCancel;
             ClientSize = new Size(464, 475);
             Controls.Add(btnCancel);
+            Controls.Add(btnPreviewReceipt);
             Controls.Add(btnConfirm);
             Controls.Add(pnlSummary);
             Controls.Add(txtNote);
@@ -268,6 +283,7 @@ namespace GamingCenterManagementSystem
         private Label lblTotalTitle;
         private Label lblTotalAmount;
         private Button btnConfirm;
+        private Button btnPreviewReceipt;
         private Button btnCancel;
     }
 }

@@ -286,6 +286,7 @@ namespace GamingCenterManagementSystem.Tests
                 var preview = Assert.Single(dialog.Controls.OfType<TextBox>());
                 Assert.True(preview.ReadOnly);
                 string text = preview.Text;
+                Assert.StartsWith("MẪU HÓA ĐƠN F&B (TẠM TÍNH)" + Environment.NewLine, text);
                 Assert.Contains("CYBER GAMING LOUNGE", text);
                 Assert.Contains("Số HĐ: HD99", text);
                 Assert.Contains("Khách: PC-05", text);
@@ -294,6 +295,29 @@ namespace GamingCenterManagementSystem.Tests
                 Assert.Contains("Cộng tiền hàng: 35.000 đ", text);
                 Assert.Contains("Thuế GTGT (8%): 2.800 đ", text);
                 Assert.Contains("TỔNG CỘNG: 37.800 đ", text);
+            });
+        }
+
+        [Fact]
+        public void OrderDialog_PreviewsOnlyConfirmedItemsFromItsSession()
+        {
+            RunOnSTA(() =>
+            {
+                var offline = new DBBilling(() => throw new TimeoutException());
+                // The offline fixture has one confirmed 15,000đ order in session 1.
+                using var orderForm = new FormOrderServiceDialog(offline, 1, "PC-01");
+                Assert.IsType<Button>(Assert.Single(orderForm.Controls.Find("btnPreviewReceipt", true)));
+                using var receipt = orderForm.CreateSessionReceiptPreview();
+                Assert.NotNull(receipt);
+                var text = Assert.Single(receipt.Controls.OfType<TextBox>()).Text;
+                Assert.Contains("Số HĐ: FB-1", text);
+                Assert.Contains("Khách: PC-01", text);
+                Assert.Contains("Cộng tiền hàng: 15.000 đ", text);
+                Assert.Contains("TỔNG CỘNG: 16.200 đ", text);
+
+                using var emptyOrderForm = new FormOrderServiceDialog(offline, int.MaxValue, "PC-02");
+                using var emptyReceipt = emptyOrderForm.CreateSessionReceiptPreview();
+                Assert.Null(emptyReceipt);
             });
         }
 

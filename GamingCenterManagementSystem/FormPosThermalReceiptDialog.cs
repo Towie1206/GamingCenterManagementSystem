@@ -53,7 +53,7 @@ namespace GamingCenterManagementSystem
                 BackColor = Color.FromArgb(248, 250, 252),
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Font = new Font("Consolas", 9.5f),
-                Text = receipt
+                Text = "MẪU HÓA ĐƠN F&B (TẠM TÍNH)" + Environment.NewLine + receipt
             };
 
             var actions = new FlowLayoutPanel
