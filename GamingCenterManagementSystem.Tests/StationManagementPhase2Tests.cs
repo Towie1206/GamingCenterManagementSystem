@@ -3,6 +3,9 @@ using System.Text.RegularExpressions;
 using GamingCenterManagementSystem.DAL;
 using GamingCenterManagementSystem.Models;
 using Xunit;
+using System.Linq;
+using System.Threading;
+using System.Windows.Forms;
 
 namespace GamingCenterManagementSystem.Tests
 {
@@ -59,6 +62,51 @@ namespace GamingCenterManagementSystem.Tests
             Assert.NotNull(list);
             Assert.NotEmpty(list);
         }
-    }
 
+        private static void RunOnSTA(Action action)
+        {
+            Exception? captured = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    captured = ex;
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            if (captured != null)
+            {
+                throw new Exception("STA thread test failed", captured);
+            }
+        }
+
+        [Fact]
+        public void FormStationNetworkScanDialog_InitializesAndBindsScanResultsOnSTA()
+        {
+            RunOnSTA(() =>
+            {
+                var db = new DBStation();
+                using var dlg = new FormStationNetworkScanDialog(db);
+                dlg.Show();
+                Application.DoEvents();
+
+                var dgv = dlg.Controls.OfType<DataGridView>().FirstOrDefault();
+                Assert.NotNull(dgv);
+                Assert.True(dgv.Rows.Count > 0);
+            });
+        }
+
+        [Fact]
+        public void FormStationNetworkScanDialog_NullDb_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() => new FormStationNetworkScanDialog(null!));
+        }
+    }
 }
