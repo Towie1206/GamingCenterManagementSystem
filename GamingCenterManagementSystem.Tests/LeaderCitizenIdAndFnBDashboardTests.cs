@@ -397,6 +397,7 @@ namespace GamingCenterManagementSystem.Tests
 
                     var dbBilling = new DBBilling();
                     dbBilling.RestockServiceItem(1, 20);
+                    dbBilling.RestockServiceItem(4, 20);
                     var session = dbBilling.OpenStationSession(stationId, userId: null, tariffType: "Hourly");
                     sessionId = session.SessionId;
 
@@ -532,6 +533,7 @@ namespace GamingCenterManagementSystem.Tests
 
                     var dbBilling = new DBBilling();
                     dbBilling.RestockServiceItem(1, 20);
+                    dbBilling.RestockServiceItem(4, 20);
                     var session = dbBilling.OpenStationSession(stationId, userId: null, tariffType: "Hourly");
                     sessionId = session.SessionId;
 
