@@ -61,6 +61,16 @@ namespace GamingCenterManagementSystem
             tip.SetToolTip(btnBaoTri, "Chuyển máy sang trạng thái bảo trì kỹ thuật");
             tip.SetToolTip(btnMoMay, "Khôi phục máy bảo trì về trạng thái sẵn sàng (Available)");
             tip.SetToolTip(btnThemZone, "Thêm khu vực phòng máy mới kèm đơn giá cấu hình");
+
+            // Bổ sung nút quét Ping mạng trạm máy
+            if (Controls.Find("btnQuetPing", true).FirstOrDefault() is Button btnPing)
+            {
+                btnPing.Click += (s, e) =>
+                {
+                    using var dlg = new FormStationNetworkScanDialog(_dbStation);
+                    dlg.ShowDialog(this);
+                };
+            }
         }
 
         private void LoadData()
