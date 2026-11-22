@@ -692,6 +692,9 @@ namespace GamingCenterManagementSystem
 
             flpClientChat.SizeChanged += (s, e) =>
             {
+                if (IsDisposed || WindowState == FormWindowState.Minimized || flpClientChat.ClientSize.Width < 120)
+                    return;
+
                 int targetWidth = Math.Max(280, flpClientChat.ClientSize.Width - 30);
                 int contentMax = Math.Max(240, flpClientChat.ClientSize.Width - 50);
                 flpClientChat.SuspendLayout();

@@ -171,7 +171,7 @@ namespace GamingCenterManagementSystem
             // 
             // FormChangePasswordDialog
             // 
-            AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             BackColor = System.Drawing.Color.FromArgb(20, 26, 38);
             ClientSize = new System.Drawing.Size(410, 455);

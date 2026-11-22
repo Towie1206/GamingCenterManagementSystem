@@ -804,19 +804,19 @@ namespace GamingCenterManagementSystem
             // 
             // FormStation
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.FromArgb(245, 247, 250);
-            ClientSize = new Size(1152, 908);
+            BackColor = Color.FromArgb(241, 245, 249);
+            ClientSize = new Size(1160, 760);
             Controls.Add(pnlMain);
             Controls.Add(grpThongTinMay);
             Controls.Add(pnlStats);
             Controls.Add(pnlHeader);
             Margin = new Padding(3, 4, 3, 4);
-            MinimumSize = new Size(1026, 784);
+            MinimumSize = new Size(1026, 745);
             Name = "FormStation";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Quản Lý Máy Trạm & Khu Vực - Cyber Game";
+            Text = "Quản Lý Máy Trạm & Khu Vực - Master Game";
 
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();

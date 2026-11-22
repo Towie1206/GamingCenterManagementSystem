@@ -818,17 +818,43 @@ namespace GamingCenterManagementSystem.Tests
                             var grpDieuKhienPhien = typeof(Form1).GetField("grpDieuKhienPhien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as GroupBox;
                             var lblKetQuaTinhTien = typeof(Form1).GetField("lblKetQuaTinhTien", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as Label;
 
+                            var btnChatHub = form1.btnChatHub;
+                            var flpDanhSachMay = typeof(Form1).GetField("flpDanhSachMay", BindingFlags.NonPublic | BindingFlags.Instance)?.GetValue(form1) as FlowLayoutPanel;
+
                             Assert.True(lblMainTitle!.Right < lblCurrentUser!.Left, $"lblMainTitle.Right ({lblMainTitle.Right}) >= lblCurrentUser.Left ({lblCurrentUser.Left})");
                             Assert.True(lblLeaderRole!.Right < lblCurrentUser.Left, $"lblLeaderRole.Right ({lblLeaderRole.Right}) >= lblCurrentUser.Left ({lblCurrentUser.Left})");
                             Assert.True(lblCurrentUser.Right < btnDangXuat!.Left);
                             Assert.True(btnDangXuat.Right <= form1.ClientSize.Width);
                             Assert.True(btnNavBilling!.Right < btnLamMoiSoDo!.Left, $"btnNavBilling.Right ({btnNavBilling.Right}) >= btnLamMoiSoDo.Left ({btnLamMoiSoDo.Left})");
+                            Assert.True(btnChatHub.Right < btnLamMoiSoDo.Left, $"btnChatHub.Right ({btnChatHub.Right}) >= btnLamMoiSoDo.Left ({btnLamMoiSoDo.Left})");
                             Assert.True(btnLamMoiSoDo.Right <= form1.ClientSize.Width, $"btnLamMoiSoDo.Right ({btnLamMoiSoDo.Right}) > ClientWidth ({form1.ClientSize.Width})");
                             Assert.True(lblLegendTournament!.Right < lblRealtimeSummary!.Left, $"lblLegendTournament.Right ({lblLegendTournament.Right}) >= lblRealtimeSummary.Left ({lblRealtimeSummary.Left})");
                             Assert.True(lblRealtimeSummary.Height >= lblRealtimeSummary.PreferredSize.Height, $"lblRealtimeSummary.Height ({lblRealtimeSummary.Height}) < Pref ({lblRealtimeSummary.PreferredSize.Height})");
                             Assert.True(lblKetQuaTinhTien!.Bottom <= grpDieuKhienPhien!.Height, $"lblKetQuaTinhTien.Bottom ({lblKetQuaTinhTien.Bottom}) > grpHeight ({grpDieuKhienPhien.Height})");
+                            Assert.True(lblKetQuaTinhTien.Height >= 100, $"lblKetQuaTinhTien.Height ({lblKetQuaTinhTien.Height}) < 100");
+                            Assert.NotNull(flpDanhSachMay);
+                            foreach (Control card in flpDanhSachMay!.Controls)
+                            {
+                                Assert.True(card.Width <= flpDanhSachMay.ClientSize.Width, $"Card width ({card.Width}) > flpDanhSachMay.ClientSize.Width ({flpDanhSachMay.ClientSize.Width})");
+                                if (card.Tag is FlowLayoutPanel zoneGrid)
+                                {
+                                    Assert.True(zoneGrid.Bottom <= card.Height, $"zoneGrid.Bottom ({zoneGrid.Bottom}) > card.Height ({card.Height})");
+                                }
+                            }
                         }
 
+                        AssertLayoutClean();
+
+                        // Maximize -> Minimize -> Restore -> MinimumSize stress cycle
+                        form1.WindowState = FormWindowState.Maximized;
+                        Application.DoEvents();
+                        AssertLayoutClean();
+
+                        form1.WindowState = FormWindowState.Minimized;
+                        Application.DoEvents();
+
+                        form1.WindowState = FormWindowState.Normal;
+                        Application.DoEvents();
                         AssertLayoutClean();
 
                         form1.Size = form1.MinimumSize;

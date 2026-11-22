@@ -49,11 +49,14 @@ namespace GamingCenterManagementSystem
             _dbBilling = dbBilling;
 
             InitializeComponent();
+            DoubleBuffered = true;
             SetupNavigation();
             SetupStationControls();
             SetupRealtimeTimer();
             LoadDashboardData();
             ApplyRolePermissions();
+            Shown += (s, e) => AdjustFloorplanCardWidths();
+            SizeChanged += (s, e) => AdjustFloorplanCardWidths();
         }
 
         private void SetupNavigation()
@@ -548,25 +551,87 @@ namespace GamingCenterManagementSystem
 
         private int GetFloorplanCardWidth()
         {
-            int available = flpDanhSachMay.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 20;
-            return Math.Max(680, available);
+            int available = flpDanhSachMay.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 18;
+            return Math.Max(520, available);
         }
 
         private void AdjustFloorplanCardWidths()
         {
-            if (IsDisposed || flpDanhSachMay.Controls.Count == 0)
+            if (IsDisposed || WindowState == FormWindowState.Minimized || flpDanhSachMay.Controls.Count == 0)
+                return;
+
+            if (flpDanhSachMay.ClientSize.Width < 200)
                 return;
 
             int cardWidth = GetFloorplanCardWidth();
             flpDanhSachMay.SuspendLayout();
             foreach (Control ctrl in flpDanhSachMay.Controls)
             {
-                if (ctrl.Width != cardWidth)
+                ctrl.Width = cardWidth;
+
+                if (ctrl.Tag is string tag && tag == "FilterCard")
                 {
-                    ctrl.Width = cardWidth;
+                    ResizeFilterCard(ctrl, cardWidth);
                 }
+                else if (ctrl.Tag is FlowLayoutPanel zoneGrid)
+                {
+                    ResizeZoneCard(ctrl, zoneGrid, cardWidth);
+                }
+
+                ctrl.Invalidate();
             }
             flpDanhSachMay.ResumeLayout(true);
+            flpDanhSachMay.PerformLayout();
+        }
+
+        private static void ResizeFilterCard(Control card, int cardWidth)
+        {
+            int innerW = Math.Max(300, cardWidth - 24);
+            FlowLayoutPanel? flpFilter = null;
+            Label? lblPromo = null;
+
+            foreach (Control child in card.Controls)
+            {
+                if (child is FlowLayoutPanel flp) flpFilter = flp;
+                else if (child is Label lbl) lblPromo = lbl;
+            }
+
+            int filterH = 34;
+            if (flpFilter != null)
+            {
+                flpFilter.MaximumSize = new Size(innerW, 0);
+                flpFilter.Width = innerW;
+                flpFilter.PerformLayout();
+                filterH = Math.Max(32, flpFilter.GetPreferredSize(new Size(innerW, 0)).Height);
+                flpFilter.Height = filterH;
+            }
+
+            int promoH = 24;
+            if (lblPromo != null)
+            {
+                lblPromo.MaximumSize = new Size(innerW, 0);
+                lblPromo.Width = innerW;
+                promoH = Math.Max(24, lblPromo.GetPreferredSize(new Size(innerW, 0)).Height + 6);
+                lblPromo.Height = promoH;
+            }
+
+            card.Height = filterH + promoH + 22;
+        }
+
+        private static void ResizeZoneCard(Control card, FlowLayoutPanel zoneGrid, int cardWidth)
+        {
+            int stationCount = zoneGrid.Controls.OfType<Button>().Count();
+            const int headerHeight = 54;
+            const int tileOuterW = 128 + 12; // Width (128) + Margin.Left/Right (6+6)
+            const int tileOuterH = 82 + 12;  // Height (82) + Margin.Top/Bottom (6+6)
+
+            int innerGridW = Math.Max(tileOuterW, cardWidth - 24);
+            int cols = Math.Max(1, innerGridW / tileOuterW);
+            int rows = stationCount == 0 ? 1 : Math.Max(1, (int)Math.Ceiling(stationCount / (double)cols));
+            int gridHeight = stationCount == 0 ? 44 : (rows * tileOuterH + 16);
+
+            zoneGrid.Height = gridHeight;
+            card.Height = headerHeight + gridHeight + 6;
         }
 
         private static int GetZoneDisplayOrder(string? zoneName)
@@ -583,7 +648,8 @@ namespace GamingCenterManagementSystem
             var card = new Panel
             {
                 Width = width,
-                Height = 76,
+                Height = 82,
+                Tag = "FilterCard",
                 BackColor = UiThemeHelper.SurfaceWhite,
                 Margin = new Padding(0, 0, 0, 10),
                 Padding = new Padding(12, 8, 12, 8)
@@ -600,7 +666,7 @@ namespace GamingCenterManagementSystem
                 Dock = DockStyle.Top,
                 Height = 34,
                 FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
+                WrapContents = true,
                 BackColor = Color.Transparent
             };
 
@@ -617,17 +683,19 @@ namespace GamingCenterManagementSystem
             var lblPromo = new Label
             {
                 Dock = DockStyle.Bottom,
-                Height = 22,
+                AutoSize = false,
+                Height = 24,
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(180, 83, 9),
                 BackColor = Color.FromArgb(255, 251, 235),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 8, 0),
-                Text = "⚡ Happy Hours 23h-11h (-40%): Standard 6K/h • Master 8K/h • Maximum 9K/h   |   🎁 Nạp 500K +20% • 1.000K +50% • 2.000K +100%"
+                Padding = new Padding(8, 2, 8, 2),
+                Text = "⚡ Happy Hours 23h-11h (-40%): Standard 6K • Master 8K • Maximum 9K  |  🎁 Nạp 500K +20% • 1M +50% • 2M +100%"
             };
 
             card.Controls.Add(lblPromo);
             card.Controls.Add(flpFilter);
+            ResizeFilterCard(card, width);
             return card;
         }
 
@@ -639,7 +707,7 @@ namespace GamingCenterManagementSystem
                 AutoSize = true,
                 MinimumSize = new Size(92, 28),
                 Height = 28,
-                Margin = new Padding(0, 0, 8, 0),
+                Margin = new Padding(0, 0, 8, 4),
                 Padding = new Padding(8, 0, 8, 0),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand,
@@ -671,6 +739,7 @@ namespace GamingCenterManagementSystem
             var lbl = new Label
             {
                 Dock = DockStyle.Fill,
+                AutoEllipsis = true,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(226, 232, 240),
@@ -693,12 +762,9 @@ namespace GamingCenterManagementSystem
             var card = new Panel
             {
                 Width = width,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                MinimumSize = new Size(width, 140),
                 BackColor = UiThemeHelper.SurfaceWhite,
                 Margin = new Padding(0, 0, 0, 10),
-                Padding = new Padding(0, 0, 0, 8)
+                Padding = new Padding(0, 0, 0, 4)
             };
 
             card.Paint += (s, e) =>
@@ -713,7 +779,7 @@ namespace GamingCenterManagementSystem
             var pnlTop = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 52,
+                Height = 54,
                 BackColor = meta.SoftBg,
                 Padding = new Padding(14, 6, 14, 6)
             };
@@ -722,9 +788,10 @@ namespace GamingCenterManagementSystem
             {
                 Dock = DockStyle.Top,
                 Height = 22,
+                AutoEllipsis = true,
                 Font = new Font("Segoe UI", 10F, FontStyle.Bold),
                 ForeColor = meta.Accent,
-                Text = $"■  {zone.ZoneName.ToUpperInvariant()}   —   {zone.BasePricePerHour:N0}đ/h  (Happy Hours: {meta.HappyHourPriceText})   •   Trống {available}/{zoneStations.Count} | Đang chơi {inUse}"
+                Text = $"■  {zone.ZoneName.ToUpperInvariant()}  —  {zone.BasePricePerHour:N0}đ/h (Happy: {meta.HappyHourPriceText})  •  Trống {available}/{zoneStations.Count} | Đang chơi {inUse}"
             };
 
             var lblZoneSpec = new Label
@@ -740,12 +807,10 @@ namespace GamingCenterManagementSystem
             pnlTop.Controls.Add(lblZoneSpec);
             pnlTop.Controls.Add(lblZoneHeader);
 
-            // Lưới nút máy trạm bên trong dàn máy
+            // Lưới nút máy trạm bên trong dàn máy (chiều cao tính chuẩn xác theo số cột/hàng khi resize)
             var flpZoneGrid = new FlowLayoutPanel
             {
                 Dock = DockStyle.Top,
-                AutoSize = true,
-                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = true,
                 BackColor = UiThemeHelper.SurfaceWhite,
@@ -770,6 +835,9 @@ namespace GamingCenterManagementSystem
                     Text = "Chưa có máy trạm nào trong dàn này."
                 });
             }
+
+            card.Tag = flpZoneGrid;
+            ResizeZoneCard(card, flpZoneGrid, width);
 
             // Thứ tự add Dock.Top: add grid trước, header sau để header nằm trên cùng
             card.Controls.Add(flpZoneGrid);
@@ -958,7 +1026,7 @@ namespace GamingCenterManagementSystem
             lblMayDangChon.Text = $"🖥️ Máy Trạm: {station.StationName}";
             lblTrangThaiMay.Text = $"Trạng thái: {station.Status}";
             lblKhuVucMay.Text = $"Dàn máy: {zone?.ZoneName ?? "Mặc định"}";
-            lblGiaGio.Text = $"Đơn giá: {price:N0} VNĐ/h  (Happy Hours: {meta.HappyHourPriceText})";
+            lblGiaGio.Text = $"Đơn giá: {price:N0}đ/h  (Happy Hours: {meta.HappyHourPriceText})";
             string specText = !string.IsNullOrWhiteSpace(zone?.Description) ? zone!.Description! : meta.ShortSpec;
             lblCauHinhMay.Text = string.IsNullOrWhiteSpace(specText)
                 ? $"⚙️ IP: {station.IpAddress}"

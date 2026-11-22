@@ -1262,17 +1262,17 @@ namespace GamingCenterManagementSystem
             // 
             // FormClientDashboard
             // 
-            AutoScaleDimensions = new System.Drawing.SizeF(8F, 20F);
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             BackColor = System.Drawing.Color.FromArgb(15, 20, 28);
-            ClientSize = new System.Drawing.Size(1300, 850);
+            ClientSize = new System.Drawing.Size(1280, 800);
             Controls.Add(pnlLockOverlay);
             Controls.Add(tabMain);
             Controls.Add(pnlTopHud);
-            MinimumSize = new System.Drawing.Size(1200, 750);
+            MinimumSize = new System.Drawing.Size(1180, 720);
             Name = "FormClientDashboard";
             StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            Text = "CyberSpace Client HUD - Màn Hình Máy Trạm Khách Chơi";
+            Text = "Master Game Client HUD - Màn Hình Máy Trạm Khách Chơi";
             pnlTopHud.ResumeLayout(false);
             pnlStationInfo.ResumeLayout(false);
             pnlStationInfo.PerformLayout();
