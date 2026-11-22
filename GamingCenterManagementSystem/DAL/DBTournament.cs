@@ -29,8 +29,8 @@ namespace GamingCenterManagementSystem.DAL
 
         private static readonly List<Tournament> _fallbackTournaments = new()
         {
-            new Tournament { TournamentId = 1, Title = "EAUT Valorant Championship 2026", GameTitle = "Valorant", FormatType = "SingleElimination", PrizePool = 10000000, Status = "Ongoing", StartDate = DateTime.Now.AddDays(-1) },
-            new Tournament { TournamentId = 2, Title = "Đông Á League of Legends LAN Cup", GameTitle = "League of Legends", FormatType = "DoubleElimination", PrizePool = 15000000, Status = "Upcoming", StartDate = DateTime.Now.AddDays(3) }
+            new Tournament { TournamentId = 1, Title = "Master Game Valorant Community Cup 2026", GameTitle = "Valorant", FormatType = "SingleElimination", PrizePool = 10000000, Status = "Ongoing", StartDate = DateTime.Now.AddDays(-1) },
+            new Tournament { TournamentId = 2, Title = "Master Game League of Legends Cup", GameTitle = "League of Legends", FormatType = "DoubleElimination", PrizePool = 15000000, Status = "Upcoming", StartDate = DateTime.Now.AddDays(3) }
         };
 
         private static readonly List<TournamentMatch> _fallbackMatches = new()

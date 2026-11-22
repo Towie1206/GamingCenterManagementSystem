@@ -36,6 +36,7 @@ namespace GamingCenterManagementSystem
         public FormTournament()
         {
             InitializeComponent();
+            UiThemeHelper.StyleSecondaryForm(this);
             SetupEvents();
             LoadTournaments();
             LoadStationsChecklist();

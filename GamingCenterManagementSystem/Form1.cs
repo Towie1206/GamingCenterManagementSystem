@@ -24,7 +24,9 @@ namespace GamingCenterManagementSystem
         private readonly Dictionary<int, GamingSession> _activeSessions = new();
         private readonly Dictionary<int, Button> _stationButtons = new();
         private readonly System.Windows.Forms.Timer _realtimeTimer = new();
-        private readonly Font _stationButtonFont = new("Segoe UI", 9F, FontStyle.Bold);
+        private readonly Font _stationButtonFont = new("Segoe UI", 8.5F, FontStyle.Bold);
+        private readonly ToolTip _stationToolTip = new();
+        private int? _selectedZoneFilterId = null;
         private Func<string, string, MessageBoxButtons, MessageBoxIcon, DialogResult>? _promptHandler;
         private Action<ChatMessage>? _onChatMessageSentHandler;
         private Action<int>? _onChatUnreadChangedHandler;
@@ -79,7 +81,7 @@ namespace GamingCenterManagementSystem
 
             btnNavTournament.Click += (s, e) =>
             {
-                if (!EnsureStaffOrAdminAccess("Quản lý giải đấu LAN"))
+                if (!EnsureStaffOrAdminAccess("Quản lý giải đấu phòng máy"))
                     return;
 
                 FormTournament form = new FormTournament();
@@ -260,6 +262,7 @@ namespace GamingCenterManagementSystem
             _realtimeTimer.Stop();
             _realtimeTimer.Dispose();
             _stationButtonFont.Dispose();
+            _stationToolTip.Dispose();
         }
 
         private void SetupStationControls()
@@ -268,6 +271,7 @@ namespace GamingCenterManagementSystem
             btnGoiMon.Click += BtnGoiMon_Click;
             btnDongMay.Click += BtnDongMay_Click;
             btnBaoTri.Click += BtnBaoTri_Click;
+            flpDanhSachMay.SizeChanged += (s, e) => AdjustFloorplanCardWidths();
             cboGoiCuoc.SelectedIndex = 0;
         }
 
@@ -464,7 +468,7 @@ namespace GamingCenterManagementSystem
             }
         }
 
-        // Section 4.2 in Project Roadmap: Sơ đồ phòng máy trực quan đổi màu Realtime
+        // Sơ đồ phòng máy Master Game trực quan theo 3 dàn máy (Maximum / Master / Standard) & đổi màu Realtime
         private void RenderStationGrid()
         {
             flpDanhSachMay.SuspendLayout();
@@ -476,56 +480,54 @@ namespace GamingCenterManagementSystem
             }
             _stationButtons.Clear();
 
-            foreach (var station in _stations)
+            int cardWidth = GetFloorplanCardWidth();
+
+            // 1. Thanh lọc dàn máy & bảng khuyến mãi Master Game
+            flpDanhSachMay.Controls.Add(BuildFilterAndPromoCard(cardWidth));
+
+            // 2. Sắp xếp các dàn máy đúng theo sơ đồ Master Game:
+            //    Cánh trái: Dàn Maximum (15K) -> Dàn Master (13K) -> Quầy Lễ Tân (Reception) -> Cánh phải: Dàn Standard (10K) -> Các khu thêm mới
+            var orderedZones = _zones
+                .OrderBy(z => GetZoneDisplayOrder(z.ZoneName))
+                .ThenBy(z => z.ZoneId)
+                .ToList();
+
+            var filteredZones = _selectedZoneFilterId.HasValue
+                ? orderedZones.Where(z => z.ZoneId == _selectedZoneFilterId.Value).ToList()
+                : orderedZones;
+
+            bool receptionInserted = false;
+            bool showReceptionDivider = !_selectedZoneFilterId.HasValue && filteredZones.Count >= 2;
+
+            foreach (var zone in filteredZones)
             {
-                var zone = _zones.FirstOrDefault(z => z.ZoneId == station.ZoneId);
-                string zoneName = zone?.ZoneName ?? $"Khu {station.ZoneId}";
+                var zoneStations = _stations
+                    .Where(s => s.ZoneId == zone.ZoneId)
+                    .OrderBy(s => s.StationId)
+                    .ToList();
 
-                Button btn = new Button
+                if (showReceptionDivider && !receptionInserted && zone.ZoneName.Contains("Standard", StringComparison.OrdinalIgnoreCase))
                 {
-                    Width = 145,
-                    Height = 118,
-                    Margin = new Padding(10),
-                    Tag = station,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = _stationButtonFont,
-                    ForeColor = Color.Black,
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-
-                btn.FlatAppearance.BorderSize = 2;
-
-                switch (station.Status)
-                {
-                    case "InUse":
-                        btn.BackColor = Color.FromArgb(255, 178, 102); // Đang chơi - Cam nhạt
-                        btn.FlatAppearance.BorderColor = Color.FromArgb(230, 81, 0);
-                        btn.Text = BuildInUseButtonText(station, zoneName);
-                        break;
-                    case "Maintenance":
-                        btn.BackColor = Color.FromArgb(255, 153, 153); // Bảo trì - Đỏ nhạt
-                        btn.FlatAppearance.BorderColor = Color.FromArgb(178, 34, 34);
-                        btn.Text = $"🛠️ {station.StationName}\n({zoneName})\n\n[BẢO TRÌ]";
-                        break;
-                    case "TournamentLocked":
-                        btn.BackColor = Color.FromArgb(255, 230, 128); // Khóa giải - Vàng kim
-                        btn.FlatAppearance.BorderColor = Color.FromArgb(184, 134, 11);
-                        btn.Text = $"🏆 {station.StationName}\n({zoneName})\n\n[GIẢI ĐẤU]";
-                        break;
-                    case "Available":
-                    default:
-                        btn.BackColor = Color.FromArgb(178, 236, 178); // Sẵn sàng - Xanh lá tươi
-                        btn.FlatAppearance.BorderColor = Color.FromArgb(34, 139, 34);
-                        btn.Text = $"🟢 {station.StationName}\n({zoneName})\n\n[SẴN SÀNG]";
-                        break;
+                    flpDanhSachMay.Controls.Add(BuildReceptionDivider(cardWidth));
+                    receptionInserted = true;
                 }
 
-                btn.Click += StationButton_Click;
-                _stationButtons[station.StationId] = btn;
-                flpDanhSachMay.Controls.Add(btn);
+                flpDanhSachMay.Controls.Add(BuildZoneSectionCard(zone, zoneStations, cardWidth));
             }
 
-            flpDanhSachMay.ResumeLayout();
+            // Hiển thị các máy có ZoneId không khớp danh mục (nếu có)
+            if (!_selectedZoneFilterId.HasValue)
+            {
+                var knownZoneIds = new HashSet<int>(_zones.Select(z => z.ZoneId));
+                var orphanStations = _stations.Where(s => !knownZoneIds.Contains(s.ZoneId)).OrderBy(s => s.StationId).ToList();
+                if (orphanStations.Count > 0)
+                {
+                    var fallbackZone = new StationZone { ZoneId = 0, ZoneName = "Khu vực khác", BasePricePerHour = 10000m };
+                    flpDanhSachMay.Controls.Add(BuildZoneSectionCard(fallbackZone, orphanStations, cardWidth));
+                }
+            }
+
+            flpDanhSachMay.ResumeLayout(true);
 
             // Reselect current station if still present
             if (_selectedStation != null)
@@ -544,6 +546,295 @@ namespace GamingCenterManagementSystem
             UpdateRealtimeDisplay();
         }
 
+        private int GetFloorplanCardWidth()
+        {
+            int available = flpDanhSachMay.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 20;
+            return Math.Max(680, available);
+        }
+
+        private void AdjustFloorplanCardWidths()
+        {
+            if (IsDisposed || flpDanhSachMay.Controls.Count == 0)
+                return;
+
+            int cardWidth = GetFloorplanCardWidth();
+            flpDanhSachMay.SuspendLayout();
+            foreach (Control ctrl in flpDanhSachMay.Controls)
+            {
+                if (ctrl.Width != cardWidth)
+                {
+                    ctrl.Width = cardWidth;
+                }
+            }
+            flpDanhSachMay.ResumeLayout(true);
+        }
+
+        private static int GetZoneDisplayOrder(string? zoneName)
+        {
+            string name = zoneName ?? string.Empty;
+            if (name.Contains("Maximum", StringComparison.OrdinalIgnoreCase)) return 1;
+            if (name.Contains("Master", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (name.Contains("Standard", StringComparison.OrdinalIgnoreCase)) return 3;
+            return 4;
+        }
+
+        private Panel BuildFilterAndPromoCard(int width)
+        {
+            var card = new Panel
+            {
+                Width = width,
+                Height = 76,
+                BackColor = UiThemeHelper.SurfaceWhite,
+                Margin = new Padding(0, 0, 0, 10),
+                Padding = new Padding(12, 8, 12, 8)
+            };
+
+            card.Paint += (s, e) =>
+            {
+                using var pen = new Pen(UiThemeHelper.BorderSubtle, 1);
+                e.Graphics.DrawRectangle(pen, 0, 0, card.Width - 1, card.Height - 1);
+            };
+
+            var flpFilter = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                Height = 34,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                BackColor = Color.Transparent
+            };
+
+            flpFilter.Controls.Add(CreateZoneFilterButton($"Tất cả ({_stations.Count})", null, UiThemeHelper.AccentBlue));
+
+            foreach (var z in _zones.OrderBy(z => GetZoneDisplayOrder(z.ZoneName)).ThenBy(z => z.ZoneId))
+            {
+                int count = _stations.Count(s => s.ZoneId == z.ZoneId);
+                var meta = UiThemeHelper.GetMasterGameZoneMeta(z.ZoneName, z.BasePricePerHour);
+                string label = $"{z.ZoneName} ({z.BasePricePerHour / 1000m:0}K • {count})";
+                flpFilter.Controls.Add(CreateZoneFilterButton(label, z.ZoneId, meta.Accent));
+            }
+
+            var lblPromo = new Label
+            {
+                Dock = DockStyle.Bottom,
+                Height = 22,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(180, 83, 9),
+                BackColor = Color.FromArgb(255, 251, 235),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 8, 0),
+                Text = "⚡ Happy Hours 23h-11h (-40%): Standard 6K/h • Master 8K/h • Maximum 9K/h   |   🎁 Nạp 500K +20% • 1.000K +50% • 2.000K +100%"
+            };
+
+            card.Controls.Add(lblPromo);
+            card.Controls.Add(flpFilter);
+            return card;
+        }
+
+        private Button CreateZoneFilterButton(string text, int? zoneId, Color accent)
+        {
+            bool active = _selectedZoneFilterId == zoneId;
+            var btn = new Button
+            {
+                AutoSize = true,
+                MinimumSize = new Size(92, 28),
+                Height = 28,
+                Margin = new Padding(0, 0, 8, 0),
+                Padding = new Padding(8, 0, 8, 0),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                Text = text,
+                BackColor = active ? accent : Color.FromArgb(248, 250, 252),
+                ForeColor = active ? Color.White : UiThemeHelper.TextPrimary
+            };
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = active ? accent : UiThemeHelper.BorderSubtle;
+            btn.Click += (s, e) =>
+            {
+                _selectedZoneFilterId = zoneId;
+                RenderStationGrid();
+            };
+            return btn;
+        }
+
+        private static Panel BuildReceptionDivider(int width)
+        {
+            var bar = new Panel
+            {
+                Width = width,
+                Height = 32,
+                BackColor = UiThemeHelper.SubHeaderDark,
+                Margin = new Padding(0, 2, 0, 10)
+            };
+
+            var lbl = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                ForeColor = Color.FromArgb(226, 232, 240),
+                Text = "🏪  QUẦY LỄ TÂN (RECEPTION) — KHU TRÁI: DÀN MAXIMUM & MASTER   |   KHU PHẢI: DÀN STANDARD"
+            };
+            bar.Controls.Add(lbl);
+            return bar;
+        }
+
+        private Panel BuildZoneSectionCard(StationZone zone, List<ComputerStation> zoneStations, int width)
+        {
+            var meta = UiThemeHelper.GetMasterGameZoneMeta(zone.ZoneName, zone.BasePricePerHour);
+            string specSummary = !string.IsNullOrWhiteSpace(zone.Description)
+                ? zone.Description
+                : meta.ShortSpec;
+
+            int available = zoneStations.Count(s => string.Equals(s.Status, "Available", StringComparison.OrdinalIgnoreCase));
+            int inUse = zoneStations.Count(s => string.Equals(s.Status, "InUse", StringComparison.OrdinalIgnoreCase));
+
+            var card = new Panel
+            {
+                Width = width,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                MinimumSize = new Size(width, 140),
+                BackColor = UiThemeHelper.SurfaceWhite,
+                Margin = new Padding(0, 0, 0, 10),
+                Padding = new Padding(0, 0, 0, 8)
+            };
+
+            card.Paint += (s, e) =>
+            {
+                using var borderPen = new Pen(UiThemeHelper.BorderSubtle, 1);
+                e.Graphics.DrawRectangle(borderPen, 0, 0, card.Width - 1, card.Height - 1);
+                using var accentBrush = new SolidBrush(meta.Accent);
+                e.Graphics.FillRectangle(accentBrush, 0, 0, 5, card.Height);
+            };
+
+            // Header của Dàn Máy
+            var pnlTop = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 52,
+                BackColor = meta.SoftBg,
+                Padding = new Padding(14, 6, 14, 6)
+            };
+
+            var lblZoneHeader = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 22,
+                Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+                ForeColor = meta.Accent,
+                Text = $"■  {zone.ZoneName.ToUpperInvariant()}   —   {zone.BasePricePerHour:N0}đ/h  (Happy Hours: {meta.HappyHourPriceText})   •   Trống {available}/{zoneStations.Count} | Đang chơi {inUse}"
+            };
+
+            var lblZoneSpec = new Label
+            {
+                Dock = DockStyle.Bottom,
+                Height = 18,
+                Font = new Font("Segoe UI", 8F, FontStyle.Regular),
+                ForeColor = UiThemeHelper.TextSecondary,
+                AutoEllipsis = true,
+                Text = $"⚙️ {specSummary}"
+            };
+
+            pnlTop.Controls.Add(lblZoneSpec);
+            pnlTop.Controls.Add(lblZoneHeader);
+
+            // Lưới nút máy trạm bên trong dàn máy
+            var flpZoneGrid = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                BackColor = UiThemeHelper.SurfaceWhite,
+                Padding = new Padding(12, 8, 8, 4)
+            };
+
+            foreach (var station in zoneStations)
+            {
+                Button btn = CreateStationTileButton(station, zone, specSummary);
+                _stationButtons[station.StationId] = btn;
+                flpZoneGrid.Controls.Add(btn);
+            }
+
+            if (zoneStations.Count == 0)
+            {
+                flpZoneGrid.Controls.Add(new Label
+                {
+                    AutoSize = true,
+                    Padding = new Padding(6, 10, 6, 10),
+                    Font = new Font("Segoe UI", 9F, FontStyle.Italic),
+                    ForeColor = UiThemeHelper.TextSecondary,
+                    Text = "Chưa có máy trạm nào trong dàn này."
+                });
+            }
+
+            // Thứ tự add Dock.Top: add grid trước, header sau để header nằm trên cùng
+            card.Controls.Add(flpZoneGrid);
+            card.Controls.Add(pnlTop);
+            return card;
+        }
+
+        private Button CreateStationTileButton(ComputerStation station, StationZone zone, string specSummary)
+        {
+            Button btn = new Button
+            {
+                Width = 128,
+                Height = 82,
+                Margin = new Padding(6),
+                Tag = station,
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                Font = _stationButtonFont,
+                ForeColor = UiThemeHelper.TextPrimary,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            ApplyStationTileVisual(btn, station, zone.ZoneName, isSelected: _selectedStation?.StationId == station.StationId);
+
+            string tooltipText = $"{station.StationName} ({zone.ZoneName})\nIP: {station.IpAddress} | Giá: {zone.BasePricePerHour:N0}đ/h\nCấu hình: {specSummary}";
+            _stationToolTip.SetToolTip(btn, tooltipText);
+
+            btn.Click += StationButton_Click;
+            return btn;
+        }
+
+        private void ApplyStationTileVisual(Button btn, ComputerStation station, string zoneName, bool isSelected)
+        {
+            btn.FlatAppearance.BorderSize = isSelected ? 3 : 2;
+
+            switch (station.Status)
+            {
+                case "InUse":
+                    btn.BackColor = isSelected ? Color.FromArgb(255, 237, 213) : Color.FromArgb(255, 247, 237);
+                    btn.FlatAppearance.BorderColor = isSelected ? UiThemeHelper.AccentBlue : Color.FromArgb(234, 88, 12);
+                    btn.ForeColor = Color.FromArgb(154, 52, 18);
+                    btn.Text = BuildInUseButtonText(station, zoneName);
+                    break;
+                case "Maintenance":
+                    btn.BackColor = Color.FromArgb(254, 242, 242);
+                    btn.FlatAppearance.BorderColor = isSelected ? UiThemeHelper.AccentBlue : Color.FromArgb(220, 38, 38);
+                    btn.ForeColor = Color.FromArgb(153, 27, 27);
+                    btn.Text = $"🛠️ {station.StationName}\n{zoneName}\n[BẢO TRÌ]";
+                    break;
+                case "TournamentLocked":
+                    btn.BackColor = Color.FromArgb(254, 252, 232);
+                    btn.FlatAppearance.BorderColor = isSelected ? UiThemeHelper.AccentBlue : Color.FromArgb(202, 138, 4);
+                    btn.ForeColor = Color.FromArgb(133, 77, 14);
+                    btn.Text = $"🏆 {station.StationName}\n{zoneName}\n[GIẢI ĐẤU]";
+                    break;
+                case "Available":
+                default:
+                    btn.BackColor = isSelected ? Color.FromArgb(239, 246, 255) : UiThemeHelper.SurfaceWhite;
+                    btn.FlatAppearance.BorderColor = isSelected ? UiThemeHelper.AccentBlue : Color.FromArgb(16, 185, 129);
+                    btn.ForeColor = Color.FromArgb(15, 23, 42);
+                    btn.Text = $"🟢 {station.StationName}\n{zoneName}\n[SẴN SÀNG]";
+                    break;
+            }
+        }
+
         private string BuildInUseButtonText(ComputerStation station, string zoneName)
         {
             if (_activeSessions.TryGetValue(station.StationId, out var active))
@@ -553,10 +844,10 @@ namespace GamingCenterManagementSystem
                     elapsed = TimeSpan.Zero;
 
                 string elapsedText = $"{(int)elapsed.TotalHours:D2}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
-                return $"🖥️ {station.StationName}\n({zoneName})\n⏱️ {elapsedText}\n[ĐANG CHƠI]";
+                return $"🖥️ {station.StationName}\n⏱️ {elapsedText}\n[ĐANG CHƠI]";
             }
 
-            return $"🖥️ {station.StationName}\n({zoneName})\n\n[ĐANG CHƠI]";
+            return $"🖥️ {station.StationName}\n{zoneName}\n[ĐANG CHƠI]";
         }
 
         private string BuildActiveSessionRealtimeText(ComputerStation station, GamingSession active, decimal basePrice)
@@ -644,15 +935,34 @@ namespace GamingCenterManagementSystem
 
         private void SelectStation(ComputerStation station)
         {
+            var previousStation = _selectedStation;
             _selectedStation = station;
             var zone = _zones.FirstOrDefault(z => z.ZoneId == station.ZoneId);
-            decimal price = zone?.BasePricePerHour ?? 8000m;
+            decimal price = zone?.BasePricePerHour ?? 10000m;
+            var meta = UiThemeHelper.GetMasterGameZoneMeta(zone?.ZoneName, price);
             bool canOperateStations = !CurrentUserSession.IsLoggedIn || CurrentUserSession.CanManageOperations;
+
+            // Cập nhật viền chọn nổi bật trên sơ đồ máy
+            if (previousStation != null && previousStation.StationId != station.StationId &&
+                _stationButtons.TryGetValue(previousStation.StationId, out var prevBtn))
+            {
+                var prevZone = _zones.FirstOrDefault(z => z.ZoneId == previousStation.ZoneId);
+                ApplyStationTileVisual(prevBtn, previousStation, prevZone?.ZoneName ?? $"Khu {previousStation.ZoneId}", isSelected: false);
+            }
+
+            if (_stationButtons.TryGetValue(station.StationId, out var curBtn))
+            {
+                ApplyStationTileVisual(curBtn, station, zone?.ZoneName ?? $"Khu {station.ZoneId}", isSelected: true);
+            }
 
             lblMayDangChon.Text = $"🖥️ Máy Trạm: {station.StationName}";
             lblTrangThaiMay.Text = $"Trạng thái: {station.Status}";
-            lblKhuVucMay.Text = $"Khu vực: {zone?.ZoneName ?? "Mặc định"}";
-            lblGiaGio.Text = $"Đơn giá: {price:N0} VNĐ/h";
+            lblKhuVucMay.Text = $"Dàn máy: {zone?.ZoneName ?? "Mặc định"}";
+            lblGiaGio.Text = $"Đơn giá: {price:N0} VNĐ/h  (Happy Hours: {meta.HappyHourPriceText})";
+            string specText = !string.IsNullOrWhiteSpace(zone?.Description) ? zone!.Description! : meta.ShortSpec;
+            lblCauHinhMay.Text = string.IsNullOrWhiteSpace(specText)
+                ? $"⚙️ IP: {station.IpAddress}"
+                : $"⚙️ {specText}";
 
             switch (station.Status)
             {
@@ -698,7 +1008,7 @@ namespace GamingCenterManagementSystem
                     btnGoiMon.Enabled = false;
                     btnDongMay.Enabled = false;
                     btnBaoTri.Enabled = false;
-                    lblKetQuaTinhTien.Text = $"Máy {station.StationName} đang KHÓA phục vụ giải đấu LAN Party.";
+                    lblKetQuaTinhTien.Text = $"Máy {station.StationName} đang KHÓA phục vụ giải đấu phòng máy.";
                     break;
 
                 case "Available":

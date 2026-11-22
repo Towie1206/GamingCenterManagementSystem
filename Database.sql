@@ -134,7 +134,7 @@ BEGIN
 END
 GO
 
--- 6. Bảng Giải đấu LAN Party (Tournament)
+-- 6. Bảng Giải đấu Phòng Máy (Tournament)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Tournament')
 BEGIN
     CREATE TABLE Tournament (
@@ -227,24 +227,47 @@ GO
 IF NOT EXISTS (SELECT * FROM StationZone)
 BEGIN
     INSERT INTO StationZone (ZoneName, BasePricePerHour, Description) VALUES 
-    (N'Khu Thường', 8000, N'Cấu hình i5, GTX 1660, Màn 144Hz'),
-    (N'Khu VIP', 12000, N'Cấu hình i7, RTX 3060, Màn 240Hz'),
-    (N'Đấu Trường LAN', 18000, N'Dàn thi đấu 10 máy khép kín, RTX 4070, Màn 360Hz');
+    (N'Dàn Standard', 10000, N'CPU i5-14400 | ASUS TUF B760 | 32GB DDR5-6400 | ASUS Dual RTX 4060Ti 8GB | Acer 27" IPS 2K 240Hz | XM1R | FL GP 108 | Somic G936 Pro | Pulsar'),
+    (N'Dàn Master', 13000, N'CPU i7-14700 | ASUS TUF B760 | 64GB DDR5-6400 | ASUS TUF 4070Ti Super 16GB | AOC 27" IPS 2K 400Hz | OP1 | DareU EK108RT | HyperX Cloud 2 | FBB Japan'),
+    (N'Dàn Maximum', 15000, N'CPU AMD 9800X3D | ASUS TUF B850 | 64GB DDR5-6400 CL30 | ASUS TUF 4070Ti Super 16GB | Acer 24" 0.1ms 540Hz | Razer DA V3 8K | DrunkDeer A75 Pro | Cloud 2');
 END
 
 IF NOT EXISTS (SELECT * FROM ComputerStation)
 BEGIN
     INSERT INTO ComputerStation (StationName, ZoneId, IpAddress, Status) VALUES 
+    -- Dàn Standard (Zone 1 - 10K/h)
     ('PC-01', 1, '192.168.1.101', 'Available'),
     ('PC-02', 1, '192.168.1.102', 'InUse'),
     ('PC-03', 1, '192.168.1.103', 'Available'),
-    ('PC-04', 2, '192.168.1.104', 'Available'),
-    ('PC-05', 2, '192.168.1.105', 'Available'),
-    ('PC-06', 3, '192.168.1.106', 'Available'),
-    ('PC-07', 3, '192.168.1.107', 'Available'),
-    ('PC-08', 3, '192.168.1.108', 'Available'),
-    ('PC-09', 3, '192.168.1.109', 'Available'),
-    ('PC-10', 3, '192.168.1.110', 'Available');
+    ('PC-04', 1, '192.168.1.104', 'Available'),
+    ('PC-05', 1, '192.168.1.105', 'Available'),
+    ('PC-06', 1, '192.168.1.106', 'Available'),
+    ('PC-07', 1, '192.168.1.107', 'Available'),
+    ('PC-08', 1, '192.168.1.108', 'Available'),
+    ('PC-09', 1, '192.168.1.109', 'Available'),
+    ('PC-10', 1, '192.168.1.110', 'Available'),
+    -- Dàn Master (Zone 2 - 13K/h)
+    ('PC-11', 2, '192.168.1.111', 'Available'),
+    ('PC-12', 2, '192.168.1.112', 'Available'),
+    ('PC-13', 2, '192.168.1.113', 'Available'),
+    ('PC-14', 2, '192.168.1.114', 'Available'),
+    ('PC-15', 2, '192.168.1.115', 'Available'),
+    ('PC-16', 2, '192.168.1.116', 'Available'),
+    ('PC-17', 2, '192.168.1.117', 'Available'),
+    ('PC-18', 2, '192.168.1.118', 'Available'),
+    ('PC-19', 2, '192.168.1.119', 'Available'),
+    ('PC-20', 2, '192.168.1.120', 'Available'),
+    -- Dàn Maximum (Zone 3 - 15K/h)
+    ('PC-21', 3, '192.168.1.121', 'Available'),
+    ('PC-22', 3, '192.168.1.122', 'Available'),
+    ('PC-23', 3, '192.168.1.123', 'Available'),
+    ('PC-24', 3, '192.168.1.124', 'Available'),
+    ('PC-25', 3, '192.168.1.125', 'Available'),
+    ('PC-26', 3, '192.168.1.126', 'Available'),
+    ('PC-27', 3, '192.168.1.127', 'Available'),
+    ('PC-28', 3, '192.168.1.128', 'Available'),
+    ('PC-29', 3, '192.168.1.129', 'Available'),
+    ('PC-30', 3, '192.168.1.130', 'Available');
 END
 
 IF NOT EXISTS (SELECT * FROM AppUser)
@@ -286,7 +309,7 @@ BEGIN
     INSERT INTO TariffPlan (PlanName, TariffType, FixedPrice, DiscountRate, StartHour, EndHour) VALUES 
     (N'Cước Theo Giờ Thường', 'Hourly', NULL, 0, NULL, NULL),
     (N'Gói Combo Đêm Trọn Gói', 'NightCombo', 45000, 0, 22, 6),
-    (N'Gói Cước Ưu Đãi Giải Đấu LAN', 'Tournament', NULL, 0.5, NULL, NULL),
+    (N'Gói Cước Ưu Đãi Giải Đấu Phòng Máy', 'Tournament', NULL, 0.5, NULL, NULL),
     (N'Gói Ưu Đãi Hội Viên Vàng', 'MemberTier', NULL, 0.15, NULL, NULL);
 END
 ELSE IF NOT EXISTS (SELECT 1 FROM TariffPlan WHERE TariffType = 'MemberTier')
@@ -298,8 +321,8 @@ END
 IF NOT EXISTS (SELECT * FROM Tournament)
 BEGIN
     INSERT INTO Tournament (Title, GameTitle, FormatType, PrizePool, Status, StartDate) VALUES 
-    (N'EAUT Valorant Championship 2026', 'Valorant', 'SingleElimination', 10000000, 'Ongoing', GETDATE()),
-    (N'Đông Á League of Legends LAN Cup', 'League of Legends', 'DoubleElimination', 15000000, 'Upcoming', DATEADD(day, 3, GETDATE()));
+    (N'Master Game Valorant Community Cup 2026', 'Valorant', 'SingleElimination', 10000000, 'Ongoing', GETDATE()),
+    (N'Master Game League of Legends Cup', 'League of Legends', 'DoubleElimination', 15000000, 'Upcoming', DATEADD(day, 3, GETDATE()));
 END
 
 IF NOT EXISTS (SELECT * FROM TournamentMatch)

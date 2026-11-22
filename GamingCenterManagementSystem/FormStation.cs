@@ -28,6 +28,7 @@ namespace GamingCenterManagementSystem
         public FormStation()
         {
             InitializeComponent();
+            UiThemeHelper.StyleSecondaryForm(this);
             SetupEvents();
             LoadData();
         }
@@ -272,7 +273,7 @@ namespace GamingCenterManagementSystem
             if (station.Status.Equals("TournamentLocked", StringComparison.OrdinalIgnoreCase))
             {
                 MessageBox.Show(
-                    $"🚫 KHÔNG THỂ {actionName.ToUpper()}!\n\nMáy trạm [{station.StationName}] đang bị khóa cho giải đấu LAN (TournamentLocked).\nVui lòng giải phóng máy tại màn hình Giải Đấu LAN!",
+                    $"🚫 KHÔNG THỂ {actionName.ToUpper()}!\n\nMáy trạm [{station.StationName}] đang bị khóa cho giải đấu phòng máy (TournamentLocked).\nVui lòng giải phóng máy tại màn hình Giải Đấu Quán!",
                     "Cảnh báo hệ thống",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);

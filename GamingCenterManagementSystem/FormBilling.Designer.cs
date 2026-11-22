@@ -84,7 +84,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlHeader
             // 
-            pnlHeader.BackColor = Color.FromArgb(24, 30, 54);
+            pnlHeader.BackColor = Color.FromArgb(15, 23, 42);
             pnlHeader.Controls.Add(lblSubtitle);
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Dock = DockStyle.Top;
@@ -96,13 +96,13 @@ namespace GamingCenterManagementSystem
             // lblSubtitle
             // 
             lblSubtitle.AutoSize = true;
-            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Italic, GraphicsUnit.Point);
-            lblSubtitle.ForeColor = Color.FromArgb(0, 190, 255);
+            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            lblSubtitle.ForeColor = Color.FromArgb(56, 189, 248);
             lblSubtitle.Location = new Point(20, 38);
             lblSubtitle.Name = "lblSubtitle";
             lblSubtitle.Size = new Size(545, 15);
             lblSubtitle.TabIndex = 1;
-            lblSubtitle.Text = "Phân công: Thành viên 5 (Khôi) - Nhánh dev-member-5: Quản lý dịch vụ, gói cước & báo cáo doanh thu";
+            lblSubtitle.Text = "Master Game — Quản lý dịch vụ F&B, bảng giá giờ chơi, xuất hóa đơn & báo cáo doanh thu";
             // 
             // lblTitle
             // 
@@ -117,7 +117,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlStats
             // 
-            pnlStats.BackColor = Color.FromArgb(40, 48, 76);
+            pnlStats.BackColor = Color.FromArgb(30, 41, 59);
             pnlStats.Controls.Add(lblTongSoPhien);
             pnlStats.Controls.Add(lblTienDichVu);
             pnlStats.Controls.Add(lblTienGio);

@@ -38,7 +38,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlBanner
             // 
-            pnlBanner.BackColor = Color.FromArgb(18, 22, 38);
+            pnlBanner.BackColor = Color.FromArgb(15, 23, 42);
             pnlBanner.Controls.Add(lblSubtitle);
             pnlBanner.Controls.Add(lblBrand);
             pnlBanner.Dock = DockStyle.Top;
@@ -50,13 +50,13 @@ namespace GamingCenterManagementSystem
             // lblSubtitle
             // 
             lblSubtitle.AutoSize = true;
-            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
-            lblSubtitle.ForeColor = Color.FromArgb(0, 210, 255);
-            lblSubtitle.Location = new Point(28, 52);
+            lblSubtitle.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblSubtitle.ForeColor = Color.FromArgb(56, 189, 248);
+            lblSubtitle.Location = new Point(28, 54);
             lblSubtitle.Name = "lblSubtitle";
-            lblSubtitle.Size = new Size(321, 15);
+            lblSubtitle.Size = new Size(340, 15);
             lblSubtitle.TabIndex = 1;
-            lblSubtitle.Text = "GAMING CENTER MANAGEMENT SYSTEM - PHASE 2";
+            lblSubtitle.Text = "HỆ THỐNG QUẢN LÝ PHÒNG MÁY • 165 HOÀNG CÔNG CHẤT";
             // 
             // lblBrand
             // 
@@ -65,13 +65,13 @@ namespace GamingCenterManagementSystem
             lblBrand.ForeColor = Color.White;
             lblBrand.Location = new Point(25, 16);
             lblBrand.Name = "lblBrand";
-            lblBrand.Size = new Size(192, 31);
+            lblBrand.Size = new Size(210, 31);
             lblBrand.TabIndex = 0;
-            lblBrand.Text = "CYBER MATRIX";
+            lblBrand.Text = "MASTER GAME";
             // 
             // pnlCard
             // 
-            pnlCard.BackColor = Color.FromArgb(25, 29, 45);
+            pnlCard.BackColor = Color.White;
             pnlCard.Controls.Add(lblRoleHint);
             pnlCard.Controls.Add(btnExit);
             pnlCard.Controls.Add(btnLogin);
@@ -92,7 +92,7 @@ namespace GamingCenterManagementSystem
             // 
             lblRoleHint.AutoSize = true;
             lblRoleHint.Font = new Font("Segoe UI", 8.25F, FontStyle.Italic, GraphicsUnit.Point);
-            lblRoleHint.ForeColor = Color.FromArgb(145, 155, 175);
+            lblRoleHint.ForeColor = Color.FromArgb(100, 116, 139);
             lblRoleHint.Location = new Point(24, 298);
             lblRoleHint.Name = "lblRoleHint";
             lblRoleHint.Size = new Size(274, 13);
@@ -101,11 +101,13 @@ namespace GamingCenterManagementSystem
             // 
             // btnExit
             // 
-            btnExit.BackColor = Color.FromArgb(52, 60, 88);
-            btnExit.FlatAppearance.BorderSize = 0;
+            btnExit.BackColor = Color.FromArgb(241, 245, 249);
+            btnExit.Cursor = Cursors.Hand;
+            btnExit.FlatAppearance.BorderColor = Color.FromArgb(203, 213, 225);
+            btnExit.FlatAppearance.BorderSize = 1;
             btnExit.FlatStyle = FlatStyle.Flat;
             btnExit.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
-            btnExit.ForeColor = Color.White;
+            btnExit.ForeColor = Color.FromArgb(51, 65, 85);
             btnExit.Location = new Point(276, 240);
             btnExit.Name = "btnExit";
             btnExit.Size = new Size(104, 42);
@@ -115,11 +117,13 @@ namespace GamingCenterManagementSystem
             // 
             // btnLogin
             // 
-            btnLogin.BackColor = Color.FromArgb(0, 200, 235);
+            btnLogin.BackColor = Color.FromArgb(37, 99, 235);
+            btnLogin.Cursor = Cursors.Hand;
             btnLogin.FlatAppearance.BorderSize = 0;
+            btnLogin.FlatAppearance.MouseOverBackColor = Color.FromArgb(29, 78, 216);
             btnLogin.FlatStyle = FlatStyle.Flat;
             btnLogin.Font = new Font("Segoe UI", 10.5F, FontStyle.Bold, GraphicsUnit.Point);
-            btnLogin.ForeColor = Color.FromArgb(13, 15, 25);
+            btnLogin.ForeColor = Color.White;
             btnLogin.Location = new Point(24, 240);
             btnLogin.Name = "btnLogin";
             btnLogin.Size = new Size(240, 42);
@@ -130,7 +134,7 @@ namespace GamingCenterManagementSystem
             // lblError
             // 
             lblError.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lblError.ForeColor = Color.FromArgb(255, 110, 110);
+            lblError.ForeColor = Color.FromArgb(220, 38, 38);
             lblError.Location = new Point(24, 198);
             lblError.Name = "lblError";
             lblError.Size = new Size(356, 36);
@@ -142,8 +146,8 @@ namespace GamingCenterManagementSystem
             // 
             lnkForgotPassword.AutoSize = true;
             lnkForgotPassword.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            lnkForgotPassword.LinkColor = Color.FromArgb(0, 210, 255);
-            lnkForgotPassword.ActiveLinkColor = Color.FromArgb(120, 230, 255);
+            lnkForgotPassword.LinkColor = Color.FromArgb(37, 99, 235);
+            lnkForgotPassword.ActiveLinkColor = Color.FromArgb(29, 78, 216);
             lnkForgotPassword.Location = new Point(230, 171);
             lnkForgotPassword.Name = "lnkForgotPassword";
             lnkForgotPassword.Size = new Size(150, 15);
@@ -155,7 +159,7 @@ namespace GamingCenterManagementSystem
             // 
             chkShowPassword.AutoSize = true;
             chkShowPassword.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
-            chkShowPassword.ForeColor = Color.FromArgb(190, 200, 220);
+            chkShowPassword.ForeColor = Color.FromArgb(51, 65, 85);
             chkShowPassword.Location = new Point(24, 170);
             chkShowPassword.Name = "chkShowPassword";
             chkShowPassword.Size = new Size(105, 19);
@@ -165,10 +169,10 @@ namespace GamingCenterManagementSystem
             // 
             // txtPassword
             // 
-            txtPassword.BackColor = Color.FromArgb(35, 41, 64);
+            txtPassword.BackColor = Color.FromArgb(248, 250, 252);
             txtPassword.BorderStyle = BorderStyle.FixedSingle;
             txtPassword.Font = new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
-            txtPassword.ForeColor = Color.White;
+            txtPassword.ForeColor = Color.FromArgb(15, 23, 42);
             txtPassword.Location = new Point(24, 134);
             txtPassword.Name = "txtPassword";
             txtPassword.PlaceholderText = "Nhập mật khẩu...";
@@ -180,7 +184,7 @@ namespace GamingCenterManagementSystem
             // 
             lblPassword.AutoSize = true;
             lblPassword.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
-            lblPassword.ForeColor = Color.FromArgb(220, 228, 242);
+            lblPassword.ForeColor = Color.FromArgb(30, 41, 59);
             lblPassword.Location = new Point(24, 112);
             lblPassword.Name = "lblPassword";
             lblPassword.Size = new Size(69, 17);
@@ -189,10 +193,10 @@ namespace GamingCenterManagementSystem
             // 
             // txtUsername
             // 
-            txtUsername.BackColor = Color.FromArgb(35, 41, 64);
+            txtUsername.BackColor = Color.FromArgb(248, 250, 252);
             txtUsername.BorderStyle = BorderStyle.FixedSingle;
             txtUsername.Font = new Font("Segoe UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
-            txtUsername.ForeColor = Color.White;
+            txtUsername.ForeColor = Color.FromArgb(15, 23, 42);
             txtUsername.Location = new Point(24, 72);
             txtUsername.Name = "txtUsername";
             txtUsername.PlaceholderText = "Tên đăng nhập / Số điện thoại";
@@ -203,7 +207,7 @@ namespace GamingCenterManagementSystem
             // 
             lblUsername.AutoSize = true;
             lblUsername.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
-            lblUsername.ForeColor = Color.FromArgb(220, 228, 242);
+            lblUsername.ForeColor = Color.FromArgb(30, 41, 59);
             lblUsername.Location = new Point(24, 50);
             lblUsername.Name = "lblUsername";
             lblUsername.Size = new Size(205, 17);
@@ -214,7 +218,7 @@ namespace GamingCenterManagementSystem
             // 
             lblLoginTitle.AutoSize = true;
             lblLoginTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point);
-            lblLoginTitle.ForeColor = Color.White;
+            lblLoginTitle.ForeColor = Color.FromArgb(15, 23, 42);
             lblLoginTitle.Location = new Point(24, 16);
             lblLoginTitle.Name = "lblLoginTitle";
             lblLoginTitle.Size = new Size(192, 21);
@@ -226,7 +230,7 @@ namespace GamingCenterManagementSystem
             AcceptButton = btnLogin;
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.FromArgb(13, 15, 25);
+            BackColor = Color.FromArgb(241, 245, 249);
             CancelButton = btnExit;
             ClientSize = new Size(460, 462);
             Controls.Add(pnlCard);
@@ -236,7 +240,7 @@ namespace GamingCenterManagementSystem
             MinimizeBox = false;
             Name = "FormLogin";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Đăng Nhập - Cyber Matrix";
+            Text = "Đăng Nhập - Master Game (Cyber Matrix)";
             pnlBanner.ResumeLayout(false);
             pnlBanner.PerformLayout();
             pnlCard.ResumeLayout(false);

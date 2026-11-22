@@ -14,23 +14,46 @@ namespace GamingCenterManagementSystem.DAL
 
         private static readonly List<StationZone> _fallbackZones = new()
         {
-            new StationZone { ZoneId = 1, ZoneName = "Khu Thường", BasePricePerHour = 8000, Description = "Cấu hình i5, GTX 1660, Màn 144Hz" },
-            new StationZone { ZoneId = 2, ZoneName = "Khu VIP", BasePricePerHour = 12000, Description = "Cấu hình i7, RTX 3060, Màn 240Hz" },
-            new StationZone { ZoneId = 3, ZoneName = "Đấu Trường LAN", BasePricePerHour = 18000, Description = "Dàn thi đấu 10 máy khép kín, RTX 4070, Màn 360Hz" }
+            new StationZone { ZoneId = 1, ZoneName = "Dàn Standard", BasePricePerHour = 10000, Description = "CPU i5-14400 | ASUS TUF B760 | 32GB DDR5-6400 | ASUS Dual RTX 4060Ti 8GB | Acer 27\" IPS 2K 240Hz | XM1R | FL GP 108 | Somic G936 Pro | Pulsar" },
+            new StationZone { ZoneId = 2, ZoneName = "Dàn Master", BasePricePerHour = 13000, Description = "CPU i7-14700 | ASUS TUF B760 | 64GB DDR5-6400 | ASUS TUF 4070Ti Super 16GB | AOC 27\" IPS 2K 400Hz | OP1 | DareU EK108RT | HyperX Cloud 2 | FBB Japan" },
+            new StationZone { ZoneId = 3, ZoneName = "Dàn Maximum", BasePricePerHour = 15000, Description = "CPU AMD 9800X3D | ASUS TUF B850 | 64GB DDR5-6400 CL30 | ASUS TUF 4070Ti Super 16GB | Acer 24\" 0.1ms 540Hz | Razer DA V3 8K | DrunkDeer A75 Pro | Cloud 2" }
         };
 
         private static readonly List<ComputerStation> _fallbackStations = new()
         {
+            // Dàn Standard (Zone 1 - 10K/h)
             new ComputerStation { StationId = 1, StationName = "PC-01", ZoneId = 1, IpAddress = "192.168.1.101", Status = "Available" },
             new ComputerStation { StationId = 2, StationName = "PC-02", ZoneId = 1, IpAddress = "192.168.1.102", Status = "Available" },
             new ComputerStation { StationId = 3, StationName = "PC-03", ZoneId = 1, IpAddress = "192.168.1.103", Status = "Available" },
-            new ComputerStation { StationId = 4, StationName = "PC-04", ZoneId = 2, IpAddress = "192.168.1.104", Status = "Available" },
-            new ComputerStation { StationId = 5, StationName = "PC-05", ZoneId = 2, IpAddress = "192.168.1.105", Status = "Available" },
-            new ComputerStation { StationId = 6, StationName = "PC-06", ZoneId = 3, IpAddress = "192.168.1.106", Status = "Available" },
-            new ComputerStation { StationId = 7, StationName = "PC-07", ZoneId = 3, IpAddress = "192.168.1.107", Status = "Available" },
-            new ComputerStation { StationId = 8, StationName = "PC-08", ZoneId = 3, IpAddress = "192.168.1.108", Status = "Available" },
-            new ComputerStation { StationId = 9, StationName = "PC-09", ZoneId = 3, IpAddress = "192.168.1.109", Status = "Available" },
-            new ComputerStation { StationId = 10, StationName = "PC-10", ZoneId = 3, IpAddress = "192.168.1.110", Status = "Available" }
+            new ComputerStation { StationId = 4, StationName = "PC-04", ZoneId = 1, IpAddress = "192.168.1.104", Status = "Available" },
+            new ComputerStation { StationId = 5, StationName = "PC-05", ZoneId = 1, IpAddress = "192.168.1.105", Status = "Available" },
+            new ComputerStation { StationId = 6, StationName = "PC-06", ZoneId = 1, IpAddress = "192.168.1.106", Status = "Available" },
+            new ComputerStation { StationId = 7, StationName = "PC-07", ZoneId = 1, IpAddress = "192.168.1.107", Status = "Available" },
+            new ComputerStation { StationId = 8, StationName = "PC-08", ZoneId = 1, IpAddress = "192.168.1.108", Status = "Available" },
+            new ComputerStation { StationId = 9, StationName = "PC-09", ZoneId = 1, IpAddress = "192.168.1.109", Status = "Available" },
+            new ComputerStation { StationId = 10, StationName = "PC-10", ZoneId = 1, IpAddress = "192.168.1.110", Status = "Available" },
+            // Dàn Master (Zone 2 - 13K/h)
+            new ComputerStation { StationId = 11, StationName = "PC-11", ZoneId = 2, IpAddress = "192.168.1.111", Status = "Available" },
+            new ComputerStation { StationId = 12, StationName = "PC-12", ZoneId = 2, IpAddress = "192.168.1.112", Status = "Available" },
+            new ComputerStation { StationId = 13, StationName = "PC-13", ZoneId = 2, IpAddress = "192.168.1.113", Status = "Available" },
+            new ComputerStation { StationId = 14, StationName = "PC-14", ZoneId = 2, IpAddress = "192.168.1.114", Status = "Available" },
+            new ComputerStation { StationId = 15, StationName = "PC-15", ZoneId = 2, IpAddress = "192.168.1.115", Status = "Available" },
+            new ComputerStation { StationId = 16, StationName = "PC-16", ZoneId = 2, IpAddress = "192.168.1.116", Status = "Available" },
+            new ComputerStation { StationId = 17, StationName = "PC-17", ZoneId = 2, IpAddress = "192.168.1.117", Status = "Available" },
+            new ComputerStation { StationId = 18, StationName = "PC-18", ZoneId = 2, IpAddress = "192.168.1.118", Status = "Available" },
+            new ComputerStation { StationId = 19, StationName = "PC-19", ZoneId = 2, IpAddress = "192.168.1.119", Status = "Available" },
+            new ComputerStation { StationId = 20, StationName = "PC-20", ZoneId = 2, IpAddress = "192.168.1.120", Status = "Available" },
+            // Dàn Maximum (Zone 3 - 15K/h)
+            new ComputerStation { StationId = 21, StationName = "PC-21", ZoneId = 3, IpAddress = "192.168.1.121", Status = "Available" },
+            new ComputerStation { StationId = 22, StationName = "PC-22", ZoneId = 3, IpAddress = "192.168.1.122", Status = "Available" },
+            new ComputerStation { StationId = 23, StationName = "PC-23", ZoneId = 3, IpAddress = "192.168.1.123", Status = "Available" },
+            new ComputerStation { StationId = 24, StationName = "PC-24", ZoneId = 3, IpAddress = "192.168.1.124", Status = "Available" },
+            new ComputerStation { StationId = 25, StationName = "PC-25", ZoneId = 3, IpAddress = "192.168.1.125", Status = "Available" },
+            new ComputerStation { StationId = 26, StationName = "PC-26", ZoneId = 3, IpAddress = "192.168.1.126", Status = "Available" },
+            new ComputerStation { StationId = 27, StationName = "PC-27", ZoneId = 3, IpAddress = "192.168.1.127", Status = "Available" },
+            new ComputerStation { StationId = 28, StationName = "PC-28", ZoneId = 3, IpAddress = "192.168.1.128", Status = "Available" },
+            new ComputerStation { StationId = 29, StationName = "PC-29", ZoneId = 3, IpAddress = "192.168.1.129", Status = "Available" },
+            new ComputerStation { StationId = 30, StationName = "PC-30", ZoneId = 3, IpAddress = "192.168.1.130", Status = "Available" }
         };
 
         /// <summary>

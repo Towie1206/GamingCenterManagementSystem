@@ -45,6 +45,7 @@ namespace GamingCenterManagementSystem
         public FormBilling()
         {
             InitializeComponent();
+            UiThemeHelper.StyleSecondaryForm(this);
             SetupEvents();
             InitDefaults();
         }
