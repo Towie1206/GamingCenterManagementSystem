@@ -77,11 +77,11 @@ namespace GamingCenterManagementSystem
             _dgvHealth.Columns.Add("PacketLoss", "Rớt Gói (%)");
             _dgvHealth.Columns.Add("StatusBadge", "Tình Trạng Mạng");
 
-            _dgvHealth.Columns["StationName"].Width = 100;
-            _dgvHealth.Columns["IpAddress"].Width = 130;
-            _dgvHealth.Columns["LatencyMs"].Width = 110;
-            _dgvHealth.Columns["PacketLoss"].Width = 110;
-            _dgvHealth.Columns["StatusBadge"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            _dgvHealth.Columns["StationName"]!.Width = 100;
+            _dgvHealth.Columns["IpAddress"]!.Width = 130;
+            _dgvHealth.Columns["LatencyMs"]!.Width = 110;
+            _dgvHealth.Columns["PacketLoss"]!.Width = 110;
+            _dgvHealth.Columns["StatusBadge"]!.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
 
             var pnlBottom = new Panel { Dock = DockStyle.Bottom, Height = 56, Padding = new Padding(16, 10, 16, 10) };
             _btnScanAgain.Text = "🔄 Quét Lại";
