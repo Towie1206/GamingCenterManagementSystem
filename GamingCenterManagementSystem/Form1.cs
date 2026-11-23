@@ -274,8 +274,33 @@ namespace GamingCenterManagementSystem
             btnGoiMon.Click += BtnGoiMon_Click;
             btnDongMay.Click += BtnDongMay_Click;
             btnBaoTri.Click += BtnBaoTri_Click;
+            btnDieuKhienMay.Click += (s, e) => OpenRemoteControlDialog(_selectedStation?.StationId);
             flpDanhSachMay.SizeChanged += (s, e) => AdjustFloorplanCardWidths();
             cboGoiCuoc.SelectedIndex = 0;
+        }
+
+        public void OpenRemoteControlDialog(int? stationId = null)
+        {
+            if (!EnsureStaffOrAdminAccess("Điều khiển máy trạm từ xa")) return;
+
+            int targetId = stationId ?? _selectedStation?.StationId ?? 1;
+            var targetStation = _stations.FirstOrDefault(s => s.StationId == targetId) ?? _selectedStation;
+            if (targetStation == null)
+            {
+                ShowNotification("Vui lòng chọn một máy trạm để điều khiển!", "Chưa chọn máy", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using var dlg = new FormStationRemoteControl(targetStation, _stations, _zones, _dbBilling, _dbStation);
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+            {
+                LoadDashboardData();
+                if (dlg.TargetStationId.HasValue)
+                {
+                    var newSt = _stations.FirstOrDefault(s => s.StationId == dlg.TargetStationId.Value);
+                    if (newSt != null) SelectStation(newSt);
+                }
+            }
         }
 
         private void SetupRealtimeTimer()
@@ -322,6 +347,7 @@ namespace GamingCenterManagementSystem
                 btnNavBilling.Text = "💰 Dịch Vụ & Doanh Thu";
                 btnChatHub.Enabled = true;
                 btnChatStation.Enabled = true;
+                btnDieuKhienMay.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
                 return;
@@ -341,6 +367,7 @@ namespace GamingCenterManagementSystem
                 btnClientMode.Enabled = true;
                 btnChatHub.Enabled = true;
                 btnChatStation.Enabled = true;
+                btnDieuKhienMay.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
             }
@@ -356,6 +383,7 @@ namespace GamingCenterManagementSystem
                 btnClientMode.Enabled = true;
                 btnChatHub.Enabled = true;
                 btnChatStation.Enabled = true;
+                btnDieuKhienMay.Enabled = true;
                 cboKhachHang.Enabled = true;
                 cboGoiCuoc.Enabled = true;
             }
@@ -371,6 +399,7 @@ namespace GamingCenterManagementSystem
                 btnClientMode.Enabled = true;
                 btnChatHub.Enabled = false;
                 btnChatStation.Enabled = false;
+                btnDieuKhienMay.Enabled = false;
                 btnMoMay.Enabled = false;
                 btnGoiMon.Enabled = false;
                 btnDongMay.Enabled = false;
@@ -860,9 +889,34 @@ namespace GamingCenterManagementSystem
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
+            var cms = new ContextMenuStrip();
+            var itemRemote = new ToolStripMenuItem("🕹️ Điều khiển máy từ xa...", null, (s, e) => OpenRemoteControlDialog(station.StationId));
+            var itemChat = new ToolStripMenuItem("💬 Chat với máy này", null, (s, e) => OpenChatHub(station.StationId));
+            var itemForceLock = new ToolStripMenuItem("🔒 Khóa cưỡng chế máy này", null, (s, e) =>
+            {
+                string op = CurrentUserSession.IsLoggedIn ? CurrentUserSession.Username : "Admin";
+                StationRemoteControlService.SendForceLock(station.StationId, station.StationName, "Khóa nhanh từ sơ đồ quầy", op);
+                LoadDashboardData();
+            });
+            var itemUnlock = new ToolStripMenuItem("🔓 Mở khóa máy", null, (s, e) =>
+            {
+                string op = CurrentUserSession.IsLoggedIn ? CurrentUserSession.Username : "Admin";
+                StationRemoteControlService.SendUnlock(station.StationId, station.StationName, op);
+                LoadDashboardData();
+            });
+            var itemKillApp = new ToolStripMenuItem("❌ Tắt ứng dụng / game", null, (s, e) =>
+            {
+                string op = CurrentUserSession.IsLoggedIn ? CurrentUserSession.Username : "Admin";
+                StationRemoteControlService.SendKillApp(station.StationId, station.StationName, "all", op);
+                ShowNotification($"Đã gửi lệnh tắt ứng dụng đến {station.StationName}!", "Lệnh hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            });
+
+            cms.Items.AddRange(new ToolStripItem[] { itemRemote, itemChat, new ToolStripSeparator(), itemForceLock, itemUnlock, itemKillApp });
+            btn.ContextMenuStrip = cms;
+
             ApplyStationTileVisual(btn, station, zone.ZoneName, isSelected: _selectedStation?.StationId == station.StationId);
 
-            string tooltipText = $"{station.StationName} ({zone.ZoneName})\nIP: {station.IpAddress} | Giá: {zone.BasePricePerHour:N0}đ/h\nCấu hình: {specSummary}";
+            string tooltipText = $"{station.StationName} ({zone.ZoneName})\nIP: {station.IpAddress} | Giá: {zone.BasePricePerHour:N0}đ/h\nCấu hình: {specSummary}\n(Bấm chuột phải để mở menu Điều Khiển Máy Từ Xa)";
             _stationToolTip.SetToolTip(btn, tooltipText);
 
             btn.Click += StationButton_Click;
@@ -872,6 +926,15 @@ namespace GamingCenterManagementSystem
         private void ApplyStationTileVisual(Button btn, ComputerStation station, string zoneName, bool isSelected)
         {
             btn.FlatAppearance.BorderSize = isSelected ? 3 : 2;
+
+            if (StationRemoteControlService.IsStationLocked(station.StationId, out string? _))
+            {
+                btn.BackColor = isSelected ? Color.FromArgb(254, 226, 226) : Color.FromArgb(254, 242, 242);
+                btn.FlatAppearance.BorderColor = isSelected ? UiThemeHelper.AccentBlue : Color.FromArgb(220, 38, 38);
+                btn.ForeColor = Color.FromArgb(185, 28, 28);
+                btn.Text = $"⛔ {station.StationName}\n{zoneName}\n[BỊ KHÓA]";
+                return;
+            }
 
             switch (station.Status)
             {

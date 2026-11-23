@@ -53,6 +53,8 @@ namespace GamingCenterManagementSystem
 
         private readonly Action<ChatMessage> _onChatMessageSentHandler;
         private readonly Action<int> _onChatUnreadChangedHandler;
+        private readonly Action<RemoteCommand> _onRemoteCommandHandler;
+        private bool _isServerForceLocked = false;
 
         public List<GameItem> AvailableGames { get; } = new();
         public List<ServiceItem> AvailableServiceItems { get; private set; } = new();
@@ -80,6 +82,9 @@ namespace GamingCenterManagementSystem
             StationChatService.OnMessageSent += _onChatMessageSentHandler;
             StationChatService.OnUnreadCountChanged += _onChatUnreadChangedHandler;
 
+            _onRemoteCommandHandler = HandleRemoteCommand;
+            StationRemoteControlService.OnCommandDispatched += _onRemoteCommandHandler;
+
             InitializeComponent();
             InitializeDefaultSessionAndStation(stationId);
             InitializeGameCatalog();
@@ -90,6 +95,11 @@ namespace GamingCenterManagementSystem
             LoadClientChatHistory();
             UpdateRealtimeHud();
 
+            if (StationRemoteControlService.IsStationLocked(CurrentStation?.StationId ?? 1, out string? serverLockReason))
+            {
+                ForceLockByServer(serverLockReason ?? "Khóa cưỡng chế từ Máy Tổng");
+            }
+
             tmrRealtime.Tick += (s, e) => UpdateRealtimeHud();
             tmrRealtime.Start();
 
@@ -97,6 +107,7 @@ namespace GamingCenterManagementSystem
             {
                 StationChatService.OnMessageSent -= _onChatMessageSentHandler;
                 StationChatService.OnUnreadCountChanged -= _onChatUnreadChangedHandler;
+                StationRemoteControlService.OnCommandDispatched -= _onRemoteCommandHandler;
             };
 
             FormClosing += (s, e) =>
@@ -1370,6 +1381,12 @@ namespace GamingCenterManagementSystem
 
         public bool TryUnlockStation(string password, out string message)
         {
+            if (_isServerForceLocked)
+            {
+                message = "Máy trạm đang bị khóa cưỡng chế từ Máy Tổng Quầy Thu Ngân. Vui lòng liên hệ nhân viên để được mở khóa!";
+                return false;
+            }
+
             if (string.IsNullOrWhiteSpace(password))
             {
                 message = "Vui lòng nhập mật khẩu mở khóa.";
@@ -1433,6 +1450,142 @@ namespace GamingCenterManagementSystem
                 lblUnlockError.Visible = true;
                 txtUnlockPassword.SelectAll();
                 txtUnlockPassword.Focus();
+            }
+        }
+
+        public void ForceLockByServer(string reason)
+        {
+            _isServerForceLocked = true;
+            IsScreenLocked = true;
+            pnlLockOverlay.Visible = true;
+            pnlLockOverlay.BringToFront();
+            lblLockTitle.Text = "⛔ MÁY TRẠM ĐÃ BỊ KHÓA BỞI MÁY CHỦ";
+            lblLockSubtitle.Text = $"Khách hàng: {MemberFullName} ({MemberUsername}) | Máy: {CurrentStation?.StationName ?? "PC-01"}\n" +
+                                  $"Lý do khóa: {(string.IsNullOrWhiteSpace(reason) ? "Vi phạm quy định phòng máy" : reason)}\n" +
+                                  "Vui lòng liên hệ Quầy Thu Ngân (165 Hoàng Công Chất) để giải quyết.";
+            txtUnlockPassword.Visible = false;
+            btnUnlock.Visible = false;
+            lblUnlockError.Text = "Khóa cưỡng chế từ Máy Chủ. Khách hàng không thể tự mở khóa.";
+            lblUnlockError.ForeColor = Color.FromArgb(239, 68, 68);
+            lblUnlockError.Visible = true;
+        }
+
+        public void UnlockByServer()
+        {
+            _isServerForceLocked = false;
+            IsScreenLocked = false;
+            _isOutOfTimeLocked = false;
+            pnlLockOverlay.Visible = false;
+            txtUnlockPassword.Visible = true;
+            btnUnlock.Visible = true;
+            lblLockTitle.Text = "MÁY TRẠM ĐANG TẠM KHÓA";
+            lblUnlockError.Visible = false;
+            UpdateRealtimeHud();
+        }
+
+        public void KillAppByServer(string appOrProcess)
+        {
+            if (RunningGame != null)
+            {
+                string stoppedName = RunningGame.Name;
+                StopGame();
+                ShowNotification(
+                    $"Tựa game [{stoppedName}] đã bị buộc đóng từ xa bởi Máy Tổng Quầy Thu Ngân!",
+                    "Cưỡng chế tắt ứng dụng",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        public void CaptureClientScreenshot()
+        {
+            try
+            {
+                if (Width <= 0 || Height <= 0) return;
+                var bmp = new Bitmap(Width, Height);
+                DrawToBitmap(bmp, new Rectangle(0, 0, Width, Height));
+                StationRemoteControlService.ReportScreenshot(CurrentStation?.StationId ?? 1, bmp);
+            }
+            catch
+            {
+                // Suppress non-interactive test headless errors
+            }
+        }
+
+        private void HandleRemoteCommand(RemoteCommand cmd)
+        {
+            if (cmd == null || IsDisposed || Disposing) return;
+            int myStationId = CurrentStation?.StationId ?? 1;
+            if (cmd.TargetStationId != 0 && cmd.TargetStationId != myStationId)
+                return;
+
+            if (InvokeRequired)
+            {
+                try
+                {
+                    if (IsHandleCreated)
+                    {
+                        BeginInvoke(new Action(() => HandleRemoteCommand(cmd)));
+                    }
+                }
+                catch
+                {
+                    // Disposed
+                }
+                return;
+            }
+
+            switch (cmd.CommandType)
+            {
+                case RemoteCommandType.ForceLock:
+                    ForceLockByServer(cmd.Payload);
+                    break;
+
+                case RemoteCommandType.Unlock:
+                    UnlockByServer();
+                    break;
+
+                case RemoteCommandType.KillRunningApp:
+                    KillAppByServer(cmd.Payload);
+                    break;
+
+                case RemoteCommandType.AlertPopup:
+                case RemoteCommandType.BroadcastPopup:
+                    ShowNotification(
+                        cmd.Payload,
+                        string.IsNullOrWhiteSpace(cmd.AdditionalInfo) ? "THÔNG BÁO TỪ QUẦY THU NGÂN" : cmd.AdditionalInfo,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    break;
+
+                case RemoteCommandType.TransferStation:
+                    if (cmd.TargetStationId == myStationId)
+                    {
+                        ShowNotification(
+                            $"Phiên chơi của bạn đã được chuyển sang máy [{cmd.AdditionalInfo}]. Hệ thống sẽ tự động đăng xuất máy này.",
+                            "Chuyển máy chơi",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                        IsLogoutRequested = true;
+                        EndSessionAndLogout();
+                    }
+                    break;
+
+                case RemoteCommandType.Shutdown:
+                case RemoteCommandType.Restart:
+                    string actionText = (cmd.CommandType == RemoteCommandType.Restart) ? "Khởi động lại" : "Tắt máy";
+                    ShowNotification(
+                        $"Máy trạm nhận lệnh {actionText} từ Quầy Thu Ngân. Đang đóng phiên chơi...",
+                        "Lệnh máy chủ",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    IsLogoutRequested = true;
+                    EndSessionAndLogout();
+                    break;
+
+                case RemoteCommandType.CaptureScreenshot:
+                    CaptureClientScreenshot();
+                    break;
             }
         }
 

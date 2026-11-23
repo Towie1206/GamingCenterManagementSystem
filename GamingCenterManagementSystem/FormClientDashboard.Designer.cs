@@ -6,9 +6,19 @@ namespace GamingCenterManagementSystem
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                if (_onRemoteCommandHandler != null)
+                    Models.StationRemoteControlService.OnCommandDispatched -= _onRemoteCommandHandler;
+                if (_onChatMessageSentHandler != null)
+                    Models.StationChatService.OnMessageSent -= _onChatMessageSentHandler;
+                if (_onChatUnreadChangedHandler != null)
+                    Models.StationChatService.OnUnreadCountChanged -= _onChatUnreadChangedHandler;
+
+                if (components != null)
+                {
+                    components.Dispose();
+                }
             }
             base.Dispose(disposing);
         }

@@ -45,6 +45,7 @@ namespace GamingCenterManagementSystem
             grpDieuKhienPhien = new GroupBox();
             lblKetQuaTinhTien = new Label();
             btnChatStation = new Button();
+            btnDieuKhienMay = new Button();
             btnBaoTri = new Button();
             btnDongMay = new Button();
             btnGoiMon = new Button();
@@ -365,6 +366,7 @@ namespace GamingCenterManagementSystem
             grpDieuKhienPhien.BackColor = Color.White;
             grpDieuKhienPhien.Controls.Add(lblKetQuaTinhTien);
             grpDieuKhienPhien.Controls.Add(btnChatStation);
+            grpDieuKhienPhien.Controls.Add(btnDieuKhienMay);
             grpDieuKhienPhien.Controls.Add(btnBaoTri);
             grpDieuKhienPhien.Controls.Add(btnDongMay);
             grpDieuKhienPhien.Controls.Add(btnGoiMon);
@@ -413,10 +415,25 @@ namespace GamingCenterManagementSystem
             btnChatStation.ForeColor = Color.White;
             btnChatStation.Location = new Point(14, 338);
             btnChatStation.Name = "btnChatStation";
-            btnChatStation.Size = new Size(334, 34);
+            btnChatStation.Size = new Size(163, 34);
             btnChatStation.TabIndex = 12;
-            btnChatStation.Text = "💬 CHAT VỚI MÁY TRẠM";
+            btnChatStation.Text = "💬 CHAT MÁY";
             btnChatStation.UseVisualStyleBackColor = false;
+            // 
+            // btnDieuKhienMay
+            // 
+            btnDieuKhienMay.BackColor = Color.FromArgb(79, 70, 229);
+            btnDieuKhienMay.Cursor = Cursors.Hand;
+            btnDieuKhienMay.FlatAppearance.BorderSize = 0;
+            btnDieuKhienMay.FlatStyle = FlatStyle.Flat;
+            btnDieuKhienMay.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold);
+            btnDieuKhienMay.ForeColor = Color.White;
+            btnDieuKhienMay.Location = new Point(185, 338);
+            btnDieuKhienMay.Name = "btnDieuKhienMay";
+            btnDieuKhienMay.Size = new Size(163, 34);
+            btnDieuKhienMay.TabIndex = 14;
+            btnDieuKhienMay.Text = "🕹️ ĐIỀU KHIỂN";
+            btnDieuKhienMay.UseVisualStyleBackColor = false;
             // 
             // btnBaoTri
             // 
@@ -668,6 +685,7 @@ namespace GamingCenterManagementSystem
         private Button btnDongMay;
         private Button btnBaoTri;
         public Button btnChatStation;
+        public Button btnDieuKhienMay;
         private Label lblKetQuaTinhTien;
         private Panel pnlCenter;
         private FlowLayoutPanel flpDanhSachMay;
