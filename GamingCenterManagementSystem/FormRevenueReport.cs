@@ -52,6 +52,8 @@ namespace GamingCenterManagementSystem
             refresh.Click += (_, _) => Reload();
             combo.SelectedIndexChanged += (_, _) => LoadIngredients();
             order.Click += (_, _) => OrderCombo();
+            sessions.SelectedIndexChanged += (_, _) =>
+                order.Enabled = food.SelectedItem != null && drink.SelectedItem != null && sessions.SelectedItem != null;
         }
 
         private void Reload()
@@ -62,11 +64,18 @@ namespace GamingCenterManagementSystem
                 var summaries = HappyHourRevenueAnalysis.Summarize(billing.GetAllSessions(), from.Value, to.Value);
                 string? period = shift.SelectedIndex == 1 ? "Happy Hours" : shift.SelectedIndex == 2 ? "Giờ tiêu chuẩn" : null;
                 revenue.DataSource = summaries.Where(s => period == null || s.Period == period).ToList();
-                LoadDeposits();
+                int? previousSession = (sessions.SelectedItem as GamingSession)?.SessionId;
                 sessions.DataSource = billing.GetActiveSessions();
                 sessions.DisplayMember = "SessionId";
                 sessions.ValueMember = "SessionId";
+                if (previousSession.HasValue)
+                    sessions.SelectedValue = previousSession.Value;
                 LoadIngredients();
+                try { LoadDeposits(); }
+                catch (Exception ex)
+                {
+                    deposits.Text = "Không tải được tiền nạp / thưởng: " + ex.Message;
+                }
             }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Không tải được dữ liệu"); }
         }
@@ -76,12 +85,18 @@ namespace GamingCenterManagementSystem
             try
             {
                 if (combo.SelectedIndex < 0) return;
+                int? previousFood = (food.SelectedItem as ServiceItem)?.ServiceId;
+                int? previousDrink = (drink.SelectedItem as ServiceItem)?.ServiceId;
                 var items = billing.GetAllServiceItems(true);
                 food.DataSource = items.Where(i => ServiceComboManager.MatchesIngredient(combo.SelectedIndex, true, i.ServiceName)).ToList();
                 drink.DataSource = items.Where(i => ServiceComboManager.MatchesIngredient(combo.SelectedIndex, false, i.ServiceName)).ToList();
                 food.DisplayMember = drink.DisplayMember = "ServiceName";
                 food.ValueMember = drink.ValueMember = "ServiceId";
-                order.Enabled = food.Items.Count > 0 && drink.Items.Count > 0 && sessions.Items.Count > 0;
+                if (previousFood.HasValue && ((List<ServiceItem>)food.DataSource).Any(i => i.ServiceId == previousFood.Value))
+                    food.SelectedValue = previousFood.Value;
+                if (previousDrink.HasValue && ((List<ServiceItem>)drink.DataSource).Any(i => i.ServiceId == previousDrink.Value))
+                    drink.SelectedValue = previousDrink.Value;
+                order.Enabled = food.SelectedItem != null && drink.SelectedItem != null && sessions.SelectedItem != null;
                 var selected = ServiceComboManager.Combos[combo.SelectedIndex];
                 ingredients.Text = $"{selected.Food} + {selected.Drink} — {selected.Price:N0}đ. Thêm món còn thiếu tại danh mục F&B.";
             }
@@ -125,8 +140,11 @@ namespace GamingCenterManagementSystem
             command.Parameters.Add("@Until", SqlDbType.DateTime2).Value = to.Value.Date.AddDays(1);
             var rows = new List<DepositRevenue>();
             using var reader = command.ExecuteReader();
+            bool? happy = shift.SelectedIndex == 0 ? null : shift.SelectedIndex == 1;
             while (reader.Read())
             {
+                if (happy.HasValue && HappyHourRevenueAnalysis.IsHappyHour(reader.GetDateTime(0)) != happy.Value)
+                    continue;
                 if (reader.IsDBNull(1) || reader.IsDBNull(2))
                 {
                     deposits.Text = "Tiền nạp thực thu / thưởng: có giao dịch chưa được tách số liệu.";
@@ -134,7 +152,6 @@ namespace GamingCenterManagementSystem
                 }
                 rows.Add(new DepositRevenue(reader.GetDateTime(0), reader.GetDecimal(1), reader.GetDecimal(2)));
             }
-            bool? happy = shift.SelectedIndex == 0 ? null : shift.SelectedIndex == 1;
             var totals = HappyHourRevenueAnalysis.SumDeposits(rows, from.Value, to.Value, happy);
             deposits.Text = $"Tiền nạp thực thu: {totals.Cash:N0}đ | Thưởng vào ví: {totals.Bonus:N0}đ";
         }
