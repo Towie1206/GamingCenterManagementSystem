@@ -45,6 +45,20 @@ namespace GamingCenterManagementSystem
         public FormBilling()
         {
             InitializeComponent();
+            var comboTab = new TabPage("Combo & doanh thu ca");
+            var openReport = new Button { Text = "Mở combo F&B và báo cáo theo ca", Dock = DockStyle.Top, Height = 44 };
+            openReport.Click += (_, _) =>
+            {
+                using var report = new FormRevenueReport();
+                report.ComboOrdered += () =>
+                {
+                    LoadData();
+                    OnBillingNotification?.Invoke("Đã gọi combo F&B");
+                };
+                report.ShowDialog(this);
+            };
+            comboTab.Controls.Add(openReport);
+            tabControlBilling.TabPages.Add(comboTab);
             SetupEvents();
             InitDefaults();
         }
