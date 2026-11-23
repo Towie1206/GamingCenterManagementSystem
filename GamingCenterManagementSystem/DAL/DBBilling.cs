@@ -90,7 +90,7 @@ namespace GamingCenterManagementSystem.DAL
         {
             new TariffPlan { PlanId = 1, PlanName = "Cước Theo Giờ Thường", TariffType = "Hourly", FixedPrice = null, DiscountRate = 0, StartHour = null, EndHour = null },
             new TariffPlan { PlanId = 2, PlanName = "Gói Combo Đêm Trọn Gói", TariffType = "NightCombo", FixedPrice = 45000, DiscountRate = 0, StartHour = 22, EndHour = 6 },
-            new TariffPlan { PlanId = 3, PlanName = "Gói Ưu Đãi Giải Đấu LAN", TariffType = "Tournament", FixedPrice = null, DiscountRate = 0.5, StartHour = null, EndHour = null },
+            new TariffPlan { PlanId = 3, PlanName = "Gói Ưu Đãi Giải Đấu Phòng Máy", TariffType = "Tournament", FixedPrice = null, DiscountRate = 0.5, StartHour = null, EndHour = null },
             new TariffPlan { PlanId = 4, PlanName = "Ưu Đãi Hội Viên Vàng", TariffType = "MemberTier", FixedPrice = null, DiscountRate = 0.15, StartHour = null, EndHour = null }
         };
 
@@ -1762,7 +1762,7 @@ namespace GamingCenterManagementSystem.DAL
                     throw new StationInUseException(stationId, stationName);
 
                 if (string.Equals(currentStatus, "TournamentLocked", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"Máy {stationName} đang khóa cho giải đấu LAN, không thể chuyển bảo trì.");
+                    throw new InvalidOperationException($"Máy {stationName} đang khóa cho giải đấu phòng máy, không thể chuyển bảo trì.");
 
                 string targetStatus = string.Equals(currentStatus, "Maintenance", StringComparison.OrdinalIgnoreCase)
                     ? "Available"

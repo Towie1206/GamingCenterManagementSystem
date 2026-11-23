@@ -91,7 +91,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlHeader
             // 
-            pnlHeader.BackColor = Color.FromArgb(24, 30, 54);
+            pnlHeader.BackColor = Color.FromArgb(15, 23, 42);
             pnlHeader.Controls.Add(lblSubtitle);
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Dock = DockStyle.Top;
@@ -103,13 +103,13 @@ namespace GamingCenterManagementSystem
             // lblSubtitle
             // 
             lblSubtitle.AutoSize = true;
-            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Italic, GraphicsUnit.Point);
-            lblSubtitle.ForeColor = Color.FromArgb(0, 190, 255);
+            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            lblSubtitle.ForeColor = Color.FromArgb(56, 189, 248);
             lblSubtitle.Location = new Point(20, 38);
             lblSubtitle.Name = "lblSubtitle";
             lblSubtitle.Size = new Size(517, 15);
             lblSubtitle.TabIndex = 1;
-            lblSubtitle.Text = "Phân công: Thành viên 4 (Kiên) - Nhánh dev-member-4: Quản lý giải đấu LAN, đăng ký đội & xếp trận";
+            lblSubtitle.Text = "Master Game — Tổ chức giải đấu cộng đồng cho anh em hội viên • Đăng ký đội, chia nhánh & trao thưởng";
             // 
             // lblTitle
             // 
@@ -120,11 +120,11 @@ namespace GamingCenterManagementSystem
             lblTitle.Name = "lblTitle";
             lblTitle.Size = new Size(424, 25);
             lblTitle.TabIndex = 0;
-            lblTitle.Text = "QUẢN LÝ GIẢI ĐẤU LAN PARTY & XẾP TRẬN ĐẤU";
+            lblTitle.Text = "QUẢN LÝ GIẢI ĐẤU PHÒNG MÁY & XẾP TRẬN";
             // 
             // pnlStats
             // 
-            pnlStats.BackColor = Color.FromArgb(40, 48, 76);
+            pnlStats.BackColor = Color.FromArgb(30, 41, 59);
             pnlStats.Controls.Add(lblSoTranDau);
             pnlStats.Controls.Add(lblGiaiDangDienRa);
             pnlStats.Controls.Add(lblTongSoGiai);
@@ -505,7 +505,7 @@ namespace GamingCenterManagementSystem
             grpDanhSachGiai.Size = new Size(754, 250);
             grpDanhSachGiai.TabIndex = 0;
             grpDanhSachGiai.TabStop = false;
-            grpDanhSachGiai.Text = "Danh Sách Giải Đấu LAN";
+            grpDanhSachGiai.Text = "Danh Sách Giải Đấu Phòng Máy";
             // 
             // dgvGiaiDau
             // 
@@ -746,7 +746,7 @@ namespace GamingCenterManagementSystem
             MinimumSize = new Size(1000, 700);
             Name = "FormTournament";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Quản Lý Giải Đấu LAN Party & Xếp Trận - Cyber Game";
+            Text = "Quản Lý Giải Đấu Phòng Máy - Master Game";
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();
             pnlStats.ResumeLayout(false);

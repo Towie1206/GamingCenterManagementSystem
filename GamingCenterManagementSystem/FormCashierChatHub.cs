@@ -74,6 +74,9 @@ namespace GamingCenterManagementSystem
 
             flpChatHistory.SizeChanged += (s, e) =>
             {
+                if (IsDisposed || WindowState == FormWindowState.Minimized || flpChatHistory.ClientSize.Width < 120)
+                    return;
+
                 int targetWidth = Math.Max(280, flpChatHistory.ClientSize.Width - 30);
                 int contentMax = Math.Max(240, flpChatHistory.ClientSize.Width - 50);
                 flpChatHistory.SuspendLayout();

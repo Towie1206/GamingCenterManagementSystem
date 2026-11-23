@@ -88,7 +88,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlHeader
             // 
-            pnlHeader.BackColor = Color.FromArgb(24, 30, 54);
+            pnlHeader.BackColor = Color.FromArgb(15, 23, 42);
             pnlHeader.Controls.Add(lblSubtitle);
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Dock = DockStyle.Top;
@@ -100,13 +100,13 @@ namespace GamingCenterManagementSystem
             // lblSubtitle
             // 
             lblSubtitle.AutoSize = true;
-            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Italic, GraphicsUnit.Point);
-            lblSubtitle.ForeColor = Color.FromArgb(0, 190, 255);
+            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+            lblSubtitle.ForeColor = Color.FromArgb(56, 189, 248);
             lblSubtitle.Location = new Point(20, 38);
             lblSubtitle.Name = "lblSubtitle";
-            lblSubtitle.Size = new Size(495, 15);
+            lblSubtitle.Size = new Size(560, 15);
             lblSubtitle.TabIndex = 1;
-            lblSubtitle.Text = "Phân công: Thành viên 3 (Nam) - Nhánh Nam-Alime: Quản lý hội viên, bảo mật mật khẩu & nạp tiền";
+            lblSubtitle.Text = "Master Game — Quản lý tài khoản hội viên, nạp ví ưu đãi (500K +20% / 1M +50% / 2M +100%) & lịch sử giao dịch";
             // 
             // lblTitle
             // 
@@ -121,7 +121,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlStats
             // 
-            pnlStats.BackColor = Color.FromArgb(40, 48, 76);
+            pnlStats.BackColor = Color.FromArgb(30, 41, 59);
             pnlStats.Controls.Add(lblHoiVienVip);
             pnlStats.Controls.Add(lblTongSoDuVi);
             pnlStats.Controls.Add(lblTongHoiVien);

@@ -82,7 +82,9 @@ namespace GamingCenterManagementSystem.Tests
             Assert.NotEmpty(stations);
             Assert.NotEmpty(zones);
             Assert.Contains(stations, s => s.StationName == "PC-01");
-            Assert.Contains(zones, z => z.ZoneName == "Khu Thường");
+            Assert.Contains(zones, z => z.ZoneName == "Dàn Standard" && z.BasePricePerHour == 10000m);
+            Assert.Contains(zones, z => z.ZoneName == "Dàn Master" && z.BasePricePerHour == 13000m);
+            Assert.Contains(zones, z => z.ZoneName == "Dàn Maximum" && z.BasePricePerHour == 15000m);
         }
 
         [Fact]

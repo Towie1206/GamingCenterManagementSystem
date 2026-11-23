@@ -59,6 +59,7 @@ namespace GamingCenterManagementSystem
             };
             comboTab.Controls.Add(openReport);
             tabControlBilling.TabPages.Add(comboTab);
+            UiThemeHelper.StyleSecondaryForm(this);
             SetupEvents();
             InitDefaults();
         }

@@ -33,6 +33,7 @@ namespace GamingCenterManagementSystem
         {
             InitializeComponent();
             BuildPhase2Tabs();
+            UiThemeHelper.StyleSecondaryForm(this);
             InitDefaults();
             SetupEvents();
             LoadData();

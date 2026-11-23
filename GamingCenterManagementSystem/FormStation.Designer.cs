@@ -91,7 +91,7 @@ namespace GamingCenterManagementSystem
             // 
             // pnlHeader
             // 
-            pnlHeader.BackColor = Color.FromArgb(24, 30, 54);
+            pnlHeader.BackColor = Color.FromArgb(15, 23, 42);
             pnlHeader.Controls.Add(lblSubtitle);
             pnlHeader.Controls.Add(lblTitle);
             pnlHeader.Dock = DockStyle.Top;
@@ -105,13 +105,13 @@ namespace GamingCenterManagementSystem
             // lblSubtitle
             // 
             lblSubtitle.AutoSize = true;
-            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Italic);
-            lblSubtitle.ForeColor = Color.FromArgb(0, 190, 255);
+            lblSubtitle.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+            lblSubtitle.ForeColor = Color.FromArgb(56, 189, 248);
             lblSubtitle.Location = new Point(23, 51);
             lblSubtitle.Name = "lblSubtitle";
             lblSubtitle.Size = new Size(543, 20);
             lblSubtitle.TabIndex = 1;
-            lblSubtitle.Text = "Phân công: Thành viên 2 (Văn) - Nhánh Van-Tks: Quản lý máy trạm & khu vực";
+            lblSubtitle.Text = "Master Game — Quản lý 3 dàn máy Standard (10K) / Master (13K) / Maximum (15K) & chuyển máy trạm";
 
             // 
             // lblTitle
@@ -123,12 +123,12 @@ namespace GamingCenterManagementSystem
             lblTitle.Name = "lblTitle";
             lblTitle.Size = new Size(531, 32);
             lblTitle.TabIndex = 0;
-            lblTitle.Text = "QUẢN LÝ MÁY TRẠM & KHU VỰC PHÒNG MÁY";
+            lblTitle.Text = "QUẢN LÝ MÁY TRẠM & DÀN MÁY MASTER GAME";
 
             // 
             // pnlStats
             // 
-            pnlStats.BackColor = Color.FromArgb(40, 48, 76);
+            pnlStats.BackColor = Color.FromArgb(30, 41, 59);
             pnlStats.Controls.Add(lblSoMayBaoTri);
             pnlStats.Controls.Add(lblSoMayDangChoi);
             pnlStats.Controls.Add(lblSoMayTrong);
@@ -804,19 +804,19 @@ namespace GamingCenterManagementSystem
             // 
             // FormStation
             // 
-            AutoScaleDimensions = new SizeF(8F, 20F);
+            AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            BackColor = Color.FromArgb(245, 247, 250);
-            ClientSize = new Size(1152, 908);
+            BackColor = Color.FromArgb(241, 245, 249);
+            ClientSize = new Size(1160, 760);
             Controls.Add(pnlMain);
             Controls.Add(grpThongTinMay);
             Controls.Add(pnlStats);
             Controls.Add(pnlHeader);
             Margin = new Padding(3, 4, 3, 4);
-            MinimumSize = new Size(1026, 784);
+            MinimumSize = new Size(1026, 745);
             Name = "FormStation";
             StartPosition = FormStartPosition.CenterScreen;
-            Text = "Quản Lý Máy Trạm & Khu Vực - Cyber Game";
+            Text = "Quản Lý Máy Trạm & Khu Vực - Master Game";
 
             pnlHeader.ResumeLayout(false);
             pnlHeader.PerformLayout();
