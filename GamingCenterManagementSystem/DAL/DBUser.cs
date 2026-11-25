@@ -706,6 +706,7 @@ namespace GamingCenterManagementSystem.DAL
 
             return transactions
                 .Where(t => string.Equals(t.TransactionType, "TopUp", StringComparison.OrdinalIgnoreCase))
+                .Where(t => !IsPromoBonusTransaction(t.PaymentMethod))
                 .GroupBy(t => t.UserId)
                 .Where(g => memberLookup.ContainsKey(g.Key))
                 .Select(g =>
@@ -752,9 +753,11 @@ namespace GamingCenterManagementSystem.DAL
                         SELECT UserId, COUNT(1) AS TopUpCount, SUM(Amount) AS TotalTopUp
                         FROM dbo.WalletTransaction
                         WHERE TransactionType = N'TopUp'
+                          AND ISNULL(PaymentMethod, N'') <> @BonusMethod
                         GROUP BY UserId;";
                 var totals = new Dictionary<int, (int Count, decimal Amount)>();
-                using (var cmd = new SqlCommand(sql, conn))
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.Add("@BonusMethod", SqlDbType.NVarChar, 50).Value = DepositPromotionEngine.BonusPaymentMethod;
                 using (var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false))
                 {
                     while (await reader.ReadAsync().ConfigureAwait(false))
@@ -1814,6 +1817,102 @@ namespace GamingCenterManagementSystem.DAL
             catch when (!opened)
             {
                 return TopUpFallback(userId, amount, paymentMethod);
+            }
+        }
+
+        /// <summary>Giao dịch TopUp ghi phần tiền quán tặng (hình thức "Khuyến mãi nạp ví") - không tính là tiền khách nạp.</summary>
+        public static bool IsPromoBonusTransaction(string? paymentMethod) =>
+            string.Equals(paymentMethod?.Trim(), DepositPromotionEngine.BonusPaymentMethod, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Nạp tiền kèm thưởng khuyến mãi trong MỘT transaction SQL:
+        /// cộng (tiền nạp + tiền thưởng) vào ví, ghi 2 dòng WalletTransaction loại TopUp:
+        ///   1) Amount = tiền mặt thu ngân nhận (GiaTriNap), PaymentMethod = hình thức khách chọn;
+        ///   2) Amount = tiền quán tặng (TienKhuyenMai), PaymentMethod = "Khuyến mãi nạp ví".
+        /// Chưa đạt mốc thưởng thì hoạt động y hệt <see cref="TopUpBalanceAsync"/>.
+        /// </summary>
+        public async Task<bool> TopUpWithPromotionAsync(int userId, decimal cashAmount, string? paymentMethod = "Tiền mặt tại quầy")
+        {
+            if (cashAmount <= 0 || cashAmount > MaximumTopUpAmount || decimal.Round(cashAmount, 2) != cashAmount)
+                return false;
+
+            var promo = DepositPromotionEngine.Calculate(cashAmount);
+            if (!promo.HasBonus)
+                return await TopUpBalanceAsync(userId, cashAmount, paymentMethod).ConfigureAwait(false);
+
+            string cashMethod = string.IsNullOrWhiteSpace(paymentMethod) ? "Tiền mặt tại quầy" : paymentMethod.Trim();
+            int? createdBy = CurrentUserSession.IsLoggedIn ? CurrentUserSession.UserId : null;
+
+            bool opened = false;
+            try
+            {
+                using var conn = _connectionFactory();
+                await conn.OpenAsync().ConfigureAwait(false);
+                opened = true;
+                using var trans = conn.BeginTransaction();
+
+                decimal balanceBefore;
+                string currentTier;
+                const string selectSql = @"SELECT Balance, MemberTier
+                                           FROM dbo.AppUser WITH (UPDLOCK, HOLDLOCK)
+                                           WHERE UserId = @UserId";
+                using (var selectCmd = new SqlCommand(selectSql, conn, trans))
+                {
+                    selectCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    using var reader = await selectCmd.ExecuteReaderAsync().ConfigureAwait(false);
+                    if (!await reader.ReadAsync().ConfigureAwait(false))
+                        return false;
+
+                    balanceBefore = reader.IsDBNull(0) ? 0m : reader.GetDecimal(0);
+                    currentTier = reader.IsDBNull(1) ? "Standard" : reader.GetString(1);
+                }
+
+                decimal balanceAfterCash = balanceBefore + promo.CashAmount;
+                decimal balanceAfter = balanceAfterCash + promo.BonusAmount;
+                string nextTier = AppUser.ResolveUpgradedTier(currentTier, balanceAfter);
+
+                const string updateSql = @"UPDATE dbo.AppUser
+                                           SET Balance = @BalanceAfter, MemberTier = @MemberTier
+                                           WHERE UserId = @UserId";
+                using (var updateCmd = new SqlCommand(updateSql, conn, trans))
+                {
+                    updateCmd.Parameters.Add(CreateDecimalParameter("@BalanceAfter", balanceAfter));
+                    updateCmd.Parameters.Add("@MemberTier", SqlDbType.NVarChar, 20).Value = nextTier;
+                    updateCmd.Parameters.Add("@UserId", SqlDbType.Int).Value = userId;
+                    if (await updateCmd.ExecuteNonQueryAsync().ConfigureAwait(false) <= 0)
+                        return false;
+                }
+
+                await InsertWalletTransactionIfTableExistsAsync(
+                    conn, trans, userId, sessionId: null,
+                    transactionType: "TopUp",
+                    amount: promo.CashAmount,
+                    balanceBefore: balanceBefore,
+                    balanceAfter: balanceAfterCash,
+                    paymentMethod: cashMethod,
+                    description: $"Nạp tiền vào ví (+{promo.CashAmount:N0} VNĐ)",
+                    createdByUserId: createdBy).ConfigureAwait(false);
+
+                await InsertWalletTransactionIfTableExistsAsync(
+                    conn, trans, userId, sessionId: null,
+                    transactionType: "TopUp",
+                    amount: promo.BonusAmount,
+                    balanceBefore: balanceAfterCash,
+                    balanceAfter: balanceAfter,
+                    paymentMethod: DepositPromotionEngine.BonusPaymentMethod,
+                    description: $"Thưởng khuyến mãi nạp ví {promo.BonusPercent:0.##}% (+{promo.BonusAmount:N0} VNĐ)",
+                    createdByUserId: createdBy).ConfigureAwait(false);
+
+                await trans.CommitAsync().ConfigureAwait(false);
+                return true;
+            }
+            catch when (!opened)
+            {
+                lock (_fallbackLock)
+                {
+                    return TopUpFallback(userId, promo.CashAmount, cashMethod)
+                        && TopUpFallback(userId, promo.BonusAmount, DepositPromotionEngine.BonusPaymentMethod);
+                }
             }
         }
 
