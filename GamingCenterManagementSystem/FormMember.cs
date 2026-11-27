@@ -36,6 +36,7 @@ namespace GamingCenterManagementSystem
             UiThemeHelper.StyleSecondaryForm(this);
             InitDefaults();
             SetupEvents();
+            UpdateDepositPromotionPreview();
             LoadData();
             _skipInitialLoadEvent = true;
         }
@@ -67,6 +68,8 @@ namespace GamingCenterManagementSystem
             _memberToolTip.SetToolTip(btnCong50k, "Nạp nhanh 50.000 VNĐ");
             _memberToolTip.SetToolTip(btnCong100k, "Nạp nhanh 100.000 VNĐ");
             _memberToolTip.SetToolTip(btnCong200k, "Nạp nhanh 200.000 VNĐ");
+            _memberToolTip.SetToolTip(btnCongDong, "Hiện QR nhóm Zalo & Fanpage Master Game cho hội viên quét");
+            _memberToolTip.SetToolTip(txtSoTienNap, "Nạp từ 500K thưởng 20% - từ 1.000K thưởng 50% - từ 2.000K thưởng 100%");
 
             // Phím tắt: Ctrl+F tìm kiếm, Ctrl+N tạo mới, Ctrl+R tải lại danh sách,
             // Ctrl+D/Ctrl+M mở tab Danh sách hội viên, Ctrl+H mở tab Lịch sử ví, Ctrl+T mở tab Top hội viên.
@@ -165,6 +168,16 @@ namespace GamingCenterManagementSystem
             btnCong50k.Click += (s, e) => SetQuickAmount(50000);
             btnCong100k.Click += (s, e) => SetQuickAmount(100000);
             btnCong200k.Click += (s, e) => SetQuickAmount(200000);
+
+            // Preview khuyến mãi nạp ví: cập nhật mỗi khi đổi số tiền (gõ tay hoặc bấm nút +20k/+50k...)
+            txtSoTienNap.TextChanged += (s, e) => UpdateDepositPromotionPreview();
+
+            // QR cộng đồng Master Game (Zalo + Fanpage)
+            btnCongDong.Click += (s, e) =>
+            {
+                using var dlg = new FormCommunityQrDialog();
+                dlg.ShowDialog(this);
+            };
 
             btnNapTien.Click += async (s, e) => await BtnNapTien_ClickAsync();
             btnDoiMatKhau.Click += async (s, e) => await BtnDoiMatKhau_ClickAsync();
@@ -484,6 +497,27 @@ namespace GamingCenterManagementSystem
             {
                 txtSoTienNap.Text = amount.ToString("F0", CultureInfo.InvariantCulture);
             }
+        }
+
+        private void UpdateDepositPromotionPreview()
+        {
+            if (lblKhuyenMaiPreview == null)
+                return;
+
+            if (!TryParseBalanceText(txtSoTienNap.Text, out decimal amount) || amount <= 0)
+            {
+                lblKhuyenMaiPreview.ForeColor = Color.Gray;
+                lblKhuyenMaiPreview.Text = "Nhập số tiền nạp để xem khuyến mãi.";
+                return;
+            }
+
+            var promo = DepositPromotionEngine.Calculate(amount);
+            lblKhuyenMaiPreview.ForeColor = promo.HasBonus
+                ? Color.FromArgb(0, 128, 0)
+                : Color.FromArgb(0, 51, 102);
+            lblKhuyenMaiPreview.Text =
+                DepositPromotionEngine.BuildPreviewText(amount) + Environment.NewLine +
+                DepositPromotionEngine.BuildNextTierHint(amount);
         }
 
         private void LoadData(int? selectUserId = null)
@@ -1075,9 +1109,17 @@ namespace GamingCenterManagementSystem
             }
 
             string hinhThuc = cboHinhThucNap.SelectedItem?.ToString() ?? "Tiền mặt tại quầy";
+            var promo = DepositPromotionEngine.Calculate(amount);
+
+            string confirmText = $"Xác nhận nạp {amount:N0} VNĐ vào ví của hội viên: {_selectedUser.Username}?\nHình thức: {hinhThuc}";
+            if (promo.HasBonus)
+            {
+                confirmText += $"\nKhuyến mãi: +{promo.BonusAmount:N0} VNĐ ({promo.BonusPercent:0.##}%)" +
+                               $"\nTổng tiền vào ví: {promo.TotalCredited:N0} VNĐ";
+            }
 
             var confirm = _messageBox(
-                $"Xác nhận nạp {amount:N0} VNĐ vào ví của hội viên: {_selectedUser.Username}?\nHình thức: {hinhThuc}",
+                confirmText,
                 "Xác nhận giao dịch ví",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question
@@ -1091,11 +1133,20 @@ namespace GamingCenterManagementSystem
 
             try
             {
-                if (await _dbUser.TopUpBalanceAsync(targetUserId, amount, hinhThuc))
+                if (await _dbUser.TopUpWithPromotionAsync(targetUserId, amount, hinhThuc))
                 {
-                    _messageBox($"Nạp thành công {amount:N0} VNĐ cho tài khoản {targetUsername}!", "Giao dịch thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    OnBalanceTopUpSuccess?.Invoke(targetUsername, amount);
-                    OnMemberChanged?.Invoke($"Đã nạp {amount:N0} VNĐ cho {targetUsername}");
+                    string successText = $"Nạp thành công {amount:N0} VNĐ cho tài khoản {targetUsername}!";
+                    if (promo.HasBonus)
+                    {
+                        successText += $"\nKhuyến mãi: +{promo.BonusAmount:N0} VNĐ ({promo.BonusPercent:0.##}%)" +
+                                       $"\nTổng tiền vào ví: {promo.TotalCredited:N0} VNĐ";
+                    }
+
+                    _messageBox(successText, "Giao dịch thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    OnBalanceTopUpSuccess?.Invoke(targetUsername, promo.TotalCredited);
+                    OnMemberChanged?.Invoke(promo.HasBonus
+                        ? $"Đã nạp {amount:N0} VNĐ (+{promo.BonusAmount:N0} KM) cho {targetUsername}"
+                        : $"Đã nạp {amount:N0} VNĐ cho {targetUsername}");
                     await LoadDataAsync(targetUserId);
                     await LoadTopMembersAsync();
                     if (tabMain.SelectedTab == tabLichSuVi)

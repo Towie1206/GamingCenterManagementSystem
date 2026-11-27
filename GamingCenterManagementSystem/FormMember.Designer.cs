@@ -44,6 +44,8 @@ namespace GamingCenterManagementSystem
             txtSoTienNap = new TextBox();
             lblSoTienNap = new Label();
             lblDangChon = new Label();
+            lblKhuyenMaiPreview = new Label();
+            btnCongDong = new Button();
             grpThongTinHoiVien = new GroupBox();
             btnLamMoi = new Button();
             btnXoaHoiVien = new Button();
@@ -125,6 +127,7 @@ namespace GamingCenterManagementSystem
             pnlStats.Controls.Add(lblHoiVienVip);
             pnlStats.Controls.Add(lblTongSoDuVi);
             pnlStats.Controls.Add(lblTongHoiVien);
+            pnlStats.Controls.Add(btnCongDong);
             pnlStats.Dock = DockStyle.Top;
             pnlStats.Location = new Point(0, 65);
             pnlStats.Name = "pnlStats";
@@ -188,7 +191,7 @@ namespace GamingCenterManagementSystem
             grpDoiMatKhau.Controls.Add(lblDoiMatKhauUser);
             grpDoiMatKhau.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             grpDoiMatKhau.ForeColor = Color.FromArgb(24, 30, 54);
-            grpDoiMatKhau.Location = new Point(10, 555);
+            grpDoiMatKhau.Location = new Point(10, 626);
             grpDoiMatKhau.Name = "grpDoiMatKhau";
             grpDoiMatKhau.Size = new Size(330, 170);
             grpDoiMatKhau.TabIndex = 2;
@@ -280,11 +283,12 @@ namespace GamingCenterManagementSystem
             grpNapTien.Controls.Add(txtSoTienNap);
             grpNapTien.Controls.Add(lblSoTienNap);
             grpNapTien.Controls.Add(lblDangChon);
+            grpNapTien.Controls.Add(lblKhuyenMaiPreview);
             grpNapTien.Font = new Font("Segoe UI", 9.5F, FontStyle.Bold, GraphicsUnit.Point);
             grpNapTien.ForeColor = Color.FromArgb(0, 51, 102);
             grpNapTien.Location = new Point(10, 335);
             grpNapTien.Name = "grpNapTien";
-            grpNapTien.Size = new Size(330, 210);
+            grpNapTien.Size = new Size(330, 256);
             grpNapTien.TabIndex = 1;
             grpNapTien.TabStop = false;
             grpNapTien.Text = "Nạp Tiền Vào Ví Hội Viên";
@@ -295,7 +299,7 @@ namespace GamingCenterManagementSystem
             btnNapTien.FlatStyle = FlatStyle.Flat;
             btnNapTien.Font = new Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point);
             btnNapTien.ForeColor = Color.White;
-            btnNapTien.Location = new Point(15, 165);
+            btnNapTien.Location = new Point(15, 212);
             btnNapTien.Name = "btnNapTien";
             btnNapTien.Size = new Size(295, 34);
             btnNapTien.TabIndex = 9;
@@ -405,6 +409,31 @@ namespace GamingCenterManagementSystem
             lblDangChon.Size = new Size(211, 17);
             lblDangChon.TabIndex = 0;
             lblDangChon.Text = "Tài khoản nhận: Chưa chọn tài khoản";
+            // 
+            // lblKhuyenMaiPreview
+            // 
+            lblKhuyenMaiPreview.AutoSize = false;
+            lblKhuyenMaiPreview.Font = new Font("Segoe UI", 8.5F, FontStyle.Bold, GraphicsUnit.Point);
+            lblKhuyenMaiPreview.ForeColor = Color.FromArgb(0, 51, 102);
+            lblKhuyenMaiPreview.Location = new Point(15, 158);
+            lblKhuyenMaiPreview.Name = "lblKhuyenMaiPreview";
+            lblKhuyenMaiPreview.Size = new Size(295, 50);
+            lblKhuyenMaiPreview.TabIndex = 10;
+            lblKhuyenMaiPreview.Text = "Nhập số tiền nạp để xem khuyến mãi.";
+            // 
+            // btnCongDong
+            // 
+            btnCongDong.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            btnCongDong.BackColor = Color.FromArgb(0, 122, 204);
+            btnCongDong.FlatStyle = FlatStyle.Flat;
+            btnCongDong.Font = new Font("Segoe UI", 9F, FontStyle.Bold, GraphicsUnit.Point);
+            btnCongDong.ForeColor = Color.White;
+            btnCongDong.Location = new Point(900, 7);
+            btnCongDong.Name = "btnCongDong";
+            btnCongDong.Size = new Size(170, 31);
+            btnCongDong.TabIndex = 3;
+            btnCongDong.Text = "📱 QR Cộng Đồng";
+            btnCongDong.UseVisualStyleBackColor = false;
             // 
             // grpThongTinHoiVien
             // 
@@ -849,6 +878,8 @@ namespace GamingCenterManagementSystem
         private Label lblHinhThuc;
         private ComboBox cboHinhThucNap;
         private Button btnNapTien;
+        private Label lblKhuyenMaiPreview;
+        private Button btnCongDong;
         private Panel pnlMain;
         private Panel pnlSearch;
         private ComboBox cboLocHangThe;
