@@ -70,6 +70,16 @@ namespace GamingCenterManagementSystem
             _stationToolTip.SetToolTip(btnSuaZone, "Cập nhật tên, đơn giá hoặc mô tả khu vực đang chọn");
             _stationToolTip.SetToolTip(btnXoaZone, "Xóa khu vực đã chọn nếu không còn máy nào trực thuộc");
             _stationToolTip.SetToolTip(btnLamMoiZone, "Làm mới danh mục khu vực phòng máy");
+
+            // Bổ sung nút quét Ping mạng trạm máy
+            if (Controls.Find("btnQuetPing", true).FirstOrDefault() is Button btnPing)
+            {
+                btnPing.Click += (s, e) =>
+                {
+                    using var dlg = new FormStationNetworkScanDialog(_dbStation);
+                    dlg.ShowDialog(this);
+                };
+            }
         }
 
         private void LoadData()

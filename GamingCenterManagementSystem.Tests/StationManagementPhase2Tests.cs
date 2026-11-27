@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -242,6 +243,52 @@ namespace GamingCenterManagementSystem.Tests
             Assert.Contains("Chậm", hWarn.GetStatusBadge());
             Assert.Contains("Lag cao", hCrit.GetStatusBadge());
             Assert.Contains("Mất mạng", hOff.GetStatusBadge());
+        }
+
+        private static void RunOnSTA(Action action)
+        {
+            Exception? captured = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    captured = ex;
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            if (captured != null)
+            {
+                throw new Exception("STA thread test failed", captured);
+            }
+        }
+
+        [Fact]
+        public void FormStationNetworkScanDialog_InitializesAndBindsScanResultsOnSTA()
+        {
+            RunOnSTA(() =>
+            {
+                var db = new DBStation();
+                using var dlg = new FormStationNetworkScanDialog(db);
+                dlg.Show();
+                Application.DoEvents();
+
+                var dgv = dlg.Controls.OfType<DataGridView>().FirstOrDefault();
+                Assert.NotNull(dgv);
+                Assert.True(dgv.Rows.Count > 0);
+            });
+        }
+
+        [Fact]
+        public void FormStationNetworkScanDialog_NullDb_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() => new FormStationNetworkScanDialog(null!));
         }
     }
 }
