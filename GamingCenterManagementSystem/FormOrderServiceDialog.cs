@@ -47,6 +47,41 @@ namespace GamingCenterManagementSystem
             cboFood.SelectedIndexChanged += CboFood_SelectedIndexChanged;
             nudQuantity.ValueChanged += (s, e) => UpdateCalculations();
             btnConfirm.Click += BtnConfirm_Click;
+            btnPreviewReceipt.Click += BtnPreviewReceipt_Click;
+        }
+
+        internal FormPosThermalReceiptDialog? CreateSessionReceiptPreview()
+        {
+            var items = _dbBilling.GetSessionServices(_sessionId).Select(order => new ReceiptItem
+            {
+                ItemName = order.ServiceName,
+                Quantity = order.Quantity,
+                UnitPrice = order.UnitPrice
+            }).ToList();
+            if (items.Count == 0) return null;
+
+            return new FormPosThermalReceiptDialog(
+                $"FB-{_sessionId}", _stationName, CurrentUserSession.Username, items);
+        }
+
+        private void BtnPreviewReceipt_Click(object? sender, EventArgs e)
+        {
+            try
+            {
+                using var receipt = CreateSessionReceiptPreview();
+                if (receipt == null)
+                {
+                    MessageBox.Show(this, "Phiên này chưa có món đã xác nhận.", "Hóa đơn POS",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                receipt.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Không thể mở hóa đơn của phiên. {ex.Message}", "Hóa đơn POS",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         public void LoadFoodItems()
