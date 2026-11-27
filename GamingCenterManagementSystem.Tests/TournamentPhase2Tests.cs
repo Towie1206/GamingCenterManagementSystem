@@ -1,5 +1,6 @@
 using System.IO;
 using System.Drawing;
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows.Forms;
@@ -685,5 +686,82 @@ public class TournamentPhase2Tests
         var db = new DBTournament();
         Assert.Throws<ArgumentException>(() => db.GeneratePrizeReport(0, 10000000m));
         Assert.Throws<ArgumentException>(() => db.GeneratePrizeReport(-5, 10000000m));
+    }
+
+    [Fact]
+    public void FormTournamentPrizeReportDialog_NullDb_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() => new FormTournamentPrizeReportDialog(null!, 1, 10000000m));
+    }
+
+    [Fact]
+    public void FormTournamentPrizeReportDialog_InitializesAndRendersReport_OnSTA()
+    {
+        RunOnSTA(() =>
+        {
+            // GeneratePrizeReport formats currency using the current culture.
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+            var db = new DBTournament();
+            using var dlg = new FormTournamentPrizeReportDialog(db, 1, 5000000m)
+            {
+                ShowInTaskbar = false,
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(0, 0),
+                Opacity = 0
+            };
+            dlg.Show();
+            Application.DoEvents();
+
+            var txt = dlg.Controls.OfType<TextBox>().FirstOrDefault();
+            Assert.NotNull(txt);
+            Assert.Contains("BIÊN BẢN CƠ CẤU GIẢI THƯỞNG", txt.Text);
+            Assert.Contains("5,000,000", txt.Text);
+
+            string? previewPath = Environment.GetEnvironmentVariable("GCMS_PRIZE_REPORT_PREVIEW_PATH");
+            if (!string.IsNullOrWhiteSpace(previewPath))
+            {
+                previewPath = Path.GetFullPath(previewPath);
+                Directory.CreateDirectory(Path.GetDirectoryName(previewPath)!);
+                using var bitmap = new Bitmap(dlg.Width, dlg.Height);
+                dlg.DrawToBitmap(bitmap, new Rectangle(Point.Empty, dlg.Size));
+                bitmap.Save(previewPath, System.Drawing.Imaging.ImageFormat.Png);
+            }
+            dlg.Close();
+        });
+    }
+
+    private static void RunOnSTA(Action action)
+    {
+        Exception? failure = null;
+        CultureInfo callerCulture = CultureInfo.CurrentCulture;
+        CultureInfo callerUiCulture = CultureInfo.CurrentUICulture;
+        var thread = new Thread(() =>
+        {
+            CultureInfo originalCulture = CultureInfo.CurrentCulture;
+            CultureInfo originalUiCulture = CultureInfo.CurrentUICulture;
+            ThreadExceptionEventHandler threadExceptionHandler = (_, args) => failure ??= args.Exception;
+            try
+            {
+                CultureInfo.CurrentCulture = callerCulture;
+                CultureInfo.CurrentUICulture = callerUiCulture;
+                Application.ThreadException += threadExceptionHandler;
+                action();
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+            finally
+            {
+                Application.ThreadException -= threadExceptionHandler;
+                CultureInfo.CurrentCulture = originalCulture;
+                CultureInfo.CurrentUICulture = originalUiCulture;
+            }
+        });
+        thread.IsBackground = true;
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Prize report UI check did not finish within 30 seconds.");
+        if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }
