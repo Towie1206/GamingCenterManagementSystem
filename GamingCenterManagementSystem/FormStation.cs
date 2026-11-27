@@ -71,15 +71,54 @@ namespace GamingCenterManagementSystem
             _stationToolTip.SetToolTip(btnXoaZone, "Xóa khu vực đã chọn nếu không còn máy nào trực thuộc");
             _stationToolTip.SetToolTip(btnLamMoiZone, "Làm mới danh mục khu vực phòng máy");
 
-            // Bổ sung nút quét Ping mạng trạm máy
-            if (Controls.Find("btnQuetPing", true).FirstOrDefault() is Button btnPing)
+            // Bổ sung cụm nút Quét Ping Mạng & Bảo Trì Gear / Happy Hours trên thanh Header
+            var btnBaoTriGear = new Button
             {
-                btnPing.Click += (s, e) =>
+                Name = "btnBaoTriGear",
+                Text = "🛠️ Bảo Trì Gear & Happy Hour",
+                Size = new Size(210, 34),
+                Location = new Point(pnlHeader.Width - 226, 26),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                BackColor = Color.FromArgb(234, 88, 12),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnBaoTriGear.FlatAppearance.BorderSize = 0;
+            btnBaoTriGear.Click += (s, e) =>
+            {
+                using var dlg = new FormStationMaintenance(_dbStation);
+                dlg.ShowDialog(this);
+                LoadData();
+            };
+            pnlHeader.Controls.Add(btnBaoTriGear);
+            _stationToolTip.SetToolTip(btnBaoTriGear, "Mở nhật ký kiểm tra linh kiện Gear & xem giá Happy Hours 23h-11h");
+
+            if (Controls.Find("btnQuetPing", true).FirstOrDefault() is not Button btnPing)
+            {
+                btnPing = new Button
                 {
-                    using var dlg = new FormStationNetworkScanDialog(_dbStation);
-                    dlg.ShowDialog(this);
+                    Name = "btnQuetPing",
+                    Text = "📡 Quét Ping Mạng",
+                    Size = new Size(155, 34),
+                    Location = new Point(pnlHeader.Width - 392, 26),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    BackColor = Color.FromArgb(14, 165, 233),
+                    ForeColor = Color.White,
+                    FlatStyle = FlatStyle.Flat,
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                    Cursor = Cursors.Hand
                 };
+                btnPing.FlatAppearance.BorderSize = 0;
+                pnlHeader.Controls.Add(btnPing);
             }
+            btnPing.Click += (s, e) =>
+            {
+                using var dlg = new FormStationNetworkScanDialog(_dbStation);
+                dlg.ShowDialog(this);
+            };
+            _stationToolTip.SetToolTip(btnPing, "Kiểm tra độ trễ Ping & tình trạng kết nối mạng của toàn bộ phòng máy");
         }
 
         private void LoadData()

@@ -715,7 +715,7 @@ public class TournamentPhase2Tests
             var txt = dlg.Controls.OfType<TextBox>().FirstOrDefault();
             Assert.NotNull(txt);
             Assert.Contains("BIÊN BẢN CƠ CẤU GIẢI THƯỞNG", txt.Text);
-            Assert.Contains("5,000,000", txt.Text);
+            Assert.Contains("5.000.000", txt.Text);
 
             string? previewPath = Environment.GetEnvironmentVariable("GCMS_PRIZE_REPORT_PREVIEW_PATH");
             if (!string.IsNullOrWhiteSpace(previewPath))

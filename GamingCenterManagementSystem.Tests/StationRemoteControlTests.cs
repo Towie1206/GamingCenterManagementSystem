@@ -190,7 +190,7 @@ namespace GamingCenterManagementSystem.Tests
                         Username = "gamer01",
                         FullName = "Nguyễn Văn A",
                         Role = "Member",
-                        Balance = 500000m,
+                        Balance = 50_000_000m,
                         MemberTier = "Standard",
                         IsActive = true
                     });
@@ -259,7 +259,7 @@ namespace GamingCenterManagementSystem.Tests
                         Username = "gamer01",
                         FullName = "Nguyễn Văn A",
                         Role = "Member",
-                        Balance = 500000m,
+                        Balance = 50_000_000m,
                         MemberTier = "Standard",
                         IsActive = true
                     });

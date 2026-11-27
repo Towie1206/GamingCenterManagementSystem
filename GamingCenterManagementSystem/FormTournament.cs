@@ -69,6 +69,55 @@ namespace GamingCenterManagementSystem
             dgvGiaiDau.SelectionChanged += DgvGiaiDau_SelectionChanged;
             dgvTranDau.SelectionChanged += DgvTranDau_SelectionChanged;
             dgvTranDau.CellFormatting += DgvTranDau_CellFormatting;
+
+            // Bổ sung nút mở Bảng Vinh Danh Top MVP & Biên Bản Cơ Cấu Giải Thưởng trên Header
+            var btnVinhDanhMvp = new Button
+            {
+                Name = "btnVinhDanhMvp",
+                Text = "🏆 Vinh Danh MVP",
+                Size = new Size(150, 34),
+                Location = new Point(pnlHeader.Width - 166, 16),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                BackColor = Color.FromArgb(245, 158, 11),
+                ForeColor = Color.FromArgb(15, 23, 42),
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnVinhDanhMvp.FlatAppearance.BorderSize = 0;
+            btnVinhDanhMvp.Click += (s, e) =>
+            {
+                using var dlg = new FormTournamentLeaderboard();
+                dlg.ShowDialog(this);
+            };
+            pnlHeader.Controls.Add(btnVinhDanhMvp);
+            tip.SetToolTip(btnVinhDanhMvp, "Mở Bảng Vinh Danh Top MVP & Thành Tích Giải Đấu Master Game");
+
+            var btnBienBanGiai = new Button
+            {
+                Name = "btnBienBanGiai",
+                Text = "📄 Biên Bản Thưởng",
+                Size = new Size(160, 34),
+                Location = new Point(pnlHeader.Width - 336, 16),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                BackColor = Color.FromArgb(37, 99, 235),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnBienBanGiai.FlatAppearance.BorderSize = 0;
+            btnBienBanGiai.Click += (s, e) =>
+            {
+                int tid = _selectedTournament?.TournamentId ?? 1;
+                decimal pool = _selectedTournament != null && _selectedTournament.PrizePool > 0
+                    ? _selectedTournament.PrizePool
+                    : 5000000m;
+                using var dlg = new FormTournamentPrizeReportDialog(_dbTournament, tid, pool);
+                dlg.ShowDialog(this);
+            };
+            pnlHeader.Controls.Add(btnBienBanGiai);
+            tip.SetToolTip(btnBienBanGiai, "Xem và xuất Biên Bản Cơ Cấu Giải Thưởng của giải đấu đang chọn");
         }
 
         private void DgvTranDau_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
